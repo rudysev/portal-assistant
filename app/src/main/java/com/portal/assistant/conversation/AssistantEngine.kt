@@ -58,6 +58,14 @@ class AssistantEngine(
     private val overlay = RecordingOverlay(appContext)
     private val player = PcmPlayer()
 
+    // DEBUG (demo capture only — remove for release): tee the raw Gemini response audio (24 kHz mono
+    // 16-bit PCM) to one file per turn, so a clean demo recording can use the exact spoken audio instead
+    // of a lossy room-mic capture. Files land in <externalFiles>/respdump/resp_<n>.pcm.
+    private val dumpDir by lazy { java.io.File(appContext.getExternalFilesDir(null), "respdump").apply { mkdirs() } }
+    private var dumpStream: java.io.FileOutputStream? = null
+    private var dumpIndex = -1
+    private var dumpNewTurn = true
+
     // Side effects deferred until the assistant finishes speaking the turn (mute, DND-enable). Fired by
     // Action.FireAfterSpeech on turn-end; cleared on teardown. Passed to the controllers via ToolRegistry.
     private val afterSpeech = AfterSpeech()
@@ -315,6 +323,22 @@ class AssistantEngine(
         override fun onAudio(pcm24k: ByteArray) {
             lastAudioAtMs = System.currentTimeMillis()
             player.enqueue(pcm24k) // enqueue synchronously (low latency)
+            if (DUMP_AUDIO) { // DEBUG: rotate to a new file at each turn's first audio, then append + flush
+                if (dumpNewTurn) {
+                    runCatching {
+                        dumpStream?.flush()
+                        dumpStream?.close()
+                    }
+                    dumpIndex++
+                    dumpStream = runCatching { java.io.FileOutputStream(java.io.File(dumpDir, "resp_$dumpIndex.pcm")) }.getOrNull()
+                    dumpNewTurn = false
+                    DebugLog.log("respdump: turn $dumpIndex started")
+                }
+                runCatching {
+                    dumpStream?.write(pcm24k)
+                    dumpStream?.flush()
+                }
+            }
             // Account for the received bytes on the handler — NOT here on the OkHttp thread — so it lands
             // after startModelTurn()'s reset (also handler-posted, from the same message's ModelGenerating).
             // Otherwise a turn whose first audio shares the opening message gets those bytes wiped by the
@@ -326,7 +350,10 @@ class AssistantEngine(
                 dispatch(Event.PlaybackBusy)
             }
         }
-        override fun onTurnComplete() = post(Event.TurnComplete)
+        override fun onTurnComplete() {
+            if (DUMP_AUDIO) dumpNewTurn = true // DEBUG: next turn's audio rotates to a new dump file
+            post(Event.TurnComplete)
+        }
         override fun onInterrupted() {
             handler.post {
                 // A re-spoken turn mid-SPEAKING gets a fresh bubble explicitly (no StartForwarding precedes it).
@@ -566,6 +593,9 @@ class AssistantEngine(
         // ends it on silence). The mic stays open across turns (frames dropped while SPEAKING), so
         // portal-wake can't reclaim mid-conversation.
         const val MULTI_TURN = true
+
+        // DEBUG (demo capture only — set false / remove for release): tee raw Gemini response PCM per turn.
+        const val DUMP_AUDIO = true
 
         // Software gain on the forwarded conversation audio so room-distance speech reaches a level the
         // backend transcribes (handset mic only — no far-field array). Tunable on device; ~2800 RMS
