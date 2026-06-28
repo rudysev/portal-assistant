@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Capture the mic for a conversation turn. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Gemini Live over HTTPS/WebSocket (Phase 2). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Tell an offline failure ("check Wi-Fi") apart from a service error when a connection drops. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Hold the mic while the app is backgrounded (triggered turns). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Bring the resident assistant service up at boot so the first "hey jarvis" hits a warm process. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Draw the orange "recording" bar over other apps (background turns). Granted via appop in setup.sh. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Set display brightness (portal.set_brightness). WRITE_SETTINGS is an appop, granted in setup.sh. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <!-- Toggle Do Not Disturb (portal.set_do_not_disturb). Policy access granted in setup.sh. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Assistant">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.Assistant">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Resident service: stays warm for fast hand-off, holds the mic only during a conversation turn. -->
+        <service
+            android:name=".service.AssistantService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Boot start: bring the resident service up so the first "hey jarvis" after reboot is warm.
+             ACTION_STANDBY is setup.sh's one-time kick to clear the "stopped" state (no launcher tap). -->
+        <receiver
+            android:name=".service.AssistantBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.portal.assistant.action.STANDBY" />
+            </intent-filter>
+        </receiver>
+
+        <!-- portal-wake hand-off: discovered + triggered by portal-wake on "hey jarvis". The keywords
+             meta-data is portal-wake's plugin contract (id;phrase;keyword[;minConf]). -->
+        <receiver
+            android:name=".wake.WakeHandoffReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.portal.wake.action.WAKE" />
+            </intent-filter>
+            <meta-data
+                android:name="com.portal.wake.keywords"
+                android:value="jarvis;hey jarvis;jarvis;0.6" />
+        </receiver>
+
+        <!-- Fires when a portal.set_timer alarm elapses (explicit PendingIntent → no intent-filter).
+             Runs independent of any live conversation; plays the chime (the Portal launcher doesn't
+             surface notifications) and removes the timer from the store. -->
+        <receiver
+            android:name=".conversation.tools.TimerAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Empty notification listener: its *enablement* is the credential MediaSessionManager checks
+             before handing us the active MediaControllers (portal.media_control / portal.now_playing).
+             We never read notifications. Granted via setup.sh (dev) or Settings → notification access. -->
+        <service
+            android:name=".conversation.tools.PortalNotificationListener"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

@@ -1,0 +1,16 @@
+# local.properties.example — copy to `local.properties` and fill in your own values.
+#
+#   cp local.properties.example local.properties
+#
+# `local.properties` is gitignored and must NEVER be committed. The values below are baked into
+# BuildConfig at build time (see app/build.gradle.kts). All keys are optional for a build to SUCCEED
+# (blank values compile), but the conversation needs a Gemini key at runtime.
+
+# Android SDK location on your machine (required by Gradle).
+sdk.dir=/path/to/your/android-sdk
+
+# Gemini API key — authenticates the Live WebSocket. Get a free key at:
+#   https://aistudio.google.com/apikey
+# This is the DEV FALLBACK; released builds can leave it blank and let each user bring their own
+# (Settings -> API key, or ./setup.sh). A blank value builds fine but the assistant won't connect.
+gemini.api.key=YOUR_GEMINI_API_KEY_HERE

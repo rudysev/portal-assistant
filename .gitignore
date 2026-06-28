@@ -1,0 +1,53 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+
+# Local secrets / environment overrides — never commit. (Gradle reads local.properties,
+# not .env; these are defensive so a stray file from another tool can't leak.)
+.env
+.env.*
+!.env.example
+config.local.json
+*.local.json
+
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# Built APKs / staged release artifacts and scratch screenshots.
+provisioning/apks/*.apk
+_chk*.png
+
+# Android platform-tools (adb) the one-click installer auto-downloads next to itself.
+provisioning/platform-tools/
+provisioning/platform-tools.zip
+
+# Per-device fleet inventory written by `provision.sh --fleet`. Contains each
+# device's agent auth TOKEN — never commit (the repo is public).
+provisioning/fleet/
+
+# Internal strategy/planning notes — never publish.
+_planning/
+
+# Reverse-engineering research — never publish (repo is public). Decompilation
+# working dir, APKs pulled off the device, and internal findings docs.
+apk_work/
+system_services.apk
+*.apk
+docs/*
+# ...but README assets (e.g. the Buy Me a Coffee button) are published.
+!docs/img/
+
+# portal-gemini-chat specifics (kept from the original .gitignore)
+build/
+# Vosk speech model for the wake word (~40 MB) — downloaded, not committed. See README.
+/app/src/main/assets/model-en-us/
+.cursorrules
