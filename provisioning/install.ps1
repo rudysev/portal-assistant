@@ -94,13 +94,27 @@ function Wait-Device {
 }
 
 # ----- APK install -----------------------------------------------------------
-function Resolve-ReleaseApkUrl {
-  if ($cfg["RELEASE_APK_URL"]) { return $cfg["RELEASE_APK_URL"] }
+# SHA-256 (lowercase hex) of a file.
+function Get-Sha256 { param($Path) (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLower() }
+
+# Resolve the latest release's first .apk asset as an object: Url, version-stamped Name, and sha256
+# Digest (Digest may be "" for assets uploaded before GitHub recorded one). An explicit
+# RELEASE_APK_URL pins a build; otherwise ask GitHub for the latest release on RELEASE_REPO. Returns
+# $null when nothing resolves (e.g. offline) so the caller can fall back to a cached APK.
+function Resolve-ReleaseAsset {
+  if ($cfg["RELEASE_APK_URL"]) {
+    $u = $cfg["RELEASE_APK_URL"]
+    return [pscustomobject]@{ Url = $u; Name = (Split-Path -Leaf (($u -split '\?')[0])); Digest = "" }
+  }
   if (-not $cfg["RELEASE_REPO"]) { return $null }
   try {
     $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$($cfg["RELEASE_REPO"])/releases/latest" `
       -Headers @{ "User-Agent" = "portal-assistant-installer"; "Accept" = "application/vnd.github+json" }
-    return ($rel.assets | Where-Object { $_.name -like "*.apk" } | Select-Object -First 1).browser_download_url
+    $asset = $rel.assets | Where-Object { $_.name -like "*.apk" } | Select-Object -First 1
+    if (-not $asset) { return $null }
+    $digest = ""
+    if ($asset.digest -and $asset.digest -like "sha256:*") { $digest = $asset.digest.Substring(7) }
+    return [pscustomobject]@{ Url = $asset.browser_download_url; Name = $asset.name; Digest = $digest }
   } catch { return $null }
 }
 
@@ -110,17 +124,35 @@ function Install-App {
     $apk = Get-Item $LocalApk
     Step "Using local build: $($apk.FullName)"
   } else {
-    $apk = Get-ChildItem -Path $cfg["APK_GLOB"] -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $apk) {
-      $url = Resolve-ReleaseApkUrl
-      if (-not $url) { Die "No local APK in apks\ and couldn't find a release to download. Connect to the internet, or drop a Jarvis APK in the apks\ folder." }
-      Step "Downloading the latest Jarvis release"
-      $dir = Split-Path -Parent $cfg["APK_GLOB"]
-      New-Item -ItemType Directory -Force -Path $dir | Out-Null
-      $dest = Join-Path $dir "portal-assistant.apk"
-      Invoke-WebRequest -Uri $url -OutFile $dest
+    # Cache the release under its real (version-stamped) name and reuse it ONLY when it matches the
+    # latest asset name AND its sha256 matches the release digest - so re-running after a new release
+    # downloads the update instead of reinstalling a stale cache, and a corrupt download is caught.
+    # A cached APK is used as-is only when GitHub is unreachable. (Use -Local to force a build.)
+    $dir = Split-Path -Parent $cfg["APK_GLOB"]
+    $asset = Resolve-ReleaseAsset
+    if ($asset -and $asset.Url -and $asset.Name) {
+      $dest = Join-Path $dir $asset.Name
+      $fresh = (Test-Path $dest) -and ((-not $asset.Digest) -or ((Get-Sha256 $dest) -eq $asset.Digest))
+      if ($fresh) {
+        Step "Latest Jarvis release already downloaded ($($asset.Name)) - using it"
+      } else {
+        Step "Downloading the latest Jarvis release ($($asset.Name))"
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $part = "$dest.part"
+        $oldPref = $ProgressPreference; $ProgressPreference = "SilentlyContinue"  # the progress bar cripples large downloads on Windows PowerShell 5.1
+        try { Invoke-WebRequest -Uri $asset.Url -OutFile $part } finally { $ProgressPreference = $oldPref }
+        if ($asset.Digest -and (Get-Sha256 $part) -ne $asset.Digest) {
+          Remove-Item -Force $part; Die "Downloaded APK failed checksum verification - re-run to retry."
+        }
+        Move-Item -Force $part $dest
+        Get-ChildItem -Path (Join-Path $dir "*.apk") -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne $asset.Name } | Remove-Item -Force -ErrorAction SilentlyContinue  # prune stale copies
+        Ok "Downloaded $($asset.Name)"
+      }
       $apk = Get-Item $dest
-      Ok "Downloaded $($apk.Name)"
+    } else {
+      $apk = Get-ChildItem -Path $cfg["APK_GLOB"] -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+      if (-not $apk) { Die "No cached APK in apks\ and couldn't reach GitHub to download one. Connect to the internet, drop a Jarvis APK in apks\, or use -Local." }
+      Warn "Couldn't reach GitHub - installing the cached APK ($($apk.Name)); it may not be the latest."
     }
   }
   Step "Installing Jarvis ($($apk.Name))"

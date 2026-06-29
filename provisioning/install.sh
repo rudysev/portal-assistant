@@ -97,17 +97,30 @@ wait_for_device() {
 }
 
 # ----- APK install -----------------------------------------------------------
-# Resolve a download URL for the release APK: an explicit RELEASE_APK_URL wins,
-# else ask GitHub for the latest release's first .apk asset on RELEASE_REPO (so a
-# versioned asset name like portal-assistant-1.0.apk keeps working across releases).
-resolve_release_apk_url() {
-  if [ -n "${RELEASE_APK_URL:-}" ]; then printf '%s\n' "$RELEASE_APK_URL"; return 0; fi
+# Portable SHA-256 of a file (macOS shasum / Linux sha256sum); empty if neither tool exists.
+sha256() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else echo ""; fi
+}
+
+# Resolve the latest release's first .apk asset, printed as three lines: download URL, the
+# version-stamped asset name (e.g. portal-assistant-v2.1.0.apk), and its sha256 digest (the last
+# may be empty for assets uploaded before GitHub recorded digests). An explicit RELEASE_APK_URL
+# pins a build; otherwise we ask GitHub for the latest release on RELEASE_REPO. Non-zero if nothing
+# resolves (e.g. offline) so the caller can fall back to a cached APK.
+resolve_release_asset() {
+  if [ -n "${RELEASE_APK_URL:-}" ]; then printf '%s\n%s\n\n' "$RELEASE_APK_URL" "$(basename "${RELEASE_APK_URL%%\?*}")"; return 0; fi
   [ -n "${RELEASE_REPO:-}" ] || return 1
-  curl -fsSL -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" 2>/dev/null \
-    | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.apk"' \
-    | head -1 \
-    | sed 's/.*"\(https[^"]*\)".*/\1/'
+  local json url digest
+  json="$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 30 \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" 2>/dev/null)" || return 1
+  [ -n "$json" ] || return 1
+  url="$(printf '%s' "$json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.apk"' | head -1 | sed 's/.*"\(https[^"]*\)".*/\1/')"
+  [ -n "$url" ] || return 1
+  digest="$(printf '%s' "$json" | grep -o '"digest"[[:space:]]*:[[:space:]]*"sha256:[0-9a-f]*"' | head -1 | sed 's/.*sha256:\([0-9a-f]*\).*/\1/')"
+  printf '%s\n%s\n%s\n' "$url" "$(basename "${url%%\?*}")" "$digest"
 }
 
 install_app() {
@@ -117,15 +130,37 @@ install_app() {
     apk="$LOCAL_APK"
     step "Using local build: $apk"
   else
-    apk="$(ls $APK_GLOB 2>/dev/null | head -1)"
-    if [ -z "$apk" ]; then
-      local url; url="$(resolve_release_apk_url)"
-      [ -n "$url" ] || die "No local APK in apks/ and couldn't find a release to download. Connect to the internet, drop a Jarvis APK in apks/, or use --local."
-      step "Downloading the latest Jarvis release"
-      mkdir -p "$(dirname "$APK_GLOB")"
-      apk="$(dirname "$APK_GLOB")/portal-assistant.apk"
-      curl -fL "$url" -o "$apk" || die "Could not download the release APK. Check your connection."
-      ok "Downloaded $(basename "$apk")"
+    # Cache the release under its real (version-stamped) name and reuse it ONLY when it matches the
+    # latest asset name AND its sha256 matches the release digest — so re-running after a new release
+    # downloads the update instead of reinstalling a stale cache, and a truncated/corrupt download is
+    # caught. A cached APK is used as-is only when GitHub is unreachable. (Use --local to force a build.)
+    local cachedir asset url name digest have
+    cachedir="$(dirname "$APK_GLOB")"
+    asset="$(resolve_release_asset || true)"
+    url="$(printf '%s' "$asset" | sed -n 1p)"
+    name="$(printf '%s' "$asset" | sed -n 2p)"
+    digest="$(printf '%s' "$asset" | sed -n 3p)"
+    if [ -n "$url" ] && [ -n "$name" ]; then
+      apk="$cachedir/$name"
+      have=""; [ -f "$apk" ] && have="$(sha256 "$apk")"
+      if [ -f "$apk" ] && { [ -z "$digest" ] || [ -z "$have" ] || [ "$have" = "$digest" ]; }; then
+        step "Latest Jarvis release already downloaded ($name) — using it"
+      else
+        step "Downloading the latest Jarvis release ($name)"
+        mkdir -p "$cachedir"
+        curl -fSL --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 30 \
+          -o "$apk.part" "$url" || die "Could not download the release APK. Check your connection."
+        if [ -n "$digest" ] && [ -n "$(sha256 "$apk.part")" ] && [ "$(sha256 "$apk.part")" != "$digest" ]; then
+          rm -f "$apk.part"; die "Downloaded APK failed checksum verification — re-run to retry."
+        fi
+        mv -f "$apk.part" "$apk"
+        find "$cachedir" -maxdepth 1 -name '*.apk' ! -name "$name" -delete 2>/dev/null || true # prune stale copies
+        ok "Downloaded $name"
+      fi
+    else
+      apk="$(ls -t $APK_GLOB 2>/dev/null | head -1)"
+      [ -n "$apk" ] || die "No cached APK in apks/ and couldn't reach GitHub to download one. Connect to the internet, drop a Jarvis APK in apks/, or use --local."
+      warn "Couldn't reach GitHub — installing the cached APK ($(basename "$apk")); it may not be the latest."
     fi
   fi
   step "Installing Jarvis ($(basename "$apk"))"
