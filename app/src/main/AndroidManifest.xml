@@ -58,17 +58,18 @@
             </intent-filter>
         </receiver>
 
-        <!-- portal-wake hand-off: discovered + triggered by portal-wake on "hey jarvis". The keywords
-             meta-data is portal-wake's plugin contract (id;phrase;keyword[;minConf]). -->
+        <!-- portal-wake hand-off: discovered + triggered by portal-wake on "hey jarvis". The wake word is
+             declared as named meta-data (portal-wake's plugin contract). The lead "hey" lives in the phrase;
+             portal-wake derives keyword + lead from it. id is omitted (defaults to the keyword "jarvis").
+             The key strings are mirrored literals (XML can't reference portal-wake's WakeContract). -->
         <receiver
             android:name=".wake.WakeHandoffReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.portal.wake.action.WAKE" />
             </intent-filter>
-            <meta-data
-                android:name="com.portal.wake.keywords"
-                android:value="jarvis;hey jarvis;jarvis;0.6" />
+            <meta-data android:name="com.portal.wake.phrase"         android:value="hey jarvis" />
+            <meta-data android:name="com.portal.wake.min_confidence" android:value="0.6" />
         </receiver>
 
         <!-- Fires when a portal.set_timer alarm elapses (explicit PendingIntent → no intent-filter).
