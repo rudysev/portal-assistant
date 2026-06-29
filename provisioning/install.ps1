@@ -142,7 +142,7 @@ function Grant-Permissions {
 # Jarvis is "bring your own key": each user supplies their own free Google Gemini key.
 # Without a key the app installs and opens, but every conversation fails to connect.
 function Key-Present {
-  $staged = (A shell "[ -f $($cfg["EXTDIR"])/api_key.txt ] && echo yes").Trim()
+  $staged = "$(A shell "[ -f $($cfg["EXTDIR"])/api_key.txt ] && echo yes")".Trim()
   if ($staged -eq "yes") { return $true }
   # 2>/dev/null suppresses the device shell's stderr — NOT 2>`$null, which PowerShell would send to the
   # device as the literal string "2>$null" (an empty/ambiguous redirect on Android sh, so the read fails).
