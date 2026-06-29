@@ -11,8 +11,8 @@ android {
     applicationId = "com.portal.assistant"
     minSdk = 28          // Android 9 — Portal+ ("aloha")
     targetSdk = 29       // Android 10 — Portal-era behavior
-    versionCode = 2
-    versionName = "2.0"
+    versionCode = 3
+    versionName = "2.1"
 
     // The Gemini API key is provided at runtime (setup.sh → api_key.txt → prefs, or Settings → API key),
     // not baked in. This blank fallback keeps BuildConfig.GEMINI_API_KEY available as a dev seam.
