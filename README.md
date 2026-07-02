@@ -65,11 +65,16 @@ Developers building from source: see the build/run notes in `CLAUDE.md` and use 
 | **Volume** | "Turn it up", "Set volume to 30%", "Mute", "Unmute" |
 | **Brightness** | "Dim the screen", "Brightness to 60%", "Make it brighter" |
 | **Do Not Disturb** | "Turn on do not disturb", "Is do not disturb on?" |
-| **Media** | "Play Bohemian Rhapsody", "Pause", "Next track", "What's playing?" |
+| **Media** | "Play Bohemian Rhapsody", "Play some jazz on TIDAL", "Pause", "Next track", "What's playing?" |
 | **Open apps** | "Open Spotify", "Open the calendar", "Open the camera" |
 
 Answers that need current information (weather, news, scores, prices, hours) are grounded with Google
 Search. Device actions run on-device via Gemini function-calling.
+
+**Music plays on your app of choice.** Jarvis discovers the music apps installed on your Portal (Spotify,
+TIDAL, Apple Music…) — pick your favorite as the default in **Settings → Default music app**, and just say
+"play some jazz". Name an app any time to override it for one request ("play Zanarkand on TIDAL"). If an app
+can't start a search directly, Jarvis opens it for you and says so.
 
 ## Plugins — adding a tool without touching this app
 

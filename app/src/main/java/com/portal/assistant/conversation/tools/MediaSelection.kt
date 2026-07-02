@@ -3,6 +3,9 @@ package com.portal.assistant.conversation.tools
 /** A media transport action the model can request. */
 enum class MediaAction { PLAY, PAUSE, NEXT, PREVIOUS }
 
+/** A repeat mode the model can request; parsed from a free-form hint by [MediaSelection.repeatMode]. */
+enum class RepeatMode { ONE, ALL, OFF }
+
 /**
  * A lightweight, framework-free view of one active media session — enough to choose which session a media
  * command should target, without depending on android.media.session. The shell ([MediaControl]) builds these
@@ -17,6 +20,7 @@ data class SessionInfo(
     val canNext: Boolean,
     val canPrev: Boolean,
     val hasMetadata: Boolean,
+    val canSetRepeat: Boolean = false,
 ) {
     fun supports(action: MediaAction): Boolean = when (action) {
         MediaAction.PLAY -> canPlay
@@ -35,19 +39,14 @@ data class SessionInfo(
 object MediaSelection {
 
     /**
-     * Choose the session for [action]: prefer a currently-PLAYING session that supports it (you pause/skip
-     * what's playing); else a session that has **metadata** (a real music app — paused Spotify); else the
-     * highest-priority session that supports it. The metadata tiebreak matters most for PLAY/PAUSE, which
-     * Alexa also advertises: a paused Spotify (has metadata) wins resume over a higher-priority Alexa session
-     * (no metadata) instead of "play" poking Alexa. Our own [ownPkg] is never targeted.
+     * Choose the session for [action]: the sessions that support it (never our own [ownPkg]), then [choose]
+     * the best. The metadata tiebreak matters most for PLAY/PAUSE, which Alexa also advertises: a paused
+     * Spotify (has metadata) wins resume over a higher-priority Alexa (no metadata) instead of poking Alexa.
      */
-    fun pickForControl(sessions: List<SessionInfo>, action: MediaAction, ownPkg: String): Int? {
-        val usable = sessions.filter { it.pkg != ownPkg && it.supports(action) }
-        val chosen = usable.firstOrNull { it.isPlaying }
-            ?: usable.firstOrNull { it.hasMetadata }
-            ?: usable.firstOrNull()
-        return chosen?.index
-    }
+    fun pickForControl(sessions: List<SessionInfo>, action: MediaAction, ownPkg: String): Int? = choose(sessions.filter { it.pkg != ownPkg && it.supports(action) })
+
+    /** Choose the session to set repeat on: the active music session that advertises repeat support. */
+    fun pickForRepeat(sessions: List<SessionInfo>, ownPkg: String): Int? = choose(sessions.filter { it.pkg != ownPkg && it.canSetRepeat })
 
     /** Choose the session to report "what's playing": the playing one, else the highest-priority with metadata. */
     fun pickForStatus(sessions: List<SessionInfo>, ownPkg: String): Int? {
@@ -55,10 +54,16 @@ object MediaSelection {
         return (others.firstOrNull { it.isPlaying } ?: others.firstOrNull { it.hasMetadata })?.index
     }
 
-    /** A speakable app name for a package id (raw package is ugly in speech). Falls through to the package. */
-    fun friendlyApp(pkg: String): String = when {
-        pkg.contains("spotify") -> "Spotify"
-        pkg.contains("alohaservices.player") -> "the Portal player"
-        else -> pkg
+    /** Prefer a currently-playing session (you control what's playing), else one with metadata (a real music
+     *  app), else the highest-priority. Sessions arrive in framework priority order (most-recently-active first). */
+    private fun choose(usable: List<SessionInfo>): Int? = (usable.firstOrNull { it.isPlaying } ?: usable.firstOrNull { it.hasMetadata } ?: usable.firstOrNull())?.index
+
+    /** Normalize the repeat mode to a [RepeatMode], or null when absent/unrecognized. Kept to the tool's
+     *  declared values (one/all/off) — deliberately NOT accepting "stop" (it means pause in media_control). */
+    fun repeatMode(raw: String?): RepeatMode? = when (raw?.trim()?.lowercase()) {
+        "one" -> RepeatMode.ONE
+        "all" -> RepeatMode.ALL
+        "off", "none" -> RepeatMode.OFF
+        else -> null
     }
 }

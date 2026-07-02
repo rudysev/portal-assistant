@@ -39,6 +39,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
         GetDoNotDisturbTool(dnd),
         SetDoNotDisturbTool(dnd),
         MediaControlTool(media),
+        SetRepeatTool(media),
         NowPlayingTool(media),
         PlayMusicTool(media),
         OpenAppTool(appLauncher),

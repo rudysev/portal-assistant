@@ -56,7 +56,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   process-wide `conversation/tools/TimerStore`; ✕ to cancel). **Failures** (offline / couldn't-connect /
   connection-lost / missing key / mic-permission denied) surface as a dismissible `NoticeBanner` via
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
-  (`ui/SettingsScreen`): model picker, location override, external-tool toggles.
+  (`ui/SettingsScreen`): model picker, default-music-app picker, location override, external-tool toggles.
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the
   engine publishes `session: StateFlow<ConversationSession>` (id, phase, turns) + a high-frequency
@@ -103,12 +103,21 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `toolCallCancellation` are parsed and answered (`sendToolResponse`). Built-in tools: `portal.get_time`,
   `portal.set_timer`/`list_timers`/`cancel_timer`, `portal.get_volume`/`set_volume`/`adjust_volume`/`set_mute`,
   `portal.get_brightness`/`set_brightness`/`adjust_brightness`, `portal.get_do_not_disturb`/`set_do_not_disturb`,
-  `portal.play_music` (play a song/artist/album/playlist by name via a `spotify:search:<query>` VIEW deep link
-  — device-verified to start the top result on the Portal's locked-down Spotify; broad/artist-level on purpose
-  because the device's Spotify is **Free tier**, which can't on-demand-play one exact track but *can*
-  shuffle-play an artist/playlist — `MediaControl.play`),
-  `portal.media_control`/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
-  pure `AppMatch`). Inbound parsing is the pure, unit-tested `parseServerMessage`; `buildSetup` is unit-tested
+  `portal.play_music` (play a song/artist/album/playlist by name — **multi-app**: routes to the user's default
+  music app, or an app the user names in the request (`app` param) which is honoured over the default; an
+  optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
+  honour it. Pure
+  routing is `MediaRouting` (target selection + per-app play strategy); `MediaControl.play` fires it via a
+  fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
+  on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
+  which can't on-demand-play one exact track but *can* shuffle-play an artist/playlist), else the generic
+  targeted `MEDIA_PLAY_FROM_SEARCH` intent, else just launching the app. Installed music apps are discovered
+  via `PackageCatalog.musicApps` (runtime: MediaBrowserService ∪ CATEGORY_APP_MUSIC launchers, no hardcoded seed) and the
+  default is set in Settings (`AppPrefs.defaultMusicPkg`, self-healing). A named app is matched with the same
+  pure `AppMatch` as `open_app`),
+  `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
+  `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
+  pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`). Inbound parsing is the pure, unit-tested `parseServerMessage`; `buildSetup` is unit-tested
   too. A tapped suggestion chip sends a **text turn** via `sendText`/`buildClientText` (`clientContent` +
   `turnComplete` — the model answers without waiting on VAD), also unit-tested.
 - `conversation/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops

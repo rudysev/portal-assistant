@@ -1,5 +1,6 @@
 package com.portal.assistant.conversation.tools
 
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,11 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
+import android.provider.MediaStore
+import android.support.v4.media.session.MediaControllerCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
+import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 import org.json.JSONObject
 
@@ -27,83 +33,174 @@ import org.json.JSONObject
 class MediaControl(context: Context) {
 
     private val appContext = context.applicationContext
+    private val pm = appContext.packageManager
     private val ownPkg = appContext.packageName
     private val component = ComponentName(appContext, PortalNotificationListener::class.java)
     private val manager =
         appContext.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
 
     /** Run [action] on the best matching session. */
-    fun control(action: MediaAction): JSONObject {
-        val controllers = activeSessions() ?: return notEnabledError()
-        val infos = controllers.mapIndexed { i, c -> c.toInfo(i) }
-        val idx = MediaSelection.pickForControl(infos, action, ownPkg) ?: return JSONObject().put(
-            "error",
-            if (controllers.isEmpty()) "nothing is playing" else "no media session supports that action",
-        )
-        val controller = controllers[idx]
+    fun control(action: MediaAction): JSONObject = withSession(
+        pick = { MediaSelection.pickForControl(it, action, ownPkg) },
+        notFound = { empty -> JSONObject().put("error", if (empty) "nothing is playing" else "no media session supports that action") },
+    ) { controller ->
         when (action) {
             MediaAction.PLAY -> controller.transportControls.play()
             MediaAction.PAUSE -> controller.transportControls.pause()
             MediaAction.NEXT -> controller.transportControls.skipToNext()
             MediaAction.PREVIOUS -> controller.transportControls.skipToPrevious()
         }
-        val app = MediaSelection.friendlyApp(controller.packageName)
+        val app = appLabel(controller.packageName)
         DebugLog.log("media ${action.name.lowercase()} → $app")
-        return JSONObject()
-            .put("action", action.name.lowercase())
-            .put("app", app)
+        JSONObject().put("action", action.name.lowercase()).put("app", app)
     }
 
     /**
-     * Start playing a song/artist/album/playlist by name on Spotify via its `spotify:search:<query>` deep
-     * link (device-verified on the Portal's locked-down Spotify to start the top result and NOT take over the
-     * screen). Unlike the transport commands this works because it's the app's own VIEW intent, not a
-     * media-key or `playFromSearch` surface (both of which the Portal Spotify blocks).
-     *
-     * **Why search, not an exact `spotify:track:<id>`:** this plays on the device user's own Spotify account,
-     * which is **Free tier** — Free can't on-demand-play a specific track, so a precise track URI just opens
-     * the page silently. A broad search lands on an artist/playlist the Free tier *can* shuffle-play, so it
-     * actually starts. Less precise than the exact track, but it plays.
+     * Set the repeat mode on the active music session. Gated on the app advertising `ACTION_SET_REPEAT_MODE`
+     * (via [SessionInfo.canSetRepeat]) — an app that doesn't publish it gets a graceful error rather than a
+     * silent no-op. Pure parse + selection live in [MediaSelection]; this maps to the framework constant and
+     * drives the transport (same session route as [control], so it bypasses Alexa's media-key interception).
      */
-    fun play(query: String): JSONObject {
-        val q = query.trim()
-        if (q.isEmpty()) return JSONObject().put("error", "no song or artist specified")
-        val pkg = SPOTIFY_PKGS.firstOrNull { appContext.packageManager.getLaunchIntentForPackage(it) != null }
-            ?: return JSONObject().put("error", "Spotify isn't installed")
-        return runCatching {
-            appContext.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:" + Uri.encode(q))).apply {
-                    setPackage(pkg)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-            DebugLog.log("play_music → spotify:search \"$q\"")
-            JSONObject()
-                .put("playing", true)
-                .put("query", q)
-                .put("app", MediaSelection.friendlyApp(pkg))
-        }.getOrElse {
-            DebugLog.log("play_music failed: ${it.message}")
-            JSONObject().put("error", "couldn't start Spotify: ${it.message}")
+    fun setRepeat(mode: String?): JSONObject {
+        val repeat = MediaSelection.repeatMode(mode)
+            ?: return JSONObject().put("error", "repeat must be one, all, or off")
+        return withSession(
+            pick = { MediaSelection.pickForRepeat(it, ownPkg) },
+            notFound = { empty -> JSONObject().put("error", if (empty) "nothing is playing" else "repeat isn't available on the current app") },
+        ) { controller ->
+            val app = appLabel(controller.packageName)
+            runCatching {
+                // setRepeatMode is a media-compat transport control; bridge the framework session token into a
+                // MediaControllerCompat to reach the app's onSetRepeatMode (the Android Auto / Assistant path).
+                MediaControllerCompat(appContext, MediaSessionCompat.Token.fromToken(controller.sessionToken))
+                    .transportControls.setRepeatMode(androidRepeat(repeat))
+                DebugLog.log("media set_repeat ${repeat.name.lowercase()} → $app")
+                JSONObject().put("repeat", repeat.name.lowercase()).put("app", app)
+            }.getOrElse {
+                DebugLog.log("media set_repeat failed for ${controller.packageName}: ${it.message}")
+                JSONObject().put("error", "couldn't set repeat on $app: ${it.message}")
+            }
         }
     }
 
+    private fun androidRepeat(mode: RepeatMode): Int = when (mode) {
+        RepeatMode.ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+        RepeatMode.ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
+        RepeatMode.OFF -> PlaybackStateCompat.REPEAT_MODE_NONE
+    }
+
+    /**
+     * Start playing a song/artist/album/playlist by name. [MediaRouting] picks the target app (named app,
+     * else default, else fallback) and the strategy ([MediaRouting.strategyFor]); this fires it.
+     */
+    fun play(query: String, app: String?, type: String? = null): JSONObject {
+        val q = query.trim()
+        if (q.isEmpty()) return JSONObject().put("error", "no song or artist specified")
+
+        // The fallback set (search-play handlers + Spotify) is a targeted query; pass it as a thunk so it's
+        // only run on the paths that need it — a named app missing from the music list, or an undiscovered
+        // Spotify default.
+        val target = MediaRouting.resolveTarget(
+            app,
+            AppPrefs.defaultMusicPkg(appContext),
+            PackageCatalog.musicApps(appContext),
+            { PackageCatalog.searchPlayableApps(appContext) },
+            PackageCatalog.SPOTIFY_PKGS,
+        )
+        val pkg = target.pkg
+            ?: return JSONObject().put("error", target.reason ?: "couldn't find a music app to play on")
+        val label = target.label ?: appLabel(pkg)
+
+        return when (MediaRouting.strategyFor(pkg, PackageCatalog.SPOTIFY_PKGS) { hasPlayFromSearch(pkg) }) {
+            MediaRouting.PlayStrategy.DEEP_LINK -> playSpotify(pkg, q, label)
+            MediaRouting.PlayStrategy.PLAY_FROM_SEARCH -> playFromSearch(pkg, q, label, MediaRouting.playType(type))
+            MediaRouting.PlayStrategy.LAUNCH_ONLY -> launchOnly(pkg, q, label)
+        }
+    }
+
+    // A *search* deep link, not an exact `spotify:track:<id>`: the Portal's Spotify is Free-tier (can't
+    // on-demand-play one track — a precise URI just opens the page) and blocks playFromSearch/media keys, so a
+    // broad search via the app's own VIEW intent is what actually starts playback (device-verified).
+    private fun playSpotify(pkg: String, q: String, label: String): JSONObject = runCatching {
+        appContext.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:" + Uri.encode(q))).apply {
+                setPackage(pkg)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+        DebugLog.log("play_music → spotify:search \"$q\"")
+        JSONObject().put("playing", true).put("query", q).put("app", label)
+    }.getOrElse {
+        DebugLog.log("play_music spotify failed: ${it.message}")
+        JSONObject().put("error", "couldn't start $label: ${it.message}")
+    }
+
+    private fun playFromSearch(pkg: String, q: String, label: String, type: MediaRouting.PlayType?): JSONObject = runCatching {
+        appContext.startActivity(playFromSearchIntent(pkg, q, type))
+        DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
+        JSONObject().put("playing", true).put("query", q).put("app", label)
+    }.getOrElse {
+        // The activity resolved but failed to start — fall back to just opening the app.
+        DebugLog.log("play_music play_from_search failed for $pkg: ${it.message}")
+        launchOnly(pkg, q, label)
+    }
+
+    private fun launchOnly(pkg: String, q: String, label: String): JSONObject {
+        val launch = pm.getLaunchIntentForPackage(pkg)
+            ?: return JSONObject().put("error", "couldn't open $label")
+        return runCatching {
+            appContext.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            DebugLog.log("play_music → launch-only $pkg (no search support)")
+            JSONObject()
+                .put("opened", true)
+                .put("searchUnsupported", true) // couldn't start the exact search — the model should say so
+                .put("query", q)
+                .put("app", label)
+        }.getOrElse {
+            DebugLog.log("play_music launch failed for $pkg: ${it.message}")
+            JSONObject().put("error", "couldn't open $label: ${it.message}")
+        }
+    }
+
+    /** True if [pkg] declares an activity for the generic `MEDIA_PLAY_FROM_SEARCH` intent. Activity
+     *  resolution matches on action/package, not the query, so no query is needed to probe capability. */
+    private fun hasPlayFromSearch(pkg: String): Boolean = pm.resolveActivity(Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg), 0) != null
+
+    private fun playFromSearchIntent(pkg: String, q: String, type: MediaRouting.PlayType?) = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+        setPackage(pkg)
+        putExtra(SearchManager.QUERY, q)
+        // Pin the search kind (from the model's type hint) so apps that honor it play the right type;
+        // unknown/none → generic audio focus. The consumer app reads QUERY + focus — we deliberately don't
+        // fake structured artist/title extras out of a blob query.
+        putExtra(MediaStore.EXTRA_MEDIA_FOCUS, focusFor(type))
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    /** Map a parsed [MediaRouting.PlayType] to the Android MEDIA_PLAY_FROM_SEARCH focus mime. */
+    private fun focusFor(type: MediaRouting.PlayType?): String = when (type) {
+        MediaRouting.PlayType.ARTIST -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
+        MediaRouting.PlayType.ALBUM -> MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE
+        MediaRouting.PlayType.SONG -> MediaStore.Audio.Media.ENTRY_CONTENT_TYPE
+        MediaRouting.PlayType.PLAYLIST -> MediaStore.Audio.Playlists.ENTRY_CONTENT_TYPE
+        null -> MediaStore.Audio.Media.CONTENT_TYPE // generic "any audio" focus
+    }
+
+    private fun appLabel(pkg: String): String = PackageCatalog.labelFor(appContext, pkg)
+
     /** Report what's currently playing (or paused with known metadata). */
-    fun nowPlaying(): JSONObject {
-        val controllers = activeSessions() ?: return notEnabledError()
-        val infos = controllers.mapIndexed { i, c -> c.toInfo(i) }
-        val idx = MediaSelection.pickForStatus(infos, ownPkg)
-            ?: return JSONObject().put("playing", false)
-        val controller = controllers[idx]
+    fun nowPlaying(): JSONObject = withSession(
+        pick = { MediaSelection.pickForStatus(it, ownPkg) },
+        notFound = { JSONObject().put("playing", false) },
+    ) { controller ->
         val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
         val md = controller.metadata
         val out = JSONObject()
             .put("playing", playing)
-            .put("app", MediaSelection.friendlyApp(controller.packageName))
+            .put("app", appLabel(controller.packageName))
         title(md)?.let { out.put("title", it) } // omit when unknown rather than send blank
         artist(md)?.let { out.put("artist", it) }
         DebugLog.log("media now_playing → ${controller.packageName} playing=$playing")
-        return out
+        out
     }
 
     /**
@@ -118,6 +215,21 @@ class MediaControl(context: Context) {
         null
     }
 
+    /**
+     * Resolve the active sessions, [pick] one, and run [body] on it — the shared preamble for [control],
+     * [nowPlaying], and [setRepeat]. Returns [notEnabledError] when session access is missing, or [notFound]
+     * (given whether the session list was empty) when nothing matches.
+     */
+    private inline fun withSession(
+        pick: (List<SessionInfo>) -> Int?,
+        notFound: (empty: Boolean) -> JSONObject,
+        body: (MediaController) -> JSONObject,
+    ): JSONObject {
+        val controllers = activeSessions() ?: return notEnabledError()
+        val idx = pick(controllers.mapIndexed { i, c -> c.toInfo(i) }) ?: return notFound(controllers.isEmpty())
+        return body(controllers[idx])
+    }
+
     private fun MediaController.toInfo(index: Int): SessionInfo {
         val actions = playbackState?.actions ?: 0L
         fun has(bit: Long) = actions and bit != 0L
@@ -130,15 +242,15 @@ class MediaControl(context: Context) {
             canNext = has(PlaybackState.ACTION_SKIP_TO_NEXT),
             canPrev = has(PlaybackState.ACTION_SKIP_TO_PREVIOUS),
             hasMetadata = metadata != null,
+            // Repeat lives in the media-compat API, not framework PlaybackState; the bit is still set in the
+            // framework actions long, so match it against the compat constant.
+            canSetRepeat = has(PlaybackStateCompat.ACTION_SET_REPEAT_MODE),
         )
     }
 
     private fun notEnabledError(): JSONObject = JSONObject().put("error", "media control isn't enabled — grant notification access in Settings")
 
     private companion object {
-        // Portal's standalone Spotify first, then the standard app as a fallback for other devices.
-        val SPOTIFY_PKGS = listOf("com.facebook.aloha.spotifystandalone", "com.spotify.music")
-
         fun str(md: MediaMetadata?, key: String) = md?.getString(key)?.takeIf { it.isNotBlank() }
 
         fun title(md: MediaMetadata?) = str(md, MediaMetadata.METADATA_KEY_TITLE) ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)

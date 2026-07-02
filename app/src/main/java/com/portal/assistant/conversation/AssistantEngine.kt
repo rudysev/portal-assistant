@@ -600,12 +600,17 @@ class AssistantEngine(
                 "Use portal.set_brightness (0-100%, 0 is minimum visible not off), portal.adjust_brightness " +
                 "(up/down by one step), and portal.get_brightness for the display. Use portal.set_do_not_disturb " +
                 "(on/off) and portal.get_do_not_disturb for Do Not Disturb. " +
-                "Use portal.play_music to play music: for a specific song give track + artist (fill in the " +
-                "artist from your own knowledge when they name a well-known song without saying who it's by, " +
-                "e.g. 'play Bohemian Rhapsody' → track 'Bohemian Rhapsody', artist 'Queen'); for an artist, " +
-                "genre, playlist, or anything vague use query only. Use portal.media_control " +
-                "(play/pause/next/previous) to resume or control whatever is already loaded, and " +
-                "portal.now_playing to say what's playing. " +
+                "Use portal.play_music to play music by name (song, artist, album, or playlist) — it plays on " +
+                "the user's default music app. Put everything to play in 'query'; for a specific song include " +
+                "the artist (fill it in from your own knowledge when they name a well-known song without " +
+                "saying who it's by, e.g. 'play Bohemian Rhapsody' → 'Bohemian Rhapsody Queen'). Set 'app' " +
+                "only when the user names one to play on (e.g. 'play jazz on TIDAL' → app 'TIDAL'); otherwise " +
+                "omit it. Set 'type' (song/artist/album/playlist) only when the user makes the kind explicit " +
+                "(e.g. 'play the album Thriller' → type 'album', 'play the artist Adele' → type 'artist'); " +
+                "omit it for a general request or when unsure. Use portal.media_control " +
+                "(play/pause/next/previous) to resume or control whatever is already loaded, " +
+                "portal.set_repeat (one = repeat the current song, all = repeat the album/playlist, off) to " +
+                "change repeat, and portal.now_playing to say what's playing. " +
                 "Use portal.open_app to open or launch an app by name (e.g. 'open Spotify', 'open the " +
                 "calendar') — pass the app name the user said; use portal.play_music instead to play a " +
                 "specific song. If the app isn't installed the tool returns close matches; offer those by " +

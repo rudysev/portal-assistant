@@ -32,6 +32,11 @@ object AppPrefs {
     // Model — the Gemini model the assistant runs (Settings → Model). Defaults to GeminiModel.ID.
     const val KEY_MODEL = "model_id"
 
+    // Default music app (Settings → Default music app) — the package play_music targets when the user
+    // doesn't name an app. Unset → resolved at play time (sole music app, else Spotify). Self-heals if the
+    // pick is uninstalled.
+    const val KEY_DEFAULT_MUSIC_PKG = "music_default_pkg"
+
     // Gemini API key — the user's own key (Settings → API key). BYOD: a broadly-released build has no key
     // baked in, so each user supplies their own here. Falls back to BuildConfig.GEMINI_API_KEY (dev builds)
     // at the injection site; this stores only the user-entered value.
@@ -53,6 +58,23 @@ object AppPrefs {
     fun setModelId(context: Context, id: String) {
         if (id !in GeminiModel.AVAILABLE) return
         prefs(context).edit().putString(KEY_MODEL, id).apply()
+    }
+
+    /** The user's chosen default music app package, or null if unset — or if the pick is no longer installed
+     *  (self-heals: an uninstalled default is cleared so prefs never point at a gone app, and play routing
+     *  falls back to its next choice). */
+    fun defaultMusicPkg(context: Context): String? {
+        val saved = prefs(context).getString(KEY_DEFAULT_MUSIC_PKG, null)?.trim()?.ifBlank { null } ?: return null
+        if (context.packageManager.getLaunchIntentForPackage(saved) != null) return saved
+        prefs(context).edit().remove(KEY_DEFAULT_MUSIC_PKG).apply() // uninstalled pick — drop it
+        return null
+    }
+
+    /** Set the default music app package, or clear it with a null/blank value (applies to the next play). */
+    fun setDefaultMusicPkg(context: Context, pkg: String?) {
+        val edit = prefs(context).edit()
+        if (pkg.isNullOrBlank()) edit.remove(KEY_DEFAULT_MUSIC_PKG) else edit.putString(KEY_DEFAULT_MUSIC_PKG, pkg)
+        edit.apply()
     }
 
     /** The user's stored Gemini API key, trimmed, or null if unset/blank. The injection site

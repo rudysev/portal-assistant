@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,7 +52,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
+import com.portal.assistant.conversation.tools.MediaRouting
+import com.portal.assistant.conversation.tools.PackageCatalog
 import com.portal.assistant.gemini.GeminiKeyCheck
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
@@ -208,6 +212,69 @@ fun SettingsScreen(onBack: () -> Unit) {
                 enabled = place.isNotBlank() && place.trim() != savedPlace.trim(),
                 colors = settingsButtonColors(),
             ) { Text("Save") }
+
+            Spacer(Modifier.size(36.dp))
+            Text("Default music app", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.size(4.dp))
+            Text("Choose the default app to play music.", color = subtle, fontSize = TextSize.Body)
+            Spacer(Modifier.size(14.dp))
+
+            // Enumerating installed apps + the saved default's install check are PackageManager IPCs — load
+            // them off the main thread so opening Settings on a cold cache can't jank/ANR the UI.
+            // The discovered set and the union (selectable list) — effectiveDefault needs both to render the
+            // same default routing plays.
+            val apps by produceState(emptyList<AppEntry>() to emptyList<AppEntry>()) {
+                value = withContext(Dispatchers.IO) { PackageCatalog.musicAppChoices(context) }
+            }
+            val discovered = apps.first
+            val selectableApps = apps.second
+            var musicExpanded by remember { mutableStateOf(false) }
+            var musicPkg by remember { mutableStateOf<String?>(null) }
+            // Label for a default not (yet) in the loaded list — also resolved off-main below.
+            var savedMusicLabel by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(Unit) {
+                val pkg = withContext(Dispatchers.IO) { AppPrefs.defaultMusicPkg(context) }
+                musicPkg = pkg
+                savedMusicLabel = pkg?.let { withContext(Dispatchers.IO) { PackageCatalog.labelFor(context, it) } }
+            }
+            // Render the *effective* default: the explicit pick, else what a bare "play music" resolves to —
+            // the SAME set + rule routing uses (effectiveDefault), so the field never lies. No vague "Auto".
+            val effectivePkg = musicPkg
+                ?: MediaRouting.effectiveDefault(discovered, { selectableApps }, PackageCatalog.SPOTIFY_PKGS)?.pkg
+            val musicLabel = when (effectivePkg) {
+                null -> "Choose a music app"
+                else -> selectableApps.firstOrNull { it.pkg == effectivePkg }?.label ?: savedMusicLabel ?: effectivePkg
+            }
+            ExposedDropdownMenuBox(
+                expanded = musicExpanded,
+                onExpandedChange = { musicExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = musicLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Default music app") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = musicExpanded) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                )
+                ExposedDropdownMenu(
+                    expanded = musicExpanded,
+                    onDismissRequest = { musicExpanded = false },
+                ) {
+                    selectableApps.forEach { entry ->
+                        DropdownMenuItem(
+                            text = { Text(entry.label) },
+                            onClick = {
+                                musicPkg = entry.pkg
+                                AppPrefs.setDefaultMusicPkg(context, entry.pkg)
+                                musicExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
 
             Spacer(Modifier.size(36.dp))
             Text("External tools", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)

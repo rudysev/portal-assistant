@@ -137,7 +137,8 @@ class AssistantService : Service() {
                 java.net.InetAddress.getByName("generativelanguage.googleapis.com") // warm DNS
                 com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
                 com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext) // pre-scan installed tool providers off the wake path
-                DebugLog.log("prewarm done (classes + http + dns + tools)")
+                com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext) // pre-scan installed music apps off the wake path
+                DebugLog.log("prewarm done (classes + http + dns + tools + music)")
             }.onFailure { DebugLog.log("prewarm failed: ${it.message}") }
         }.apply {
             isDaemon = true

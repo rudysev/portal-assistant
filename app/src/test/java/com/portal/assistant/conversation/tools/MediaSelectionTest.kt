@@ -18,7 +18,8 @@ class MediaSelectionTest {
         canNext: Boolean = true,
         canPrev: Boolean = true,
         meta: Boolean = true,
-    ) = SessionInfo(index, pkg, playing, canPlay, canPause, canNext, canPrev, meta)
+        canRepeat: Boolean = false,
+    ) = SessionInfo(index, pkg, playing, canPlay, canPause, canNext, canPrev, meta, canRepeat)
 
     @Test fun pauseTargetsThePlayingSession() {
         val sessions = listOf(
@@ -86,9 +87,37 @@ class MediaSelectionTest {
         assertNull(MediaSelection.pickForStatus(emptyList(), own))
     }
 
-    @Test fun friendlyAppMapsKnownPackages() {
-        assertEquals("Spotify", MediaSelection.friendlyApp("com.facebook.aloha.spotifystandalone"))
-        assertEquals("the Portal player", MediaSelection.friendlyApp("com.facebook.alohaservices.player2"))
-        assertEquals("com.unknown.app", MediaSelection.friendlyApp("com.unknown.app"))
+    @Test fun repeatTargetsPlayingSessionThatSupportsIt() {
+        val sessions = listOf(
+            s(0, "com.alexa", playing = false, canRepeat = false),
+            s(1, "com.applemusic", playing = true, canRepeat = true),
+        )
+        assertEquals(1, MediaSelection.pickForRepeat(sessions, own))
+    }
+
+    @Test fun repeatNullWhenNoSessionSupportsIt() {
+        val sessions = listOf(s(0, "com.applemusic", playing = true, canRepeat = false))
+        assertNull(MediaSelection.pickForRepeat(sessions, own))
+    }
+
+    @Test fun repeatNeverTargetsOwnPackage() {
+        assertNull(MediaSelection.pickForRepeat(listOf(s(0, own, playing = true, canRepeat = true)), own))
+    }
+
+    @Test fun repeatModeParsesCanonicalValuesCaseAndWhitespaceInsensitive() {
+        assertEquals(RepeatMode.ONE, MediaSelection.repeatMode("one"))
+        assertEquals(RepeatMode.ONE, MediaSelection.repeatMode("  One "))
+        assertEquals(RepeatMode.ALL, MediaSelection.repeatMode("ALL"))
+        assertEquals(RepeatMode.OFF, MediaSelection.repeatMode("off"))
+        assertEquals(RepeatMode.OFF, MediaSelection.repeatMode("none"))
+    }
+
+    @Test fun repeatModeNullForAbsentOrUnknown() {
+        assertNull(MediaSelection.repeatMode(null))
+        assertNull(MediaSelection.repeatMode(""))
+        assertNull(MediaSelection.repeatMode("   "))
+        assertNull(MediaSelection.repeatMode("shuffle"))
+        assertNull(MediaSelection.repeatMode("track")) // tightened: no longer a synonym for ONE
+        assertNull(MediaSelection.repeatMode("stop")) // must NOT collide with media_control's stop → pause
     }
 }
