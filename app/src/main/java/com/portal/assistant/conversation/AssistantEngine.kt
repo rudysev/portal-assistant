@@ -6,10 +6,11 @@ import android.os.Looper
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmGain
 import com.portal.assistant.audio.PcmPlayer
+import com.portal.assistant.conversation.backend.BackendConfig
+import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.backend.VoiceBackend
+import com.portal.assistant.conversation.backend.VoiceBackendFactory
 import com.portal.assistant.conversation.tools.ToolRegistry
-import com.portal.assistant.gemini.FunctionCall
-import com.portal.assistant.gemini.LiveClient
-import com.portal.assistant.gemini.ToolResult
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
@@ -29,14 +30,14 @@ import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The impure shell around the pure [reduce] state machine: it owns the [LiveClient], [MicCapture],
+ * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], [MicCapture],
  * [PcmPlayer], the recording bar, and the two timers, and runs the conversation as an ongoing
  * multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens for a
  * follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on
  * error. (Buffer-while-connecting and a "goodbye" fast-exit are deferred to a later milestone.)
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the main [Handler]: the
- * LiveClient callbacks (OkHttp thread), the player's drain (writer thread), and the timer Runnables all
+ * backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the timer Runnables all
  * post an [Event] here. So state is touched on one thread only — no locks, no CAS. The only thing off
  * this thread is the hot audio path: mic frames go straight to the socket and audio chunks straight to
  * the player (both thread-safe), to keep latency low.
@@ -48,6 +49,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class AssistantEngine(
     context: Context,
     private val apiKey: String,
+    // Before onEnded so the trailing-lambda call site still binds to onEnded; kept injectable so a fake backend can be supplied in tests.
+    private val backendFactory: VoiceBackendFactory = Backends.default,
     private val onEnded: () -> Unit,
 ) {
     private val appContext = context.applicationContext
@@ -66,7 +69,7 @@ class AssistantEngine(
     private val toolExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "tool-exec") }
     private val toolFutures = ConcurrentHashMap<String, Future<*>>()
 
-    private var live: LiveClient? = null
+    private var backend: VoiceBackend? = null
     private var mic: MicCapture? = null
 
     private var state = ConversationState()
@@ -93,7 +96,7 @@ class AssistantEngine(
 
     private var ended = false
 
-    /** Set once the Live socket is ready — lets a disconnect read as "lost" vs. "couldn't connect". */
+    /** Set once the backend session is ready — lets a disconnect read as "lost" vs. "couldn't connect". */
     private var connectedOk = false
 
     /** A text prompt (e.g. a tapped suggestion) to send as the first user turn, once the socket is ready. */
@@ -143,7 +146,7 @@ class AssistantEngine(
      * @param resume continue the on-screen conversation (replay its recent turns as context). True only for a
      * foreground **mic-tap** with a transcript present; a wake trigger and a fresh tap pass false → clean start
      * (any stale transcript is cleared by [ConversationHub.startFresh]). Multi-turn *within* this conversation
-     * is the live socket, not replayed context.
+     * is the live backend session, not replayed context.
      */
     fun start(resume: Boolean, initialText: String? = null) {
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
@@ -183,7 +186,10 @@ class AssistantEngine(
         // overlaps the network round-trip instead of delaying it. Playback isn't needed until the model speaks
         // (long after Ready), and nothing reads `player` before it's started — onAudio can't fire pre-Ready,
         // onFrame never touches it — so starting it after connect()/mic is safe.
-        live = LiveClient(apiKey, AppPrefs.modelId(appContext), systemPrompt, toolRegistry.declarations(), liveListener).also { it.connect() }
+        backend = backendFactory.create(
+            BackendConfig(apiKey, AppPrefs.modelId(appContext), systemPrompt, toolRegistry.declarations()),
+            backendListener,
+        ).also { it.connect() }
         // Buffer mic frames from the moment the device opens (CONNECTING) so the opening words survive the
         // ~440 ms connect — but only for a VOICE query (wake / tap). A tapped chip's query is the text turn, not
         // speech, so buffering would just flush connect-window noise alongside it (and the chip path stays
@@ -242,7 +248,7 @@ class AssistantEngine(
                 connectBuffering = false
                 drainConnectBuffer()
             }
-            live?.sendAudio(gained)
+            backend?.sendAudio(gained)
             // Local speech signal for the no-speech grace: measure the *gained* frame (what the server hears), not
             // the raw mic, so distant late speech still registers. The bar/visualizer keep the raw level below.
             if (PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL) lastSpeechAtMs = System.currentTimeMillis()
@@ -269,19 +275,19 @@ class AssistantEngine(
     private fun drainConnectBuffer() {
         val frames = connectBuffer.size
         if (frames > 0) DebugLog.log("connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting")
-        while (connectBuffer.isNotEmpty()) live?.sendAudio(connectBuffer.removeFirst())
+        while (connectBuffer.isNotEmpty()) backend?.sendAudio(connectBuffer.removeFirst())
     }
 
     /**
      * The single place outbound mic audio is pre-processed before streaming — a self-contained seam.
      * Today it applies [MIC_GAIN] (see [PcmGain]). **To tune:** change [MIC_GAIN]. **To disable:** set
      * [MIC_GAIN] = 1f (pass-through copy). **To remove entirely:** make this `buf.copyOf(n)` and delete
-     * `PcmGain`. Nothing else in the engine/reducer/LiveClient touches the audio, so gain is fully
+     * `PcmGain`. Nothing else in the engine/reducer/backend touches the audio, so gain is fully
      * contained here — removing it changes only this line.
      */
     private fun outgoingAudio(buf: ByteArray, n: Int): ByteArray = PcmGain.amplify(buf, n, MIC_GAIN)
 
-    private val liveListener = object : LiveClient.Listener {
+    private val backendListener = object : VoiceBackend.Listener {
         override fun onReady() {
             handler.post {
                 connectedOk = true
@@ -344,11 +350,11 @@ class AssistantEngine(
         override fun onToolCancel(ids: List<String>) {
             handler.post { dispatch(Event.ToolCancelled(ids)) }
         }
-        override fun onGoAway(timeLeftMs: Long) {
-            DebugLog.log("live goAway (timeLeft=${timeLeftMs}ms)") // handled in 2.c; let onClosed end it
+        override fun onServerClosingSoon(graceMs: Long) {
+            DebugLog.log("backend closing soon (grace=${graceMs}ms)") // handled in 2.c; let onClosed end it
         }
         override fun onError(message: String) {
-            DebugLog.log("live error: $message")
+            DebugLog.log("backend error: $message")
             handler.post { surfaceDisconnect() }
         }
         override fun onClosed() {
@@ -374,7 +380,7 @@ class AssistantEngine(
 
     /**
      * Send a tapped suggestion as the user's first turn. Runs on the handler right after [Event.Ready] put us
-     * in LISTENING (so [LiveClient.sendText] sees `setupDone`). We deliberately KEEP the no-speech timer that
+     * in LISTENING (so [VoiceBackend.sendText] sees the session ready). We deliberately KEEP the no-speech timer that
      * LISTENING just armed: a text turn's mic hears nothing, so that 5 s timer is exactly the guard that ends
      * the conversation if the server never starts a turn (a StallTimeout would be a no-op in LISTENING). On the
      * normal path [Event.ModelStarted] cancels it the instant the model begins — well under 5 s. The prompt is
@@ -384,7 +390,7 @@ class AssistantEngine(
         if (state.phase != Phase.LISTENING) return
         transcript = transcript.appendUser(text)
         publishTurns()
-        live?.sendText(text)
+        backend?.sendText(text)
         DebugLog.log("sent initial text: \"$text\"")
     }
 
@@ -493,7 +499,7 @@ class AssistantEngine(
 
         is Action.ExecuteTools -> submitToolBatch(action.calls)
 
-        is Action.SendToolResponse -> live?.sendToolResponse(action.results)
+        is Action.SendToolResponse -> backend?.sendToolResponse(action.results)
     }
 
     /**
@@ -548,8 +554,8 @@ class AssistantEngine(
         toolRegistry.dispose() // and clear the controllers' pending-effect handles
         runCatching { mic?.stop() }
         mic = null
-        runCatching { live?.close() }
-        live = null
+        runCatching { backend?.close() }
+        backend = null
         player.stop()
         overlay.dismiss()
         ConversationHub.markIdle() // back to IDLE; the finished transcript stays on screen
@@ -562,7 +568,7 @@ class AssistantEngine(
         const val MULTI_TURN = true
 
         // Software gain on the forwarded conversation audio so room-distance speech reaches a level the
-        // Live server transcribes (handset mic only — no far-field array). Tunable on device; ~2800 RMS
+        // backend transcribes (handset mic only — no far-field array). Tunable on device; ~2800 RMS
         // transcribed at arm's length, ~1400 at 4 m did not, so ~2x lifts 4 m to the working level.
         const val MIC_GAIN = 2.0f
 

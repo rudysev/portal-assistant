@@ -1,7 +1,5 @@
 package com.portal.assistant.conversation
 
-import com.portal.assistant.gemini.FunctionCall
-import com.portal.assistant.gemini.ToolResult
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

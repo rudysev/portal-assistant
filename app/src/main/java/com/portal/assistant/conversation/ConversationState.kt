@@ -1,13 +1,11 @@
 package com.portal.assistant.conversation
 
-import com.portal.assistant.gemini.FunctionCall
-import com.portal.assistant.gemini.ToolResult
 
 /**
  * The conversation as a **pure state machine** — `reduce(state, event) -> (state, actions)` with no
  * Android, no I/O, no threads — so the tricky event orderings are exhaustively unit-testable (the same
  * pattern as portal-wake's `WakeMatcher` / `HandoffRecovery`). The impure [AssistantEngine] runs this
- * on one Handler thread: every callback (LiveClient, PcmPlayer, timers) becomes an [Event] posted to
+ * on one Handler thread: every callback (backend, PcmPlayer, timers) becomes an [Event] posted to
  * that thread, so there are no locks and no races — which is what lets us delete the reference app's
  * CAS latch.
  *
@@ -103,7 +101,7 @@ sealed interface Action {
     /** Invoke the listed tools on the tool executor. */
     data class ExecuteTools(val calls: List<FunctionCall>) : Action
 
-    /** Send the tool results back to the model via the Live socket. */
+    /** Send the tool results back to the model via the backend. */
     data class SendToolResponse(val results: List<ToolResult>) : Action
 }
 

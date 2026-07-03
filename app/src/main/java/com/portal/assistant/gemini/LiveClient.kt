@@ -1,5 +1,8 @@
 package com.portal.assistant.gemini
 
+import com.portal.assistant.conversation.FunctionCall
+import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
 import com.portal.commons.PcmCaptureFormat
@@ -33,37 +36,8 @@ class LiveClient(
     private val model: String,
     private val systemPrompt: String,
     private val functionDeclarations: List<JSONObject> = emptyList(),
-    private val listener: Listener,
-) {
-
-    interface Listener {
-        fun onReady()
-        fun onInputTranscript(textDelta: String)
-
-        /** The model's own words, transcribed as it speaks — drives the word-by-word chat bubble (Phase 3). */
-        fun onOutputTranscript(textDelta: String)
-        fun onAudio(pcm24k: ByteArray)
-        fun onTurnComplete()
-        fun onInterrupted()
-
-        /**
-         * The model has started this turn — fired on the first `modelTurn` content, including a
-         * text-only "thinking" part before any audio (e.g. while it runs a Google Search). Signals the
-         * user's turn is over and we're now waiting on the model.
-         */
-        fun onModelGenerating()
-
-        /** The model wants to call one or more on-device tools. Engine must respond with [sendToolResponse]. */
-        fun onToolCall(calls: List<FunctionCall>)
-
-        /** The server cancelled the listed tool calls (ids); engine should abandon them. */
-        fun onToolCancel(ids: List<String>)
-
-        /** The server will terminate this connection soon (~10-min lifetime); [timeLeftMs] is best-effort. */
-        fun onGoAway(timeLeftMs: Long)
-        fun onError(message: String)
-        fun onClosed()
-    }
+    private val listener: VoiceBackend.Listener,
+) : VoiceBackend {
 
     private val http = Http.shared.newBuilder()
         .pingInterval(20, TimeUnit.SECONDS)
@@ -75,7 +49,7 @@ class LiveClient(
 
     @Volatile private var setupDone = false
 
-    fun connect() {
+    override fun connect() {
         if (apiKey.isBlank()) {
             listener.onError("No Gemini API key is set. Add one in Settings → API key.")
             return
@@ -85,11 +59,11 @@ class LiveClient(
         ws = http.newWebSocket(request, socketListener)
     }
 
-    /** Stream one chunk of 16 kHz mono 16-bit PCM mic audio to the model. */
-    fun sendAudio(pcm16k: ByteArray) {
+    /** Stream one chunk of 16 kHz mono 16-bit PCM mic audio to the model (the [VoiceBackend] audio contract). */
+    override fun sendAudio(pcm: ByteArray) {
         val sock = ws ?: return
         if (!setupDone) return
-        val b64 = Base64.getEncoder().encodeToString(pcm16k)
+        val b64 = Base64.getEncoder().encodeToString(pcm)
         val mime = "audio/pcm;rate=${PcmCaptureFormat.SAMPLE_RATE}"
         val msg = JSONObject().put(
             "realtimeInput",
@@ -105,7 +79,7 @@ class LiveClient(
      * Send one complete text turn as the user (e.g. a tapped suggestion). `turnComplete = true` tells the
      * server the user's turn is finished, so the model answers immediately — no VAD/end-of-speech wait.
      */
-    fun sendText(text: String) {
+    override fun sendText(text: String) {
         val sock = ws
         if (sock == null || !setupDone) {
             DebugLog.log("sendText dropped (ws=${sock != null}, setupDone=$setupDone)")
@@ -114,14 +88,14 @@ class LiveClient(
         sock.send(buildClientText(text))
     }
 
-    fun close() {
+    override fun close() {
         runCatching { ws?.close(1000, "client closing") }
         ws = null
         setupDone = false
     }
 
     /** Send tool results back to the model. [results] order must match the original functionCalls order. */
-    fun sendToolResponse(results: List<ToolResult>) {
+    override fun sendToolResponse(results: List<ToolResult>) {
         val sock = ws ?: return
         val responses = JSONArray()
         results.forEach { r ->
@@ -193,7 +167,7 @@ class LiveClient(
                     listener.onToolCancel(event.ids)
                 }
 
-                is ServerEvent.GoAway -> listener.onGoAway(event.timeLeftMs)
+                is ServerEvent.GoAway -> listener.onServerClosingSoon(event.timeLeftMs)
             }
         }
     }

@@ -6,8 +6,9 @@ version.
 ## What this is
 
 **Jarvis** — a conversational assistant for the Portal+ (model "aloha", Android 9 / API 28), package
-`com.portal.assistant`, currently powered by the Gemini Live API (the model is a swappable seam, not the
-app's identity). **Triggered by `portal-wake`** (no wake-word/Vosk here). Responds as background
+`com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
+`conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
+package (see the architecture section). **Triggered by `portal-wake`** (no wake-word/Vosk here). Responds as background
 voice (orange bar, no screen takeover); the foreground 2-way chat UI (Phase 3) is built. No skills — those
 come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobile Services.
 
@@ -88,7 +89,18 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
     when playback **drains** without a `turnComplete` (`PlaybackIdle`) — and **cancels** it while audio flows
     (`PlaybackBusy`). So it never fires mid-playback and never flushes a long answer. Don't "simplify" it back
     to firing on time-since-last-*received* chunk (the old bug that cut long answers off mid-sentence).
-- `conversation/AssistantEngine.kt` — the impure shell: wires `LiveClient` + `MicCapture` + `PcmPlayer`
+- `conversation/backend/VoiceBackend.kt` — the **model-neutral seam** the engine depends on (interface:
+  `connect`/`sendAudio`/`sendText`/`sendToolResponse`/`close` + a 12-callback `Listener`, with a documented
+  16 kHz-in / 24 kHz-out PCM audio contract). `BackendConfig` carries the session inputs (Gemini's API key
+  becomes the generic `credential`); `VoiceBackendFactory` builds one. `conversation/backend/Backends.kt` is
+  the **single composition point** that picks the concrete backend — deliberately the only file in
+  `conversation/` that imports `gemini`. Gemini's `LiveClient` implements `VoiceBackend`, wired via
+  `gemini/GeminiBackend.Factory`. So the reducer + engine never touch the `gemini` package: a local backend
+  implements `VoiceBackend`, adds a factory, and is chosen in `Backends` — though a full swap also needs the
+  still-Gemini-shaped model catalog (`AppPrefs.modelId`/`GeminiModel`) and key provisioning generalized. Seam
+  contract is unit-tested (`backend/VoiceBackendTest`).
+- `conversation/AssistantEngine.kt` — the impure shell: wires the `VoiceBackend` (Gemini's `LiveClient`
+  today, via `backendFactory`) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
   → no locks). Half-duplex: the mic is muted while the model speaks. `MIC_GAIN` amplifies the *forwarded*
   audio so the Live server can transcribe room-distance speech (handset mic only — no far-field array;
@@ -168,8 +180,7 @@ shared mic shell behind `PcmDevice`). Two plugin contracts are **not** shared de
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
-export JAVA_HOME=/opt/homebrew/opt/openjdk@21
-./gradlew testDebugUnitTest assembleDebug    # Android SDK resolved from the environment (ANDROID_HOME)
+./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"
 ```
