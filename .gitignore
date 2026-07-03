@@ -48,6 +48,7 @@ docs/*
 
 # portal-gemini-chat specifics (kept from the original .gitignore)
 build/
-# Vosk speech model for the wake word (~40 MB) — downloaded, not committed. See README.
-/app/src/main/assets/model-en-us/
+# Vosk speech model for the wake word (~128 MB, vosk-model-en-us-0.22-lgraph) — downloaded, not committed. See README.
+/app/src/main/assets/model-en-us/*
+!/app/src/main/assets/model-en-us/README.md
 .cursorrules

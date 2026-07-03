@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         UiVisibility.inForeground = true // engine hides the orange bar; in-UI state takes over
+        AssistantService.onForeground(this) // arm foreground "hey jarvis" detection (gen2 hands-free)
         clearStaleTranscriptIfIdle()
         TimerStore.refresh(this) // seed the home-screen timer cards from the persisted store
     }
@@ -145,6 +146,7 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         UiVisibility.inForeground = false // backgrounded again → the orange bar returns
+        AssistantService.onBackground(this) // pause foreground detection; free the mic (portal-wake reclaims on gen1)
     }
 
     /**

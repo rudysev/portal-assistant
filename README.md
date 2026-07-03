@@ -46,8 +46,16 @@ Developers building from source: see the build/run notes in `CLAUDE.md` and use 
 
 ## Talking to it
 
-- **"Hey Jarvis, …"** — hands-free wake. *(Requires the companion `portal-wake` app installed, and is
-  Portal Gen 1 only.)*
+- **"Hey Jarvis, …"** — hands-free wake. Where it works depends on the Portal's Android version:
+
+  | Scenario | Wake path |
+  |---|---|
+  | **Gen 1** (Android 9), any state | the companion **`portal-wake`** app (background) |
+  | **Gen 2** (Android 10), app open | Jarvis's **own foreground** detector — no `portal-wake` needed |
+  | **Gen 2**, app in background | *no hands-free wake* (Android 10 silences a background mic) — tap **Tap to talk** |
+
+  So on Gen 1 install `portal-wake` for hands-free anywhere; on Gen 2 hands-free works whenever Jarvis is on
+  screen, and you tap to talk when it isn't.
 - **Tap to talk** — open the app and tap to start a turn directly, on any setup.
 - **Multi-turn** — after each answer Jarvis keeps listening for a follow-up; the conversation ends on its
   own when you stop talking. No need to repeat the wake word for each question.

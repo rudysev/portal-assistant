@@ -8,7 +8,9 @@ version.
 **Jarvis** — a conversational assistant for the Portal+ (model "aloha", Android 9 / API 28), package
 `com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
 `conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
-package (see the architecture section). **Triggered by `portal-wake`** (no wake-word/Vosk here). Responds as background
+package (see the architecture section). **Triggered by `portal-wake`** in the background; on Android 10 (Portal
+gen2, where a background mic is OS-silenced) it *also* runs its **own foreground** Vosk "hey jarvis" detector
+while on screen (see the wake note below). Responds as background
 voice (orange bar, no screen takeover); the foreground 2-way chat UI (Phase 3) is built. No skills — those
 come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobile Services.
 
@@ -143,7 +145,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 ## Design rules — don't break these
 
-- **No wake-word here.** portal-wake owns detection; we receive `ACTION_WAKE` and run a turn.
+- **Wake detection is split by foreground state.** portal-wake owns *background* detection and hands off via
+  `ACTION_WAKE` (gen1, and gen2 while the app is off-screen). On Android 10 (gen2) a background mic is
+  OS-silenced, so the assistant runs its **own foreground** Vosk detector while on screen
+  (`AssistantService.enterDetection`, the shared `WakeMicEngine` from portal-commons); a match routes through
+  the same `AssistantService.start(...)`. The two apps share the single mic via portal-wake's
+  contention/reclaim (no signal). Keep the detector foreground-only — a background mic just gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
   Hold the mic only while the conversation is live, release cleanly when finished. (2.b: keep the
   `AudioRecord` open across turns — mute between turns — so portal-wake can't reclaim mid-conversation.)
@@ -180,6 +187,9 @@ shared mic shell behind `PcmDevice`). Two plugin contracts are **not** shared de
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
+# For the gen2 foreground "hey jarvis" detector, bundle the Vosk model first (one-time, ~128 MB, gitignored):
+#   see app/src/main/assets/model-en-us/README.md. WITHOUT it the app still builds/runs, but foreground wake
+#   is off (logs "wake model unavailable"); gen1 is unaffected (it uses portal-wake).
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"

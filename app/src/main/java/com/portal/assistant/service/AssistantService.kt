@@ -1,19 +1,28 @@
 package com.portal.assistant.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.portal.assistant.BuildConfig
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.system.AppPrefs
+import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
+import com.portal.commons.audio.WakeMatcher
+import com.portal.commons.audio.WakeMicEngine
+import com.portal.commons.audio.WakeWord
 import java.io.File
 
 /**
@@ -33,6 +42,18 @@ import java.io.File
 class AssistantService : Service() {
 
     private var engine: AssistantEngine? = null
+
+    // On-device "hey jarvis" detector, **gen2 (API 29+) only** and active only while this app is foreground.
+    // On Android 10 a background mic is OS-silenced, but a resumed foreground app records fine — so hands-free
+    // wake works here whenever the assistant is on screen. Built lazily on first foreground detection and kept
+    // resident (paused, not unloaded) so re-arming is instant. Gen1 (API 28) skips this entirely and stays
+    // portal-wake-only; when this runs, portal-wake yields by *detecting* our recording (no-signal handoff).
+    private var detector: WakeMicEngine? = null
+
+    // WakeMicEngine fires onWake on its capture thread, but start/pause belong on the controlling (main)
+    // thread — so a match hops here to pause the detector (free the mic slot) BEFORE triggering the
+    // conversation, mirroring portal-wake's "pause before notify" handoff ordering.
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile private var prewarmed = false
 
@@ -62,6 +83,11 @@ class AssistantService : Service() {
                 intent.getStringExtra(EXTRA_INITIAL_TEXT),
             )
 
+            // Foreground wake detection (gen2 hands-free): arm while foreground+idle, pause on background.
+            ACTION_FOREGROUND -> if (engine == null) enterDetection()
+
+            ACTION_BACKGROUND -> exitDetection()
+
             else -> { // boot / sticky restart
                 DebugLog.log("AssistantService standby (resident, warm)")
                 prewarm()
@@ -77,6 +103,8 @@ class AssistantService : Service() {
         engine?.stop()
         engine = null
         running = false
+        detector?.shutdown() // free the resident Vosk model
+        detector = null
         DebugLog.log("AssistantService destroyed → mic released")
     }
 
@@ -86,6 +114,7 @@ class AssistantService : Service() {
         // LISTENING/multi-turn re-listen (a second wake/tap can't start a parallel conversation or "refresh"
         // the turn — the user just keeps talking).
         if (engine != null) return
+        exitDetection() // stop the foreground detector's capture before the conversation opens its mic (single slot)
         running = true
         startForeground(NOTIFICATION_ID, buildNotification(active = true))
         DebugLog.log("AssistantService START (trigger=$source) → conversation")
@@ -115,6 +144,55 @@ class AssistantService : Service() {
         engine = null
         running = false
         startForeground(NOTIFICATION_ID, buildNotification(active = false))
+        // Re-arm foreground wake detection after a turn ends, but only if the app is still on screen; if it's
+        // backgrounded the mic stays free so portal-wake (gen1) can reclaim it.
+        if (UiVisibility.inForeground) enterDetection()
+    }
+
+    /**
+     * Start (or resume) foreground "hey jarvis" detection. Built lazily on first use — the ~128 MB Vosk model
+     * loads once and stays resident (see [exitDetection]). Only meaningful while idle (`engine == null`); the
+     * [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same
+     * entry point as the portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
+     */
+    private fun enterDetection() {
+        // Gen2 (API 29+) ONLY. On gen1 (API 28) portal-wake already does foreground AND background wake, so an
+        // in-app detector here would just load a second ~128 MB model and ping-pong the single mic with
+        // portal-wake for no benefit. Above API 28 a background mic is silenced, which is the whole reason this
+        // foreground detector exists — so it earns its keep only there.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        // Don't build the (~128 MB) detector until we can actually record — otherwise a pre-grant onResume
+        // loads the model for a capture that can only fail. Re-armed after the first conversation (which is
+        // what prompts the RECORD_AUDIO grant) via returnToStandby.
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
+            return
+        }
+        val d = detector ?: WakeMicEngine(
+            context = applicationContext,
+            wakeWords = listOf(FOREGROUND_WAKE_WORD),
+            onUnavailable = { DebugLog.log("wake model unavailable — foreground detection off") },
+            // onWake fires on the capture thread: hop to main, pause the detector to free the single mic slot,
+            // THEN trigger the turn — so the conversation never opens its mic while the detector still holds it.
+            onWake = { id ->
+                mainHandler.post {
+                    exitDetection()
+                    start(applicationContext, "wake:$id")
+                }
+            },
+            onError = { DebugLog.log("foreground detector error: $it") }, // surface capture faults, don't swallow
+        ).also { detector = it }
+        // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
+        // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
+        if (!d.start()) DebugLog.log("foreground detector start refused (capture wedged)")
+    }
+
+    /**
+     * Pause foreground detection: releases the mic (so a conversation can take it, or portal-wake can reclaim
+     * when we background) but **keeps the model resident** so re-arming is instant. `pause()` is idempotent.
+     */
+    private fun exitDetection() {
+        detector?.pause()
     }
 
     /**
@@ -185,6 +263,8 @@ class AssistantService : Service() {
         const val ACTION_STOP = "com.portal.assistant.action.STOP"
         const val ACTION_NEW_CONVERSATION = "com.portal.assistant.action.NEW_CONVERSATION"
         const val ACTION_STANDBY = "com.portal.assistant.action.STANDBY"
+        const val ACTION_FOREGROUND = "com.portal.assistant.action.FOREGROUND"
+        const val ACTION_BACKGROUND = "com.portal.assistant.action.BACKGROUND"
         const val EXTRA_SOURCE = "com.portal.assistant.extra.SOURCE"
         const val EXTRA_INITIAL_TEXT = "com.portal.assistant.extra.INITIAL_TEXT"
 
@@ -193,6 +273,11 @@ class AssistantService : Service() {
 
         /** Conversation trigger source: a tapped suggestion chip — sends its text as the first turn. */
         const val SOURCE_CHIP = "chip"
+
+        /** The foreground detector's wake word — "hey jarvis" at the strict floor, matching portal-wake's
+         *  built-in jarvis default so accuracy is identical. Non-null: the phrase is a valid two-word phrase. */
+        private val FOREGROUND_WAKE_WORD =
+            WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)!!
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001
@@ -207,6 +292,25 @@ class AssistantService : Service() {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, AssistantService::class.java).setAction(ACTION_STANDBY),
+            )
+        }
+
+        /** Arm foreground "hey jarvis" detection — call from the Activity's `onResume`. */
+        fun onForeground(context: Context) {
+            // startForegroundService (not startService): onPause/onResume can fire as the app transitions and
+            // the resident service may have been killed — starting a *foreground* service is allowed from that
+            // state on API 28/29, a plain startService can throw BackgroundServiceStartNotAllowed.
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, AssistantService::class.java).setAction(ACTION_FOREGROUND),
+            )
+        }
+
+        /** Pause foreground detection (release the mic) — call from the Activity's `onPause`. */
+        fun onBackground(context: Context) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, AssistantService::class.java).setAction(ACTION_BACKGROUND),
             )
         }
 
