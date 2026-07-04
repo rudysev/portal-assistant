@@ -1,0 +1,5 @@
+{
+  "versionCode": 3,
+  "versionName": "2.1.0",
+  "note": "Read live by the Immortal store (catalog versionUrl) to detect updates. scripts/cut-release.sh regenerates this on every release; do not edit by hand."
+}
