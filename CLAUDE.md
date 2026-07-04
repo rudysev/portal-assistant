@@ -8,9 +8,8 @@ version.
 **Jarvis** — a conversational assistant for the Portal+ (model "aloha", Android 9 / API 28), package
 `com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
 `conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
-package (see the architecture section). **Triggered by `portal-wake`** in the background; on Android 10 (Portal
-gen2, where a background mic is OS-silenced) it *also* runs its **own foreground** Vosk "hey jarvis" detector
-while on screen (see the wake note below). Responds as background
+package (see the architecture section). **Triggered by `portal-wake`** in the background, plus its **own
+foreground** Vosk detector on gen2 (see the wake note below for why the split). Responds as background
 voice (orange bar, no screen takeover); the foreground 2-way chat UI (Phase 3) is built. No skills — those
 come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobile Services.
 
@@ -187,9 +186,9 @@ shared mic shell behind `PcmDevice`). Two plugin contracts are **not** shared de
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
-# For the gen2 foreground "hey jarvis" detector, bundle the Vosk model first (one-time, ~128 MB, gitignored):
-#   see app/src/main/assets/model-en-us/README.md. WITHOUT it the app still builds/runs, but foreground wake
-#   is off (logs "wake model unavailable"); gen1 is unaffected (it uses portal-wake).
+# The gen2 "hey jarvis" Vosk model is NOT bundled — the app downloads it at runtime on first gen2 use
+#   (system/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
+#   place at build time. gen1 is unaffected (it uses portal-wake, which bundles its own model).
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"

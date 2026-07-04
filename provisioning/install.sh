@@ -16,6 +16,7 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"   # absolute path to this script — survives the cd below (for --help)
 cd "$SCRIPT_DIR"
 
 # ----- pretty output ---------------------------------------------------------
@@ -256,7 +257,7 @@ case "${1:-}" in
   --status|-s)    do_status ;;
   --key|-k)       KEY="${2:-}"; do_key ;;
   --local|-l)     LOCAL_APK="${2:-$DEFAULT_BUILD_APK}"; do_install ;;
-  --help|-h)      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+  --help|-h)      sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//' ;;
   "")             do_install ;;
   *)              die "Unknown option: $1 (use --local, --key, --uninstall, --status, or no argument)" ;;
 esac

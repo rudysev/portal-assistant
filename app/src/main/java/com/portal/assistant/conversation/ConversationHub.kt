@@ -6,6 +6,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.atomic.AtomicLong
 
+/** Gen2 wake-model runtime download state for the idle-home setup indicator (see [ConversationHub.modelSetup]). */
+sealed interface ModelSetup {
+    /** Nothing to show: model installed/downloaded, or gen1 (no in-app detector). */
+    data object Idle : ModelSetup
+
+    /** The one-time model download is in flight; [progress] is 0f–1f. */
+    data class Downloading(val progress: Float) : ModelSetup
+
+    /** The download failed (offline/interrupted); hands-free wake stays off until a later attempt succeeds. */
+    data object Failed : ModelSetup
+}
+
 /**
  * Process-wide bridge between the headless conversation (which lives in [AssistantEngine], hosted by the
  * resident [com.portal.assistant.service.AssistantService]) and the foreground chat UI ([MainActivity]).
@@ -52,6 +64,18 @@ object ConversationHub {
      */
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    /**
+     * Gen2 wake-model runtime download state for the idle-home setup indicator — the model is fetched on first
+     * gen2 use, not shipped in the APK (see [com.portal.assistant.system.WakeModelInstaller]). [ModelSetup.Idle]
+     * when there's nothing to show (installed, or gen1). Written by the hosting service; observed by the UI.
+     */
+    private val _modelSetup = MutableStateFlow<ModelSetup>(ModelSetup.Idle)
+    val modelSetup: StateFlow<ModelSetup> = _modelSetup.asStateFlow()
+
+    fun setModelSetup(state: ModelSetup) {
+        _modelSetup.value = state
+    }
 
     // ---- writers (engine on its Handler thread; clearHistory also from the service + MainActivity) ------
 
