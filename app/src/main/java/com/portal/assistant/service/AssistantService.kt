@@ -61,9 +61,12 @@ class AssistantService : Service() {
     // The gen2 Vosk model is downloaded at runtime (not shipped in the APK — it's dead weight on gen1). Fetched
     // once on first foreground detection, then WakeMicEngine loads it from disk. See [WakeModelInstaller].
     private val modelInstaller by lazy { WakeModelInstaller(filesDir) }
+
     @Volatile private var modelDownloading = false
+
     // Bounds the delete+re-download recovery to once per process, so a genuinely unloadable model can't loop.
     private var modelReloadTried = false
+
     // Hard stop for this process: set after repeated download-install failures or a second load failure, so
     // enterDetection stops re-fetching the model / rebuilding a doomed mic-grabbing detector on every foreground.
     @Volatile private var wakeSetupFailed = false
@@ -240,7 +243,7 @@ class AssistantService : Service() {
                     // re-fetching the model every time. Offline doesn't count — it returns before attempting.
                     if (++modelDownloadAttempts >= MAX_MODEL_DOWNLOAD_ATTEMPTS) {
                         wakeSetupFailed = true
-                        DebugLog.log("wake model download failed ${modelDownloadAttempts}× — giving up this session")
+                        DebugLog.log("wake model download failed $modelDownloadAttempts× — giving up this session")
                     }
                 }
             }
