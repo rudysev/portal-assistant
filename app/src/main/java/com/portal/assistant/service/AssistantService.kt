@@ -190,7 +190,7 @@ class AssistantService : Service() {
             ensureModelThenArm()
             return
         }
-        val d = detector ?: WakeMicEngine(
+        val d = detector ?: WakeMicEngine.vosk(
             context = applicationContext,
             wakeWords = listOf(FOREGROUND_WAKE_WORD),
             // Fires when the downloaded model won't load (corrupt / partially downloaded past isInstalled's
