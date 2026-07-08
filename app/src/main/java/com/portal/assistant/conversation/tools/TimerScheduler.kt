@@ -160,7 +160,7 @@ class TimerScheduler(context: Context) {
 
     private fun ensureChannel(mgr: NotificationManager) {
         val channel = NotificationChannel(CHANNEL_ID, "Timers", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Kitchen timer alarms"
+            description = "Timer alarms"
             // Channel sound is dead config on this Portal (the launcher doesn't surface the notification, so it
             // never plays) — kept for correctness on standard-Android surfaces; the audible alert is ChimeSound.
             setSound(

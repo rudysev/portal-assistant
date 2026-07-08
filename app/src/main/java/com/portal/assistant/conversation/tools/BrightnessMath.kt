@@ -9,7 +9,7 @@ import kotlin.math.roundToInt
  *
  * **Linear** mapping like volume — "50%" is the device's true half-scale — with one twist: a **minimum floor**
  * ([MIN_RAW]). Any computed raw is clamped *up* to [MIN_RAW], not just literal 0%, so a voice "set brightness to
- * 0/1%" can never drive the kitchen display fully black and out of reach of the next voice command. Because the
+ * 0/1%" can never drive the display fully black and out of reach of the next voice command. Because the
  * floor is real device state, [toPercent] reports the honest round-trip (post-floor) percent — so `set 0%` then
  * `get` reads back ~[MIN_RAW]-as-percent, not 0 (same "report the true device level" philosophy as volume).
  *

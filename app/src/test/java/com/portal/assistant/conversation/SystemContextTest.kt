@@ -23,14 +23,14 @@ class SystemContextTest {
     @Test fun timeLineFormatsClockAndZone() {
         val line = SystemContext.timeLine("Saturday, June 21, 2026 at 9:30 PM", "America/Los_Angeles")
         assertEquals(
-            "Local date/time: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles).",
+            "Time: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles).",
             line,
         )
     }
 
     @Test fun enrichComposesWithTimeLine() {
         val out = SystemContext.enrich("BASE", listOf(SystemContext.timeLine("now", "Z")))
-        assertTrue(out.contains("Local date/time: now (Z)."))
+        assertTrue(out.contains("Time: now (Z)."))
     }
 
     @Test fun locationLineFormatsPlaceAndCoords() {
@@ -38,19 +38,19 @@ class SystemContextTest {
             DeviceLocation("Seattle", "Washington", "United States", 47.6062, -122.3321),
         )
         assertEquals(
-            "Approximate device location: Seattle, Washington, United States (lat 47.61, lon -122.33).",
+            "Location: Seattle, Washington, United States (lat 47.61, lon -122.33).",
             line,
         )
     }
 
     @Test fun locationLineOmitsBlankParts() {
         val line = SystemContext.locationLine(DeviceLocation("Tokyo", "", "", 35.68, 139.69))
-        assertTrue(line.contains("Approximate device location: Tokyo (lat 35.68, lon 139.69)."))
+        assertTrue(line.contains("Location: Tokyo (lat 35.68, lon 139.69)."))
     }
 
     @Test fun overrideLineUsesUserText() {
         assertEquals(
-            "Approximate device location: Mountain View, CA (set by the user).",
+            "Location: Mountain View, CA.",
             SystemContext.overrideLine("Mountain View, CA"),
         )
     }

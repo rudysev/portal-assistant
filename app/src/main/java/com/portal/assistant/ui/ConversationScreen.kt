@@ -192,7 +192,7 @@ fun ConversationScreen(
                 onOpenSettings = onOpenSettings,
             )
             NoticeSlot(notice, onDismissNotice)
-            // Live timer cards sit above the content in BOTH states — a kitchen display's most-wanted glance
+            // Live timer cards sit above the content in BOTH states — a most-wanted at-a-glance readout
             // shouldn't vanish the moment a transcript is on screen. Renders nothing when no timers are active.
             TimerCards(
                 hasTranscript = turns.isNotEmpty(),
@@ -631,7 +631,7 @@ private fun Clock() {
 }
 
 /**
- * Live countdown cards for active timers — a kitchen display's most-wanted glance. Observes [TimerStore]
+ * Live countdown cards for active timers — a most-wanted at-a-glance readout. Observes [TimerStore]
  * (kept in step with the canonical scheduler store) and ticks every second to recompute the remaining time
  * and drop any that just hit 0. Renders nothing when there are no active timers. Each card cancels on its ✕.
  */
