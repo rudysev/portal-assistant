@@ -24,6 +24,8 @@ import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
 import com.portal.commons.audio.WakeMatcher
+import com.portal.commons.audio.WakeDetectors
+import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
 import com.portal.commons.audio.WakeWord
 import java.io.File
@@ -53,13 +55,11 @@ class AssistantService : Service() {
     // portal-wake-only; when this runs, portal-wake yields by *detecting* our recording (no-signal handoff).
     private var detector: WakeMicEngine? = null
 
-    // WakeMicEngine fires onWake on its capture thread, but start/pause belong on the controlling (main)
-    // thread — so a match hops here to pause the detector (free the mic slot) BEFORE triggering the
-    // conversation, mirroring portal-wake's "pause before notify" handoff ordering.
+    // WakeMicEngine invokes onWake on the capture thread; start/pause belong on main — hop before handoff.
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // The gen2 Vosk model is downloaded at runtime (not shipped in the APK — it's dead weight on gen1). Fetched
-    // once on first foreground detection, then WakeMicEngine loads it from disk. See [WakeModelInstaller].
+    // The gen2 wake model is downloaded at runtime (not shipped in the APK — dead weight on gen1). Fetched
+    // once on first foreground detection, then the detector loads it from disk. See [WakeModelInstaller].
     private val modelInstaller by lazy { WakeModelInstaller(filesDir) }
 
     @Volatile private var modelDownloading = false
@@ -120,7 +120,7 @@ class AssistantService : Service() {
         engine?.stop()
         engine = null
         running = false
-        detector?.shutdown() // free the resident Vosk model
+        detector?.close() // tear down the resident wake detector (releases its model)
         detector = null
         DebugLog.log("AssistantService destroyed → mic released")
     }
@@ -167,7 +167,7 @@ class AssistantService : Service() {
     }
 
     /**
-     * Start (or resume) foreground "hey jarvis" detection. Built lazily on first use — the Vosk model loads
+     * Start (or resume) foreground "hey jarvis" detection. Built lazily on first use — the wake model loads
      * once and stays resident (see [exitDetection]). Only meaningful while idle (`engine == null`); the
      * [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same
      * entry point as the portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
@@ -192,20 +192,18 @@ class AssistantService : Service() {
         }
         val d = detector ?: WakeMicEngine(
             context = applicationContext,
-            wakeWords = listOf(FOREGROUND_WAKE_WORD),
-            // Fires when the downloaded model won't load (corrupt / partially downloaded past isInstalled's
-            // gate / incompatible format). Recover on the main thread — see handleModelLoadFailure.
-            onUnavailable = { mainHandler.post { handleModelLoadFailure() } },
-            // onWake fires on the capture thread: hop to main, pause the detector to free the single mic slot,
-            // THEN trigger the turn — so the conversation never opens its mic while the detector still holds it.
-            onWake = { id ->
-                mainHandler.post {
-                    exitDetection()
-                    start(applicationContext, "wake:$id")
-                }
-            },
-            onError = { DebugLog.log("foreground detector error: $it") }, // surface capture faults, don't swallow
-            modelDir = modelInstaller.modelDir(), // load the downloaded model (not a bundled asset)
+            config = WakeMicConfig(
+                wakeWords = listOf(FOREGROUND_WAKE_WORD),
+                detectors = listOf(WakeDetectors.vosk(modelDir = modelInstaller.modelDir())),
+                onDetectorUnavailable = { handleModelLoadFailure() },
+                onWake = { event ->
+                    mainHandler.post {
+                        exitDetection()
+                        start(applicationContext, "wake:${event.wakeId}")
+                    }
+                },
+                onError = { DebugLog.log("foreground detector error: $it") },
+            ),
         ).also { detector = it }
         // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
         // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
@@ -213,7 +211,7 @@ class AssistantService : Service() {
     }
 
     /**
-     * First-run gen2: the Vosk model isn't in the APK, so fetch it once (off-thread), publishing progress for
+     * First-run gen2: the wake model isn't in the APK, so fetch it once (off-thread), publishing progress for
      * the idle-home setup indicator ([ConversationHub.setModelSetup]), then re-enter detection to arm. Guarded
      * so a burst of onResume/returnToStandby calls kicks off only one download. Skipped quietly when offline —
      * a later foreground attempt with network still succeeds (the device needs network for Gemini anyway).
@@ -269,7 +267,7 @@ class AssistantService : Service() {
      */
     private fun handleModelLoadFailure() {
         if (wakeSetupFailed) return // already gave up this session — don't re-delete or re-enter on a double onUnavailable
-        detector?.shutdown() // release the mic/capture the failed detector opened
+        detector?.close() // release the mic/capture the failed detector opened
         detector = null
         if (modelReloadTried) {
             // The re-downloaded model ALSO failed to load — a fresh copy won't help (incompatible/corrupt). Give

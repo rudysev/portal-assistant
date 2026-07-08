@@ -12,8 +12,8 @@ import java.util.zip.ZipInputStream
  *
  * The (large) English model is only needed by the **gen2 (Android 10+) foreground "hey jarvis" detector**;
  * bundling it would be dead weight on gen1, where portal-wake owns wake and ships its own copy. So the
- * assistant downloads it on first gen2 use, unpacks it into `filesDir`, and points
- * [com.portal.commons.audio.WakeMicEngine]'s `modelDir` at it. Idempotent: once [isInstalled] it never re-fetches.
+ * assistant downloads it on first gen2 use, unpacks it into `filesDir`, and passes the directory to
+ * `WakeDetectors.vosk(modelDir = …)` in `WakeMicConfig`. Idempotent: once [isInstalled] it never re-fetches.
  *
  * [install] is blocking (network fetch + unzip) — call it off the main thread; it reports 0f‑1f progress for
  * the setup UI. Failure (offline, truncated, bad zip) leaves no partial model and returns false. The device
@@ -145,7 +145,7 @@ class WakeModelInstaller(private val filesDir: File) {
         // model portal-wake ships and the assistant used to bundle). HTTPS — no cleartext concern.
         const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip"
 
-        // Unpacked model lives here under filesDir; WakeMicEngine(modelDir=...) points at it.
+        // Unpacked model lives here under filesDir; WakeDetectors.vosk(modelDir = modelDir()) loads it.
         private const val MODEL_DIR = "wake-model"
 
         // Every dir a complete Vosk model has — all must be present for [isInstalled] to trust the install

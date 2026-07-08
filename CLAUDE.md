@@ -147,7 +147,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
   silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
-  (`AssistantService.enterDetection`, the shared `WakeMicEngine` from portal-commons); a match routes through
+  (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` +
+  `WakeDetectors.vosk(modelDir)` from portal-commons); a match routes through
   the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
   contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
@@ -177,7 +178,8 @@ session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Tran
 bar) + `UiVisibility` (foreground flag) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
-shared mic shell behind `PcmDevice`). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
+shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `VoskWakeDetector` for the
+gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
 `ToolContract` is **local to this app** (`conversation/tools/ToolContract`); the inbound wake contract
 (`com.portal.wake.action.WAKE` / `…extra.ID`) is **portal-wake's** `WakeContract`, mirrored as literals in
 `wake/WakeHandoffReceiver`.
