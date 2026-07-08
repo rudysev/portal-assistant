@@ -40,7 +40,9 @@ step‑by‑step instructions — including how the API key works and how to cha
 
 > **You bring your own Gemini API key.** It's free, it stays only on your Portal, and Jarvis can't answer
 > without one. You can install without it and add it later in **Settings → API key**, but it won't work
-> until you do. For the hands‑free **"hey jarvis"** trigger, also install the companion **portal-wake** app.
+> until you do. Hands‑free **"hey jarvis"** works on its own on **Gen 2** (Android 10) while Jarvis is on
+> screen; on **Gen 1** (Android 9) it needs the companion **portal-wake** app — details under
+> [Talking to it](#talking-to-it).
 
 Developers building from source: see the build/run notes in `CLAUDE.md` and use `./setup.sh`.
 

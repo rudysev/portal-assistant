@@ -5,7 +5,7 @@ version.
 
 ## What this is
 
-**Jarvis** — a conversational assistant for the Portal+ (model "aloha", Android 9 / API 28), package
+**Jarvis** — a conversational assistant for the Meta Portal (gen1 Android 9 + gen2 Android 10), package
 `com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
 `conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
 package (see the architecture section). **Triggered by `portal-wake`** in the background, plus its **own
@@ -144,12 +144,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 ## Design rules — don't break these
 
-- **Wake detection is split by foreground state.** portal-wake owns *background* detection and hands off via
-  `ACTION_WAKE` (gen1, and gen2 while the app is off-screen). On Android 10 (gen2) a background mic is
-  OS-silenced, so the assistant runs its **own foreground** Vosk detector while on screen
+- **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
+  and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
+  silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
   (`AssistantService.enterDetection`, the shared `WakeMicEngine` from portal-commons); a match routes through
-  the same `AssistantService.start(...)`. The two apps share the single mic via portal-wake's
-  contention/reclaim (no signal). Keep the detector foreground-only — a background mic just gets silenced.
+  the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
+  contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
   Hold the mic only while the conversation is live, release cleanly when finished. (2.b: keep the
   `AudioRecord` open across turns — mute between turns — so portal-wake can't reclaim mid-conversation.)
