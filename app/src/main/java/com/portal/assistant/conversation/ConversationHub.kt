@@ -66,9 +66,8 @@ object ConversationHub {
     val notice: StateFlow<String?> = _notice.asStateFlow()
 
     /**
-     * Gen2 wake-model runtime download state for the idle-home setup indicator — the model is fetched on first
-     * gen2 use, not shipped in the APK (see [com.portal.assistant.system.WakeModelInstaller]). [ModelSetup.Idle]
-     * when there's nothing to show (installed, or gen1). Written by the hosting service; observed by the UI.
+     * Gen2 wake-model setup state — models are bundled in the APK now, so this stays [ModelSetup.Idle]
+     * in normal operation. Kept for UI compatibility if a future setup step is added.
      */
     private val _modelSetup = MutableStateFlow<ModelSetup>(ModelSetup.Idle)
     val modelSetup: StateFlow<ModelSetup> = _modelSetup.asStateFlow()

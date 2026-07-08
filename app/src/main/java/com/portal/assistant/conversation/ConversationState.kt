@@ -4,7 +4,7 @@ package com.portal.assistant.conversation
 /**
  * The conversation as a **pure state machine** — `reduce(state, event) -> (state, actions)` with no
  * Android, no I/O, no threads — so the tricky event orderings are exhaustively unit-testable (the same
- * pattern as portal-wake's `WakeMatcher` / `HandoffRecovery`). The impure [AssistantEngine] runs this
+ * pattern as portal-wake's `HandoffRecovery`). The impure [AssistantEngine] runs this
  * on one Handler thread: every callback (backend, PcmPlayer, timers) becomes an [Event] posted to
  * that thread, so there are no locks and no races — which is what lets us delete the reference app's
  * CAS latch.

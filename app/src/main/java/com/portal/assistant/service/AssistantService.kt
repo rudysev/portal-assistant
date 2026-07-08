@@ -20,7 +20,6 @@ import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
-import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicEngine
 import com.portal.commons.audio.WakeWord
 import java.io.File
@@ -103,7 +102,7 @@ class AssistantService : Service() {
         engine?.stop()
         engine = null
         running = false
-        detector?.shutdown() // free the resident Vosk model
+        detector?.shutdown()
         detector = null
         DebugLog.log("AssistantService destroyed → mic released")
     }
@@ -273,10 +272,9 @@ class AssistantService : Service() {
         /** Conversation trigger source: a tapped suggestion chip — sends its text as the first turn. */
         const val SOURCE_CHIP = "chip"
 
-        /** The foreground detector's wake word — "hey jarvis" at the strict floor, matching portal-wake's
-         *  built-in jarvis default so accuracy is identical. Non-null: the phrase is a valid two-word phrase. */
+        /** The foreground detector's wake word — "hey jarvis" at the default threshold, matching portal-wake. */
         private val FOREGROUND_WAKE_WORD =
-            WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)!!
+            WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeWord.DEFAULT_MIN_CONF)!!
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001

@@ -11,7 +11,7 @@ import com.portal.commons.DebugLog
  * sends this app an explicit [ACTION_WAKE] broadcast; we start [AssistantService] to take the freed mic.
  *
  * This app advertises its wake word via named `<meta-data>` on this receiver in the manifest
- * (`com.portal.wake.phrase` = "hey jarvis", `com.portal.wake.min_confidence` = "0.6"), which portal-wake
+ * (`com.portal.wake.phrase` = "hey jarvis", `com.portal.wake.min_confidence` = "0.5"), which portal-wake
  * discovers at runtime — the lead "hey" lives in the phrase, and portal-wake derives the keyword + lead
  * from it. The action/extra strings are portal-wake's stable public contract (`WakeContract`); a plugin
  * does not depend on portal-wake — the literal strings *are* the contract, so we mirror the two we read
