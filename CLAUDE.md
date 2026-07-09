@@ -39,10 +39,12 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   bundled **Inter** typeface in `theme/Type` so the brand doesn't depend on the device font) in our
   warm-orange **"Jarvis"** identity (model name as a subtitle). It renders three center states by
   `(turns, phase)`:
-  - **Idle home:** an ambient clock/date, the greeting, and a "Try asking" row of **suggestion chips** —
-    dynamic, e.g. "Turn off the lights" appears only when the Kasa tool provider is enabled. A slow
-    `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the first turn** (not just opening
-    the mic): `LiveClient.sendText` → a `clientContent` text turn, threaded as `initialText` via `SOURCE_CHIP`.
+  - **Idle home:** an ambient clock/date, the greeting, and a short row of **static suggestion chips**
+    ("What's the weather?", "Set a 10-minute timer") — a calm, clock-first glance, not a command menu.
+    Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
+    time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
+    first turn** (not just opening the mic): `LiveClient.sendText` → a `clientContent` text turn, threaded as
+    `initialText` via `SOURCE_CHIP`.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-
     level scaling while listening). The orb is the sole audio-reactive element here, so the bottom bar shows
@@ -108,6 +110,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   device-tuned, single seam in `outgoingAudio()`). Also: an optional `initialText` (chip-send) is sent on
   `Event.Ready` (`sendInitialText`); an unexpected socket drop (`onError`/`onClosed` while not ended) posts a
   user-facing `ConversationHub.notice` (`surfaceDisconnect`; message picked by `connectedOk` + `NetworkStatus`).
+  Session system instruction is assembled by pure [SessionPrompt] (built-in [SystemPrompt] + enabled external-
+  provider bullets from the same [ExternalToolSpec.parse] pass as tool declarations + [SystemContext] +
+  [ResumeContext] on tap-to-talk resume).
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied in `Transcript.appendModel` (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.

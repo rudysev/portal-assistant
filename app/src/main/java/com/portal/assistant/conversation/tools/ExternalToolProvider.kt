@@ -16,8 +16,8 @@ import java.util.concurrent.TimeoutException
  * enabled providers via PackageManager meta-data and invokes their tools via [android.content.ContentResolver.call].
  * Pure policy (allowlist, namespace, shape, collisions) lives in [ExternalToolSpec]; this is the Android shell.
  *
- * **Snapshot once:** discovery runs lazily the first time [declarations] is read for a session and is cached,
- * so declarations stay fixed at session setup (same as built-ins). One instance per conversation (held by
+ * **Snapshot once:** discovery runs lazily the first time [declarations] or [promptLines] is read for a
+ * session and is cached, so declarations and prompt bullets stay fixed at session setup (same as built-ins). One instance per conversation (held by
  * [ToolRegistry]); [dispose] shuts the invoke executor down on teardown.
  *
  * **Self-timeout:** the engine's stall watchdog is gated off while a tool is in flight, so a hung provider
@@ -34,6 +34,9 @@ class ExternalToolProvider(context: Context) {
     private val tools: ExternalTools by lazy { discover() }
 
     fun declarations(): List<JSONObject> = tools.declarations
+
+    /** Enabled-provider prompt bullets — same session [discover] snapshot as [declarations]. */
+    fun promptLines(): List<String> = tools.promptLines
 
     fun handles(name: String): Boolean = name in tools.authorityByName
 
@@ -65,11 +68,8 @@ class ExternalToolProvider(context: Context) {
      * runs every time, so a Settings enable/disable is always honoured without invalidating the cache, and a
      * provider newly installed *and* enabled mid-process self-heals here (absent from the snapshot → re-query).
      */
-    private fun providerSnapshot(enabled: Set<String>): List<DiscoveredProvider> {
-        val cache = cachedProviders
-        if (cache != null && enabled.all { pkg -> cache.any { it.pkg == pkg } }) return cache
-        return query(appContext).also { cachedProviders = it }
-    }
+    private fun providerSnapshot(enabled: Set<String>): List<DiscoveredProvider> =
+        snapshot(appContext, enabled)
 
     private fun callWithTimeout(authority: String, name: String, args: JSONObject): JSONObject {
         val future = callExecutor.submit<JSONObject> {
@@ -114,6 +114,17 @@ class ExternalToolProvider(context: Context) {
             if (cachedProviders == null) cachedProviders = query(context.applicationContext)
         }
 
+        /**
+         * The installed-provider list, preferring the process-level [cachedProviders] snapshot warmed by
+         * [warm]. Re-queries only when the cache is cold or an [enabled] package is absent from it.
+         */
+        private fun snapshot(context: Context, enabled: Set<String> = emptySet()): List<DiscoveredProvider> {
+            val appContext = context.applicationContext
+            val cache = cachedProviders
+            if (cache != null && enabled.all { pkg -> cache.any { it.pkg == pkg } }) return cache
+            return query(appContext).also { cachedProviders = it }
+        }
+
         /** Every installed ContentProvider carrying the [ToolContract.META_DECLARATIONS] meta-data. */
         fun query(context: Context): List<DiscoveredProvider> = runCatching {
             val pm = context.applicationContext.packageManager
@@ -139,7 +150,7 @@ class ExternalToolProvider(context: Context) {
         fun providersForSettings(context: Context): List<ProviderUi> {
             val enabled = AppPrefs.enabledProviders(context)
             val pm = context.applicationContext.packageManager
-            return query(context).groupBy { it.pkg }.mapNotNull { (pkg, provs) ->
+            return snapshot(context, enabled).groupBy { it.pkg }.mapNotNull { (pkg, provs) ->
                 val parsed = ExternalToolSpec.parse(provs, setOf(pkg))
                 if (parsed.authorityByName.isEmpty()) return@mapNotNull null // hide providers with no valid tool
                 // The Settings row is the provider's required one-sentence summary (META_SUMMARY), which lives

@@ -144,7 +144,8 @@ to a worker and return an ack.
 - **Shape** — a declaration missing a non-blank `description` or a `parameters` object is dropped, so the
   model never sees junk.
 - **Summary** — the `com.portal.assistant.tools.summary` sentence is required; a provider that omits it is
-  hidden from Settings (and so can never be enabled) — there is no fallback to the per-tool descriptions.
+  hidden from Settings, its tools are **not declared**, and it gets no system-prompt bullet — there is no
+  fallback to the per-tool descriptions.
 - **Opt-in** — discovery alone grants nothing. Every provider is **off by default**; the user enables it in
   **Settings → External tools**, where each provider shows its one-sentence summary under the app name.
 

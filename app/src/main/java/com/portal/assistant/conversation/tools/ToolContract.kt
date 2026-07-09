@@ -17,7 +17,7 @@ package com.portal.assistant.conversation.tools
  *     android:exported="true">
  *     <!-- value may be an @string/ resource; PackageManager resolves it to the JSON text. -->
  *     <meta-data android:name="com.portal.assistant.tools" android:value="@string/portal_tools" />
- *     <!-- required one-sentence summary for the Settings row (see [META_SUMMARY]). -->
+ *     <!-- required one-sentence summary — Settings row + session system prompt; tools omitted without it. -->
  *     <meta-data android:name="com.portal.assistant.tools.summary" android:value="@string/portal_tools_summary" />
  * </provider>
  * ```

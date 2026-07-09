@@ -11,7 +11,8 @@ import org.json.JSONObject
  * contribute additional tools through [external] — discovered + allowlist-gated, declared alongside the
  * built-ins, and invoked when a name isn't a built-in. Built-ins always win a name collision.
  *
- * [declarations] is called once at session start to populate the Gemini setup message.
+ * [declarations] is called once at session start to populate the Gemini setup message; [externalPromptLines]
+ * uses the same external-provider parse snapshot for the session system instruction.
  * [invoke] is called on the tool-executor thread, may block (HTTP / cross-process call), must not touch UI.
  */
 class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
@@ -55,6 +56,9 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
         if (dropped.isNotEmpty()) DebugLog.log("ext-tool dropped (collides with built-in): $dropped")
         return tools.map { it.declaration } + externalKept
     }
+
+    /** Enabled external-provider prompt bullets — same session snapshot as [declarations]. */
+    fun externalPromptLines(): List<String> = external.promptLines()
 
     fun invoke(name: String, args: JSONObject): JSONObject {
         tools.firstOrNull { it.name == name }?.let { return it.invoke(args) } // built-ins win

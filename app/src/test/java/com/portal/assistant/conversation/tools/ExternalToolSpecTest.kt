@@ -13,7 +13,8 @@ class ExternalToolSpecTest {
         return """{"name":"$name","description":"$desc"$params}"""
     }
 
-    private fun provider(pkg: String, vararg decls: String) = DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]")
+    private fun provider(pkg: String, vararg decls: String, summary: String = "Test provider.") =
+        DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]", summary)
 
     @Test fun enabledProviderContributesItsTools() {
         val p = provider("com.example.lights", decl("com.example.lights.set_light"))
@@ -56,9 +57,26 @@ class ExternalToolSpecTest {
     }
 
     @Test fun malformedJsonIsSafe() {
-        val p = DiscoveredProvider("com.example.lights", "com.example.lights.tools", "not json")
+        val p = DiscoveredProvider("com.example.lights", "com.example.lights.tools", "not json", "Lights.")
         val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
         assertTrue(r.declarations.isEmpty())
+    }
+
+    @Test fun missingSummaryDropsEntireProvider() {
+        val p = provider("com.example.lights", decl("com.example.lights.set_light"), summary = "")
+        val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
+        assertTrue(r.declarations.isEmpty())
+        assertTrue(r.promptLines.isEmpty())
+    }
+
+    @Test fun promptLinesListToolNamesFromDeclarations() {
+        val p = provider("com.example.lights", decl("com.example.lights.a"), decl("com.example.lights.b"))
+        val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
+        assertEquals(listOf("com.example.lights.a", "com.example.lights.b"), r.declarations.map { it.optString("name") })
+        assertEquals(
+            listOf("- Test provider. Tools: com.example.lights.a, com.example.lights.b."),
+            r.promptLines,
+        )
     }
 
     @Test fun builtinAlwaysWinsAClashAndNoDuplicateNamesMerge() {
@@ -76,12 +94,13 @@ class ExternalToolSpecTest {
 
     @Test fun collisionIsDeterministicByPackageName() {
         // Two providers declare the same tool name; the alphabetically-first package wins, every run.
-        val a = DiscoveredProvider("dev.aaa.app", "dev.aaa.app.tools", "[${decl("shared.tool")}]")
-        val b = DiscoveredProvider("dev.bbb.app", "dev.bbb.app.tools", "[${decl("shared.tool")}]")
+        val a = DiscoveredProvider("dev.aaa.app", "dev.aaa.app.tools", "[${decl("shared.tool")}]", "AAA.")
+        val b = DiscoveredProvider("dev.bbb.app", "dev.bbb.app.tools", "[${decl("shared.tool")}]", "BBB.")
         val r1 = ExternalToolSpec.parse(listOf(b, a), enabledPkgs = setOf("dev.aaa.app", "dev.bbb.app"))
         val r2 = ExternalToolSpec.parse(listOf(a, b), enabledPkgs = setOf("dev.aaa.app", "dev.bbb.app"))
         assertEquals("dev.aaa.app.tools", r1.authorityByName["shared.tool"])
         assertEquals(r1.authorityByName, r2.authorityByName) // input order doesn't matter
         assertEquals(1, r1.declarations.size)
+        assertEquals(listOf("- AAA. Tools: shared.tool."), r1.promptLines)
     }
 }

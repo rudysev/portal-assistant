@@ -119,20 +119,12 @@ private const val IDLE_HINT = "Tap or say “Hey Jarvis”"
 // run timers, play music, or control the home) and a low-friction way in (tapping one asks it). Curated to
 // span categories rather than list every tool.
 //
-// Kept deliberately short — a calm, clock-first idle home, not a command menu. Two always-available prompts
-// that span a grounded answer + a flagship built-in tool; the Kasa provider adds a third (home control) when
-// it's installed. (Music, etc. are still one spoken request away — the chips teach, they don't enumerate.)
-private val BASE_SUGGESTIONS = listOf(
+// Kept deliberately short — a calm, clock-first idle home, not a command menu. Two prompts that span a
+// grounded answer + a flagship built-in tool. (Music, home control, etc. are still one spoken request away.)
+private val SUGGESTIONS = listOf(
     "What's the weather?",
     "Set a 10-minute timer",
 )
-
-// Smart-home control comes from an installed provider app. The Kasa provider exposes on/off plugs, so we
-// offer "Turn off the lights" ONLY when it's enabled — otherwise the tool isn't declared to the model and the
-// chip would dead-end. (The old "Dim the lights" never worked: plugs are on/off, not dimmable.)
-private const val KASA_PKG = "com.portal.kasa"
-
-private fun idleSuggestions(context: Context): List<String> = if (KASA_PKG in AppPrefs.enabledProviders(context)) BASE_SUGGESTIONS + "Turn off the lights" else BASE_SUGGESTIONS
 
 // Older turns fade so the latest answer stands out — but stay readable at distance (raised from 0.45).
 private const val OLDER_TURN_ALPHA = 0.62f
@@ -742,17 +734,13 @@ private fun formatRemaining(totalSec: Long): String {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SuggestionChips(onTap: (String) -> Unit) {
-    val context = LocalContext.current
-    // Keyed on the enabled providers so toggling Kasa in Settings updates the chips even if this screen
-    // stays in composition (the prefs read is cheap and this composable recomposes rarely).
-    val suggestions = remember(AppPrefs.enabledProviders(context)) { idleSuggestions(context) }
     FlowRow(
         modifier = Modifier.widthIn(max = 820.dp),
         // Generous gaps so a far reach onto an upright screen can't graze the neighbouring chip.
         horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        suggestions.forEach { text -> SuggestionChip(text, onTap) }
+        SUGGESTIONS.forEach { text -> SuggestionChip(text, onTap) }
     }
 }
 

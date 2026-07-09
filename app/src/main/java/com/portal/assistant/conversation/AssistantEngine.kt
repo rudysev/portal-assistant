@@ -165,22 +165,25 @@ class AssistantEngine(
         // Result lands for the NEXT conversation — this one uses whatever's already cached.
         LocationProvider.refreshIfStale(appContext)
         val prior = ConversationHub.session.value.turns
-        // Device context is enriched onto BOTH branches so a tap-to-talk resume keeps it.
-        // Resume history is layered on top of the already-enriched base prompt.
-        val base = SystemContext.enrich(SYSTEM_PROMPT, deviceContextLines())
-        val systemPrompt: String
+        val externalToolLines = toolRegistry.externalPromptLines()
+        val deviceContextLines = deviceContextLines()
+        val resumeTurns: List<Turn>
         if (resume && prior.isNotEmpty()) {
             transcript = Transcript(turns = prior)
-            val replayed = ResumeContext.recentContext(prior, RESUME_MAX_CHARS) // may be < prior on long chats
-            DebugLog.log("engine start (resume, ${prior.size} turns, ${replayed.size} replayed)")
-            systemPrompt = ResumeContext.withHistory(base, replayed)
+            resumeTurns = ResumeContext.recentContext(prior, RESUME_MAX_CHARS) // may be < prior on long chats
+            DebugLog.log("engine start (resume, ${prior.size} turns, ${resumeTurns.size} replayed)")
             ConversationHub.startResume()
         } else {
             DebugLog.log("engine start")
             transcript = Transcript()
-            systemPrompt = base
+            resumeTurns = emptyList()
             ConversationHub.startFresh()
         }
+        val systemPrompt = SessionPrompt.build(
+            externalToolLines = externalToolLines,
+            deviceContextLines = deviceContextLines,
+            resumeTurns = resumeTurns,
+        )
         // Lead with the two real-latency operations — the WebSocket handshake (the connect long pole) and the
         // AudioRecord open — so the synchronous player setup below (~27 ms of AudioTrack alloc + writer thread)
         // overlaps the network round-trip instead of delaying it. Playback isn't needed until the model speaks
@@ -589,32 +592,5 @@ class AssistantEngine(
         // 1 truncation) — and cancels it while audio plays, so it never cuts a long answer the server streamed
         // ahead of realtime. 10 s covers both gaps.
         const val STALL_MS = 10_000L
-
-        // Static system instruction (device context — clock/location — is appended dynamically at session
-        // start via SystemContext.enrich; keep it OUT of this constant). Structured/bulleted on purpose: it's
-        // read by the model, never spoken, and compact rules cost fewer setup tokens than one long paragraph.
-        const val SYSTEM_PROMPT =
-            "Role: Warm, friendly display voice assistant. Never ask the user to say a wake word or " +
-                "goodbye (conversations end automatically).\n\n" +
-                "Tool Usage Rules:\n" +
-                "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, " +
-                "hours, recent events). Base answers on results.\n" +
-                "- Time/Date: Use portal.get_time.\n" +
-                "- Timers: Use portal.set_timer (convert phrasing to duration_seconds; pass name as label, " +
-                "e.g. 'pasta') and portal.cancel_timer (by label). Use portal.list_timers to check remaining " +
-                "time (match by label); never guess time left from the set_timer response.\n" +
-                "- Volume: portal.set_volume (0-100; 100=max), portal.adjust_volume (up/down 1 step), " +
-                "portal.set_mute, portal.get_volume.\n" +
-                "- Brightness: portal.set_brightness (0-100; 0=min visible), portal.adjust_brightness " +
-                "(up/down 1 step), portal.get_brightness.\n" +
-                "- Do Not Disturb: portal.set_do_not_disturb (on/off), portal.get_do_not_disturb.\n" +
-                "- Music (portal.play_music): Plays on the user's default music app. Put request in query " +
-                "(infer and append artist for known songs, e.g. 'Bohemian Rhapsody Queen'). Set app ONLY if " +
-                "explicitly named (e.g. TIDAL). Set type (song/artist/album/playlist) ONLY if explicitly " +
-                "stated; otherwise omit.\n" +
-                "- Media Controls: portal.media_control (play/pause/next/previous), portal.set_repeat (one " +
-                "[current song], all [album/playlist], off), portal.now_playing.\n" +
-                "- Apps (portal.open_app): Launch by name. If uninstalled, offer returned close matches (do " +
-                "not guess). Use portal.play_music instead to play a specific song."
     }
 }
