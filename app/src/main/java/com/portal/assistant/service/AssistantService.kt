@@ -274,7 +274,7 @@ class AssistantService : Service() {
 
         /** The foreground detector's wake word — "hey jarvis" at the default threshold, matching portal-wake. */
         private val FOREGROUND_WAKE_WORD =
-            WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeWord.DEFAULT_MIN_CONF)!!
+            WakeWord.fromPhrase("hey jarvis", id = "jarvis", scoreThreshold = WakeWord.DEFAULT_SCORE_THRESHOLD)!!
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001
