@@ -132,9 +132,9 @@ class AssistantEngine(
     }
 
     private val stallTimer = Runnable {
-        // Dead-air watchdog: the reducer arms this only when nothing is playing (pre-first-audio gap, or
-        // playback drained without a turnComplete), so reaching here is a genuine stall — no defer needed.
-        // Diagnose Bug 1: a Search "thinking" gap before any audio, or audio that started then stopped?
+        // Dead-air watchdog: the reducer arms this only via stallDecision (idle + no tools, plus the
+        // LISTENING→SPEAKING entry arms) — so reaching here is a genuine stall; no defer needed.
+        // Diagnose: thinking gap before any audio, or audio that started then stopped?
         val gap = if (lastAudioAtMs == 0L) -1 else System.currentTimeMillis() - lastAudioAtMs
         val modelChars = transcript.turns.lastOrNull()?.text?.length ?: 0
         DebugLog.log("stall fired: ${gap}ms since last audio, turnComplete=${state.turnComplete}, modelChars=$modelChars")
@@ -317,8 +317,11 @@ class AssistantEngine(
         }
         override fun onOutputTranscript(textDelta: String) {
             handler.post {
+                // SPEAKING only — see [acceptOutputTranscript] (no belated LISTENING append / mute).
+                if (!acceptOutputTranscript(state.phase)) return@post
                 transcript = transcript.appendModel(textDelta)
                 publishTurns()
+                dispatch(Event.ModelActivity)
             }
         }
         override fun onAudio(pcm24k: ByteArray) {
@@ -350,7 +353,7 @@ class AssistantEngine(
                 // re-arming mid-turn would split the answer (and dropped its opening words when transcription
                 // arrived before the first modelTurn). Just reset the reveal counters once, on the first one.
                 if (state.phase != Phase.SPEAKING) reveal.reset()
-                dispatch(Event.ModelStarted)
+                dispatch(Event.ModelActivity)
             }
         }
         override fun onToolCall(calls: List<FunctionCall>) {
@@ -400,7 +403,7 @@ class AssistantEngine(
      * in LISTENING (so [VoiceBackend.sendText] sees the session ready). We deliberately KEEP the no-speech timer that
      * LISTENING just armed: a text turn's mic hears nothing, so that 5 s timer is exactly the guard that ends
      * the conversation if the server never starts a turn (a StallTimeout would be a no-op in LISTENING). On the
-     * normal path [Event.ModelStarted] cancels it the instant the model begins — well under 5 s. The prompt is
+     * normal path [Event.ModelActivity] cancels it the instant the model begins — well under 5 s. The prompt is
      * shown as the user's turn immediately so the chip text doesn't wait on the server.
      */
     private fun sendInitialText(text: String) {

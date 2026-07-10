@@ -2,6 +2,7 @@ package com.portal.assistant.conversation
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -56,9 +57,9 @@ class ConversationStateTest {
         assertEquals(listOf(Action.ArmNoSpeechTimer), d.actions)
     }
 
-    @Test fun modelStartedMutesMicAndArmsStall() {
+    @Test fun modelActivityMutesMicAndArmsStall() {
         val listening = ConversationState(phase = Phase.LISTENING)
-        val d = reduce(listening, Event.ModelStarted, multiTurn = false)
+        val d = reduce(listening, Event.ModelActivity, multiTurn = false)
         assertEquals(Phase.SPEAKING, d.state.phase)
         assertEquals(
             listOf(Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ArmStallTimer),
@@ -86,14 +87,15 @@ class ConversationStateTest {
             listOf(
                 Event.Ready,
                 Event.UserSpeaking,
-                Event.ModelStarted,
+                Event.ModelActivity,
                 Event.PlaybackBusy, // audio playing
                 Event.TurnComplete, // server done, but audio still playing → no end yet
                 Event.PlaybackIdle, // now drained → end
             ),
         )
         assertEquals(Phase.ENDED, d.state.phase)
-        assertEquals(listOf(Action.FireAfterSpeech, Action.CancelStallTimer, Action.End), d.actions.takeLast(3))
+        // End tears down the timer — no trailing CancelStallTimer.
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions.takeLast(2))
     }
 
     @Test fun drainBeforeTurnCompleteEndsOnTurnComplete() {
@@ -104,7 +106,7 @@ class ConversationStateTest {
         assertEquals(Phase.SPEAKING, s.phase) // must NOT end early
         val d = reduce(s, Event.TurnComplete, false)
         assertEquals(Phase.ENDED, d.state.phase)
-        assertEquals(listOf(Action.FireAfterSpeech, Action.CancelStallTimer, Action.End), d.actions)
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions)
     }
 
     @Test fun noAudioTurnEndsImmediatelyOnTurnComplete() {
@@ -113,7 +115,7 @@ class ConversationStateTest {
         var s = ConversationState(phase = Phase.SPEAKING) // playbackIdle defaults true
         val d = reduce(s, Event.TurnComplete, false)
         assertEquals(Phase.ENDED, d.state.phase)
-        assertEquals(listOf(Action.FireAfterSpeech, Action.CancelStallTimer, Action.End), d.actions)
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions)
     }
 
     @Test fun midTurnUnderrunDoesNotEndEarly() {
@@ -151,7 +153,7 @@ class ConversationStateTest {
         val d = reduceAll(
             listOf(
                 Event.Ready,
-                Event.ModelStarted, // ArmStallTimer (pre-audio gap)
+                Event.ModelActivity, // ArmStallTimer (pre-audio gap)
                 Event.PlaybackBusy, // CancelStallTimer (audio flowing)
                 Event.PlaybackIdle, // drained, not complete → ArmStallTimer (dead-air clock)
                 Event.TurnComplete, // both conditions met → end
@@ -161,10 +163,11 @@ class ConversationStateTest {
         assertEquals(
             listOf(
                 Action.StartForwarding, Action.ArmNoSpeechTimer, // Ready
-                Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ArmStallTimer, // ModelStarted
+                Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ArmStallTimer, // ModelActivity
                 Action.CancelStallTimer, // PlaybackBusy
                 Action.ArmStallTimer, // PlaybackIdle (drained, not complete)
-                Action.FireAfterSpeech, Action.CancelStallTimer, Action.End, // TurnComplete → end
+                // TurnComplete → end; CancelStallTimer elided (End tears down the timer)
+                Action.FireAfterSpeech, Action.End,
             ),
             d.actions,
         )
@@ -175,7 +178,7 @@ class ConversationStateTest {
         val d = reduceAll(
             listOf(
                 Event.Ready,
-                Event.ModelStarted,
+                Event.ModelActivity,
                 Event.PlaybackBusy,
                 Event.PlaybackIdle, // drained, not complete → ArmStallTimer
                 Event.StallTimeout, // nothing more came → re-listen
@@ -187,9 +190,9 @@ class ConversationStateTest {
             listOf(
                 Action.FireAfterSpeech,
                 Action.FlushPlayback,
-                Action.CancelStallTimer,
                 Action.StartForwarding,
                 Action.ArmNoSpeechTimer,
+                Action.CancelStallTimer, // appended by stallDecision
             ),
             d.actions.takeLast(5),
         )
@@ -198,7 +201,7 @@ class ConversationStateTest {
     @Test fun stallTimeoutEndsConversationSingleTurn() {
         val d = reduce(ConversationState(phase = Phase.SPEAKING), Event.StallTimeout, multiTurn = false)
         assertEquals(Phase.ENDED, d.state.phase)
-        assertEquals(listOf(Action.FireAfterSpeech, Action.CancelStallTimer, Action.End), d.actions)
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions)
     }
 
     @Test fun stallTimeoutReListensMultiTurn() {
@@ -213,9 +216,9 @@ class ConversationStateTest {
             listOf(
                 Action.FireAfterSpeech,
                 Action.FlushPlayback,
-                Action.CancelStallTimer,
                 Action.StartForwarding,
                 Action.ArmNoSpeechTimer,
+                Action.CancelStallTimer,
             ),
             d.actions,
         )
@@ -242,12 +245,47 @@ class ConversationStateTest {
     }
 
     @Test fun strayEventsWhileSpeakingIgnored() {
-        // UserSpeaking/Ready/ModelStarted shouldn't drive anything mid-speech.
-        for (e in listOf(Event.UserSpeaking, Event.Ready, Event.ModelStarted, Event.NoSpeechTimeout)) {
+        // UserSpeaking/Ready/NoSpeechTimeout shouldn't drive anything mid-speech.
+        for (e in listOf(Event.UserSpeaking, Event.Ready, Event.NoSpeechTimeout)) {
             val d = reduce(ConversationState(phase = Phase.SPEAKING), e, false)
             assertEquals(Phase.SPEAKING, d.state.phase)
             assertEquals(emptyList<Action>(), d.actions)
         }
+    }
+
+    @Test fun modelActivityWhileSpeakingRearmsStallWhenIdle() {
+        // Dead-air gap (pre-audio / post-drain): generating / transcript refresh the clock.
+        val d = reduce(ConversationState(phase = Phase.SPEAKING, playbackIdle = true), Event.ModelActivity, false)
+        assertEquals(Phase.SPEAKING, d.state.phase)
+        assertEquals(listOf(Action.ArmStallTimer), d.actions)
+    }
+
+    @Test fun modelActivityWhilePlayingDoesNotRearmStall() {
+        // Audio is queued/playing — re-arming would cut a long answer mid-sentence once the server
+        // stops streaming (Gemini often sends OutputTranscript after Audio in the same message).
+        val d = reduce(ConversationState(phase = Phase.SPEAKING, playbackIdle = false), Event.ModelActivity, false)
+        assertEquals(Phase.SPEAKING, d.state.phase)
+        assertEquals(emptyList<Action>(), d.actions)
+    }
+
+    @Test fun modelActivityWhileToolsInFlightDoesNotRearmStall() {
+        // Tools own the turn; StallTimeout is ignored until they drain — don't fight CancelStallTimer.
+        val d = reduce(
+            ConversationState(phase = Phase.SPEAKING, playbackIdle = true, toolsInFlight = setOf("c1")),
+            Event.ModelActivity,
+            false,
+        )
+        assertEquals(Phase.SPEAKING, d.state.phase)
+        assertEquals(emptyList<Action>(), d.actions)
+    }
+
+    @Test fun outputTranscriptAcceptedOnlyWhileSpeaking() {
+        // Engine coupling: transcript ticks must not append or post ModelActivity outside SPEAKING
+        // (belated frame after re-listen would pollute the next bubble / mute the mic).
+        assertFalse(acceptOutputTranscript(Phase.CONNECTING))
+        assertFalse(acceptOutputTranscript(Phase.LISTENING))
+        assertFalse(acceptOutputTranscript(Phase.ENDED))
+        assertTrue(acceptOutputTranscript(Phase.SPEAKING))
     }
 
     // ---- MULTI-TURN (Phase 2.b) --------------------------------------------------------------------
@@ -256,7 +294,7 @@ class ConversationStateTest {
         val d = reduceAll(
             listOf(
                 Event.Ready,
-                Event.ModelStarted,
+                Event.ModelActivity,
                 Event.PlaybackBusy,
                 Event.TurnComplete,
                 Event.PlaybackIdle, // turn ends → should re-listen, not end
@@ -265,7 +303,7 @@ class ConversationStateTest {
         )
         assertEquals(Phase.LISTENING, d.state.phase)
         assertEquals(
-            listOf(Action.FireAfterSpeech, Action.CancelStallTimer, Action.StartForwarding, Action.ArmNoSpeechTimer),
+            listOf(Action.FireAfterSpeech, Action.StartForwarding, Action.ArmNoSpeechTimer, Action.CancelStallTimer),
             d.actions.takeLast(4),
         )
     }
@@ -322,6 +360,15 @@ class ConversationStateTest {
         assertTrue(d.actions.contains(Action.ArmStallTimer))
     }
 
+    @Test fun toolResultsReadyNoStallWhilePlaying() {
+        // Tools drained but audio is still queued — arming would let StallTimeout cut mid-sentence.
+        val speaking = ConversationState(phase = Phase.SPEAKING, playbackIdle = false, toolsInFlight = setOf("c1"))
+        val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), false)
+        assertEquals(emptySet<String>(), d.state.toolsInFlight)
+        assertTrue(d.actions.filterIsInstance<Action.SendToolResponse>().isNotEmpty())
+        assertTrue(d.actions.none { it is Action.ArmStallTimer })
+    }
+
     @Test fun toolResultsReadyNoStallWhenMoreInFlight() {
         val speaking = ConversationState(phase = Phase.SPEAKING, toolsInFlight = setOf("c1", "c2"))
         val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), false)
@@ -334,6 +381,49 @@ class ConversationStateTest {
         val d = reduce(speaking, Event.TurnComplete, false)
         assertEquals(Phase.SPEAKING, d.state.phase) // must NOT end
         assertEquals(emptyList<Action>(), d.actions)
+    }
+
+    @Test fun toolResultsReadyEndsWhenTurnAlreadyComplete() {
+        // turnComplete + idle were waiting on tools — drain must end immediately, not arm stall.
+        val speaking = ConversationState(
+            phase = Phase.SPEAKING,
+            turnComplete = true,
+            playbackIdle = true,
+            toolsInFlight = setOf("c1"),
+        )
+        val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), false)
+        assertEquals(Phase.ENDED, d.state.phase)
+        assertTrue(d.actions.filterIsInstance<Action.SendToolResponse>().isNotEmpty())
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions.takeLast(2))
+        assertTrue(d.actions.none { it is Action.ArmStallTimer })
+    }
+
+    @Test fun toolResultsReadyReListensWhenTurnAlreadyCompleteMultiTurn() {
+        val speaking = ConversationState(
+            phase = Phase.SPEAKING,
+            turnComplete = true,
+            playbackIdle = true,
+            toolsInFlight = setOf("c1"),
+        )
+        val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), multiTurn = true)
+        assertEquals(Phase.LISTENING, d.state.phase)
+        assertTrue(d.actions.filterIsInstance<Action.SendToolResponse>().isNotEmpty())
+        assertEquals(
+            listOf(Action.FireAfterSpeech, Action.StartForwarding, Action.ArmNoSpeechTimer, Action.CancelStallTimer),
+            d.actions.takeLast(4),
+        )
+    }
+
+    @Test fun toolCancelledEndsWhenTurnAlreadyComplete() {
+        val speaking = ConversationState(
+            phase = Phase.SPEAKING,
+            turnComplete = true,
+            playbackIdle = true,
+            toolsInFlight = setOf("c1"),
+        )
+        val d = reduce(speaking, Event.ToolCancelled(listOf("c1")), false)
+        assertEquals(Phase.ENDED, d.state.phase)
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions)
     }
 
     @Test fun stallTimeoutIgnoredWhileToolsInFlight() {
@@ -455,7 +545,7 @@ class ConversationStateTest {
     @Test fun endedSwallowsEverything() {
         val ended = ConversationState(phase = Phase.ENDED)
         val allEvents = listOf(
-            Event.Ready, Event.UserSpeaking, Event.ModelStarted, Event.PlaybackBusy, Event.PlaybackIdle,
+            Event.Ready, Event.UserSpeaking, Event.ModelActivity, Event.PlaybackBusy, Event.PlaybackIdle,
             Event.TurnComplete, Event.Interrupted, Event.NoSpeechTimeout, Event.StallTimeout, Event.Disconnected,
             Event.ToolCallReceived(emptyList()), Event.ToolResultsReady(emptyList()), Event.ToolCancelled(emptyList()),
         )
@@ -464,5 +554,132 @@ class ConversationStateTest {
             assertEquals(Phase.ENDED, d.state.phase)
             assertEquals(emptyList<Action>(), d.actions)
         }
+    }
+
+    // ---- stallDecision table (single source of truth for Arm / Cancel / None) ----------------------
+
+    private fun assertStall(state: ConversationState, event: Event, expected: StallDecision) {
+        assertEquals("$event @ ${state.phase}", expected, stallDecision(state, event))
+    }
+
+    @Test fun stallDecision_connectingAndEndedAreNone() {
+        for (e in listOf(
+            Event.Ready, Event.ModelActivity, Event.PlaybackBusy, Event.StallTimeout,
+            Event.ToolCallReceived(listOf(fc("c1"))),
+        )) {
+            assertStall(ConversationState(phase = Phase.CONNECTING), e, StallDecision.None)
+            assertStall(ConversationState(phase = Phase.ENDED), e, StallDecision.None)
+        }
+    }
+
+    @Test fun stallDecision_listeningEntryArms() {
+        val listening = ConversationState(phase = Phase.LISTENING)
+        assertStall(listening, Event.ModelActivity, StallDecision.Arm)
+        assertStall(listening, Event.ToolCallReceived(listOf(fc("c1"))), StallDecision.Arm)
+        assertStall(listening, Event.UserSpeaking, StallDecision.None)
+        assertStall(listening, Event.NoSpeechTimeout, StallDecision.None)
+        assertStall(listening, Event.PlaybackBusy, StallDecision.None)
+    }
+
+    @Test fun stallDecision_speakingPlaybackBusyCancels() {
+        assertStall(ConversationState(phase = Phase.SPEAKING), Event.PlaybackBusy, StallDecision.Cancel)
+    }
+
+    @Test fun stallDecision_speakingModelActivityOnlyWhenDeadAir() {
+        val speaking = ConversationState(phase = Phase.SPEAKING)
+        assertStall(speaking, Event.ModelActivity, StallDecision.Arm)
+        assertStall(speaking.copy(playbackIdle = false), Event.ModelActivity, StallDecision.None)
+        assertStall(speaking.copy(toolsInFlight = setOf("c1")), Event.ModelActivity, StallDecision.None)
+    }
+
+    @Test fun stallDecision_speakingPlaybackIdle() {
+        val speaking = ConversationState(phase = Phase.SPEAKING)
+        // Drain without turnComplete → Arm
+        assertStall(speaking.copy(playbackIdle = false), Event.PlaybackIdle, StallDecision.Arm)
+        // Drain with turnComplete → Cancel (turn ends)
+        assertStall(
+            speaking.copy(playbackIdle = false, turnComplete = true),
+            Event.PlaybackIdle,
+            StallDecision.Cancel,
+        )
+        // Tools still in flight → None
+        assertStall(
+            speaking.copy(playbackIdle = false, toolsInFlight = setOf("c1")),
+            Event.PlaybackIdle,
+            StallDecision.None,
+        )
+        // turnComplete but tools still running → None (endOfTurn waits)
+        assertStall(
+            speaking.copy(playbackIdle = false, turnComplete = true, toolsInFlight = setOf("c1")),
+            Event.PlaybackIdle,
+            StallDecision.None,
+        )
+    }
+
+    @Test fun stallDecision_speakingTurnComplete() {
+        val speaking = ConversationState(phase = Phase.SPEAKING)
+        assertStall(speaking, Event.TurnComplete, StallDecision.Cancel) // idle + no tools → end
+        assertStall(speaking.copy(playbackIdle = false), Event.TurnComplete, StallDecision.None)
+        assertStall(speaking.copy(toolsInFlight = setOf("c1")), Event.TurnComplete, StallDecision.None)
+    }
+
+    @Test fun stallDecision_speakingInterruptedAlwaysArms() {
+        assertStall(ConversationState(phase = Phase.SPEAKING), Event.Interrupted, StallDecision.Arm)
+        assertStall(
+            ConversationState(phase = Phase.SPEAKING, playbackIdle = false, toolsInFlight = setOf("c1")),
+            Event.Interrupted,
+            StallDecision.Arm,
+        )
+    }
+
+    @Test fun stallDecision_speakingStallTimeout() {
+        assertStall(ConversationState(phase = Phase.SPEAKING), Event.StallTimeout, StallDecision.Cancel)
+        assertStall(
+            ConversationState(phase = Phase.SPEAKING, toolsInFlight = setOf("c1")),
+            Event.StallTimeout,
+            StallDecision.None,
+        )
+    }
+
+    @Test fun stallDecision_speakingToolCallCancels() {
+        assertStall(
+            ConversationState(phase = Phase.SPEAKING),
+            Event.ToolCallReceived(listOf(fc("c1"))),
+            StallDecision.Cancel,
+        )
+    }
+
+    @Test fun stallDecision_speakingToolDrainArmsWhenIdle() {
+        val withTool = ConversationState(phase = Phase.SPEAKING, toolsInFlight = setOf("c1"))
+        assertStall(withTool, Event.ToolResultsReady(listOf(tr("c1"))), StallDecision.Arm)
+        assertStall(withTool, Event.ToolCancelled(listOf("c1")), StallDecision.Arm)
+        // Turn already complete → Cancel (endOfTurn ends; multi-turn needs the cancel)
+        assertStall(
+            withTool.copy(turnComplete = true),
+            Event.ToolResultsReady(listOf(tr("c1"))),
+            StallDecision.Cancel,
+        )
+        // Still playing → None
+        assertStall(
+            withTool.copy(playbackIdle = false),
+            Event.ToolResultsReady(listOf(tr("c1"))),
+            StallDecision.None,
+        )
+        // Partial drain → None
+        assertStall(
+            ConversationState(phase = Phase.SPEAKING, toolsInFlight = setOf("c1", "c2")),
+            Event.ToolResultsReady(listOf(tr("c1"))),
+            StallDecision.None,
+        )
+        // Already empty (stale results) → None
+        assertStall(
+            ConversationState(phase = Phase.SPEAKING),
+            Event.ToolResultsReady(listOf(tr("c1"))),
+            StallDecision.None,
+        )
+    }
+
+    @Test fun stallDecision_speakingDisconnectedIsNone() {
+        assertStall(ConversationState(phase = Phase.SPEAKING), Event.Disconnected, StallDecision.None)
     }
 }

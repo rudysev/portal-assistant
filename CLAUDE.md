@@ -88,10 +88,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `turnComplete && playbackIdle && no tools in flight` — replaces the reference app's CAS latch.
   - **Stall = dead-air clock (arm-on-drain).** The server can stream a long answer's audio *ahead of
     realtime*, so it sits queued in `PcmPlayer` (which paces playback via blocking `AudioTrack` writes). The
-    reducer arms the stall only when nothing is playing — the pre-first-audio Search gap (`ModelStarted`) or
-    when playback **drains** without a `turnComplete` (`PlaybackIdle`) — and **cancels** it while audio flows
-    (`PlaybackBusy`). So it never fires mid-playback and never flushes a long answer. Don't "simplify" it back
-    to firing on time-since-last-*received* chunk (the old bug that cut long answers off mid-sentence).
+    reducer arms/cancels the stall only via `stallDecision(state, event)` — nothing playing **and** no tools
+    in flight for the pre-first-audio gap (`ModelActivity`), further `ModelActivity` while still idle (local
+    LLM/tool think), playback **drain** without a `turnComplete` (`PlaybackIdle`), and tool-flight drain. It
+    **cancels** while audio flows (`PlaybackBusy`) or a mid-turn tool starts. Never re-arm from
+    transcript/generating while audio is queued — that cuts long answers mid-sentence. Don't "simplify" it
+    back to time-since-last-*received* chunk either (same class of bug).
 - `conversation/backend/VoiceBackend.kt` — the **model-neutral seam** the engine depends on (interface:
   `connect`/`sendAudio`/`sendText`/`sendToolResponse`/`close` + a 12-callback `Listener`, with a documented
   16 kHz-in / 24 kHz-out PCM audio contract). `BackendConfig` carries the session inputs (Gemini's API key
