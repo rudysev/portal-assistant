@@ -292,7 +292,7 @@ class AssistantService : Service() {
             WakeWord.fromPhrase(
                 "hey jarvis",
                 id = "jarvis",
-                minConf = OpenWakeWordDetector.DEFAULT_SCORE_THRESHOLD.toDouble(),
+                scoreThreshold = OpenWakeWordDetector.DEFAULT_SCORE_THRESHOLD.toDouble(),
             )!!
 
         private const val CHANNEL_ID = "assistant_listening"
