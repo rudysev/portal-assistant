@@ -1,0 +1,22 @@
+label,category,condition,oww_fired,vosk_fired,oww_detail,vosk_detail
+0_Samantha_r160.wav,positive_clean,clean,1,0,1783705512828 wake detected (oww) → jarvis [score=0.956],
+10_Karen_r190.wav,positive_clean,clean,0,1,,1783705517608 wake detected (vosk) → jarvis [hey(87) jarvis(100)]
+11_Karen_r220.wav,positive_clean,clean,0,0,,
+12_Moira_r160.wav,positive_clean,clean,0,1,,1783705525667 wake detected (vosk) → jarvis [hey(74) jarvis(53)]
+13_Moira_r190.wav,positive_clean,clean,1,1,1783705528802 wake detected (oww) → jarvis [score=0.699],1783705529445 wake detected (vosk) → jarvis [hey(88) jarvis(90)]
+14_Moira_r220.wav,positive_clean,clean,0,0,,
+15_Rishi_r160.wav,positive_clean,clean,1,1,1783705536526 wake detected (oww) → jarvis [score=0.574],1783705537321 wake detected (vosk) → jarvis [hey(96) jarvis(100)]
+16_Rishi_r190.wav,positive_clean,clean,1,1,1783705540514 wake detected (oww) → jarvis [score=0.845],1783705541418 wake detected (vosk) → jarvis [hey(91) jarvis(100)]
+17_Rishi_r220.wav,positive_clean,clean,0,0,,
+18_Tessa_r160.wav,positive_clean,clean,0,1,,1783705549141 wake detected (vosk) → jarvis [hey(92) jarvis(97)]
+19_Tessa_r190.wav,positive_clean,clean,0,1,,1783705552889 wake detected (vosk) → jarvis [hey(98) jarvis(94)]
+1_Samantha_r190.wav,positive_clean,clean,1,1,1783705555907 wake detected (oww) → jarvis [score=0.729],1783705556825 wake detected (vosk) → jarvis [hey(74) jarvis(99)]
+20_Tessa_r220.wav,positive_clean,clean,0,1,,1783705560611 wake detected (vosk) → jarvis [hey(74) jarvis(68)]
+2_Samantha_r220.wav,positive_clean,clean,1,1,1783705563701 wake detected (oww) → jarvis [score=0.603],1783705564411 wake detected (vosk) → jarvis [hey(84) jarvis(92)]
+3_Fred_r160.wav,positive_clean,clean,0,0,,
+4_Fred_r190.wav,positive_clean,clean,0,0,,
+5_Fred_r220.wav,positive_clean,clean,0,0,,
+6_Daniel_r160.wav,positive_clean,clean,0,0,,
+7_Daniel_r190.wav,positive_clean,clean,1,0,1783705583262 wake detected (oww) → jarvis [score=0.719],
+8_Daniel_r220.wav,positive_clean,clean,0,0,,
+9_Karen_r160.wav,positive_clean,clean,1,1,1783705591133 wake detected (oww) → jarvis [score=0.521],1783705591818 wake detected (vosk) → jarvis [hey(61) jarvis(64)]

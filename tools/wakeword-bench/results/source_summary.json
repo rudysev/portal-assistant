@@ -1,0 +1,675 @@
+{
+  "thr": 0.3,
+  "configs": [
+    {
+      "name": "voicerec",
+      "recall": 83.3,
+      "near_fa": 35.6,
+      "bg_fa": 0.0,
+      "med_score": 0.785,
+      "med_rms": 3083,
+      "by_cond": {
+        "clean": 100.0,
+        "reverb": 83.3,
+        "quiet": 100.0,
+        "noisy20": 100.0,
+        "noisy10": 83.3,
+        "noisy5": 66.7,
+        "noisy0": 50.0
+      },
+      "sweep": [
+        {
+          "thr": 0.05,
+          "recall": 97.6,
+          "near_fa": 68.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.1,
+          "recall": 95.2,
+          "near_fa": 66.7,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.15,
+          "recall": 92.9,
+          "near_fa": 51.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.2,
+          "recall": 88.1,
+          "near_fa": 44.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.25,
+          "recall": 85.7,
+          "near_fa": 40.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.3,
+          "recall": 83.3,
+          "near_fa": 35.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.35,
+          "recall": 78.6,
+          "near_fa": 35.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.4,
+          "recall": 73.8,
+          "near_fa": 35.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.45,
+          "recall": 73.8,
+          "near_fa": 33.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.5,
+          "recall": 64.3,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.55,
+          "recall": 61.9,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.6,
+          "recall": 61.9,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.65,
+          "recall": 59.5,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.7,
+          "recall": 59.5,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.75,
+          "recall": 54.8,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.8,
+          "recall": 47.6,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.85,
+          "recall": 42.9,
+          "near_fa": 13.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.9,
+          "recall": 38.1,
+          "near_fa": 8.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.95,
+          "recall": 28.6,
+          "near_fa": 6.7,
+          "bg_fa": 0.0
+        }
+      ],
+      "n_pos": 42
+    },
+    {
+      "name": "mic",
+      "recall": 78.6,
+      "near_fa": 44.4,
+      "bg_fa": 0.0,
+      "med_score": 0.619,
+      "med_rms": 3005,
+      "by_cond": {
+        "clean": 100.0,
+        "reverb": 83.3,
+        "quiet": 100.0,
+        "noisy20": 100.0,
+        "noisy10": 66.7,
+        "noisy5": 50.0,
+        "noisy0": 50.0
+      },
+      "sweep": [
+        {
+          "thr": 0.05,
+          "recall": 97.6,
+          "near_fa": 71.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.1,
+          "recall": 92.9,
+          "near_fa": 64.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.15,
+          "recall": 92.9,
+          "near_fa": 60.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.2,
+          "recall": 88.1,
+          "near_fa": 53.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.25,
+          "recall": 85.7,
+          "near_fa": 44.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.3,
+          "recall": 78.6,
+          "near_fa": 44.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.35,
+          "recall": 76.2,
+          "near_fa": 42.2,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.4,
+          "recall": 73.8,
+          "near_fa": 31.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.45,
+          "recall": 57.1,
+          "near_fa": 24.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.5,
+          "recall": 54.8,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.55,
+          "recall": 54.8,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.6,
+          "recall": 52.4,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.65,
+          "recall": 47.6,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.7,
+          "recall": 45.2,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.75,
+          "recall": 40.5,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.8,
+          "recall": 40.5,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.85,
+          "recall": 38.1,
+          "near_fa": 13.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.9,
+          "recall": 35.7,
+          "near_fa": 11.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.95,
+          "recall": 23.8,
+          "near_fa": 8.9,
+          "bg_fa": 0.0
+        }
+      ],
+      "n_pos": 42
+    },
+    {
+      "name": "voicerec_gain15",
+      "recall": 88.1,
+      "near_fa": 40.0,
+      "bg_fa": 0.0,
+      "med_score": 0.796,
+      "med_rms": 2953,
+      "by_cond": {
+        "clean": 100.0,
+        "reverb": 83.3,
+        "quiet": 100.0,
+        "noisy20": 100.0,
+        "noisy10": 83.3,
+        "noisy5": 100.0,
+        "noisy0": 50.0
+      },
+      "sweep": [
+        {
+          "thr": 0.05,
+          "recall": 97.6,
+          "near_fa": 71.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.1,
+          "recall": 97.6,
+          "near_fa": 62.2,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.15,
+          "recall": 97.6,
+          "near_fa": 60.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.2,
+          "recall": 92.9,
+          "near_fa": 51.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.25,
+          "recall": 90.5,
+          "near_fa": 46.7,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.3,
+          "recall": 88.1,
+          "near_fa": 40.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.35,
+          "recall": 88.1,
+          "near_fa": 33.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.4,
+          "recall": 78.6,
+          "near_fa": 26.7,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.45,
+          "recall": 73.8,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.5,
+          "recall": 64.3,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.55,
+          "recall": 61.9,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.6,
+          "recall": 61.9,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.65,
+          "recall": 59.5,
+          "near_fa": 13.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.7,
+          "recall": 57.1,
+          "near_fa": 11.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.75,
+          "recall": 54.8,
+          "near_fa": 11.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.8,
+          "recall": 50.0,
+          "near_fa": 11.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.85,
+          "recall": 47.6,
+          "near_fa": 11.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.9,
+          "recall": 38.1,
+          "near_fa": 8.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.95,
+          "recall": 26.2,
+          "near_fa": 6.7,
+          "bg_fa": 0.0
+        }
+      ],
+      "n_pos": 42
+    },
+    {
+      "name": "voicerec_gain2",
+      "recall": 83.3,
+      "near_fa": 48.9,
+      "bg_fa": 0.0,
+      "med_score": 0.652,
+      "med_rms": 2888,
+      "by_cond": {
+        "clean": 83.3,
+        "reverb": 66.7,
+        "quiet": 100.0,
+        "noisy20": 100.0,
+        "noisy10": 100.0,
+        "noisy5": 100.0,
+        "noisy0": 33.3
+      },
+      "sweep": [
+        {
+          "thr": 0.05,
+          "recall": 92.9,
+          "near_fa": 71.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.1,
+          "recall": 92.9,
+          "near_fa": 66.7,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.15,
+          "recall": 88.1,
+          "near_fa": 60.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.2,
+          "recall": 88.1,
+          "near_fa": 57.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.25,
+          "recall": 85.7,
+          "near_fa": 53.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.3,
+          "recall": 83.3,
+          "near_fa": 48.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.35,
+          "recall": 78.6,
+          "near_fa": 44.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.4,
+          "recall": 76.2,
+          "near_fa": 37.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.45,
+          "recall": 71.4,
+          "near_fa": 24.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.5,
+          "recall": 64.3,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.55,
+          "recall": 61.9,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.6,
+          "recall": 59.5,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.65,
+          "recall": 52.4,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.7,
+          "recall": 47.6,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.75,
+          "recall": 42.9,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.8,
+          "recall": 40.5,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.85,
+          "recall": 35.7,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.9,
+          "recall": 35.7,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.95,
+          "recall": 28.6,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        }
+      ],
+      "n_pos": 42
+    },
+    {
+      "name": "voicerec_gain3",
+      "recall": 85.7,
+      "near_fa": 44.4,
+      "bg_fa": 0.0,
+      "med_score": 0.841,
+      "med_rms": 2970,
+      "by_cond": {
+        "clean": 83.3,
+        "reverb": 100.0,
+        "quiet": 83.3,
+        "noisy20": 100.0,
+        "noisy10": 100.0,
+        "noisy5": 83.3,
+        "noisy0": 50.0
+      },
+      "sweep": [
+        {
+          "thr": 0.05,
+          "recall": 95.2,
+          "near_fa": 73.3,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.1,
+          "recall": 92.9,
+          "near_fa": 64.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.15,
+          "recall": 88.1,
+          "near_fa": 57.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.2,
+          "recall": 85.7,
+          "near_fa": 51.1,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.25,
+          "recall": 85.7,
+          "near_fa": 48.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.3,
+          "recall": 85.7,
+          "near_fa": 44.4,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.35,
+          "recall": 78.6,
+          "near_fa": 40.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.4,
+          "recall": 76.2,
+          "near_fa": 37.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.45,
+          "recall": 66.7,
+          "near_fa": 28.9,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.5,
+          "recall": 59.5,
+          "near_fa": 20.0,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.55,
+          "recall": 57.1,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.6,
+          "recall": 54.8,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.65,
+          "recall": 54.8,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.7,
+          "recall": 52.4,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.75,
+          "recall": 52.4,
+          "near_fa": 17.8,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.8,
+          "recall": 52.4,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.85,
+          "recall": 50.0,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.9,
+          "recall": 35.7,
+          "near_fa": 15.6,
+          "bg_fa": 0.0
+        },
+        {
+          "thr": 0.95,
+          "recall": 33.3,
+          "near_fa": 13.3,
+          "bg_fa": 0.0
+        }
+      ],
+      "n_pos": 42
+    }
+  ]
+}

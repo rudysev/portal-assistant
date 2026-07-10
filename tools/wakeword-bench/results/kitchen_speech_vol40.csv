@@ -1,0 +1,22 @@
+label,category,condition,oww_fired,vosk_fired,oww_detail,vosk_detail
+0_Samantha_r160.wav,positive_clean,clean,0,0,,
+10_Karen_r190.wav,positive_clean,clean,0,0,,
+11_Karen_r220.wav,positive_clean,clean,0,0,,
+12_Moira_r160.wav,positive_clean,clean,1,1,1783705622408 wake detected (oww) → jarvis [score=0.961],1783705623284 wake detected (vosk) → jarvis [hey(98) jarvis(100)]
+13_Moira_r190.wav,positive_clean,clean,1,1,1783705626011 wake detected (oww) → jarvis [score=0.839],1783705627205 wake detected (vosk) → jarvis [hey(63) jarvis(94)]
+14_Moira_r220.wav,positive_clean,clean,1,1,1783705629388 wake detected (oww) → jarvis [score=0.925],1783705630489 wake detected (vosk) → jarvis [hey(76) jarvis(100)]
+15_Rishi_r160.wav,positive_clean,clean,0,0,,
+16_Rishi_r190.wav,positive_clean,clean,0,1,,1783705638189 wake detected (vosk) → jarvis [hey(71) jarvis(100)]
+17_Rishi_r220.wav,positive_clean,clean,0,1,,1783705641991 wake detected (vosk) → jarvis [hey(99) jarvis(98)]
+18_Tessa_r160.wav,positive_clean,clean,0,0,,
+19_Tessa_r190.wav,positive_clean,clean,0,1,,1783705650004 wake detected (vosk) → jarvis [hey(100) jarvis(100)]
+1_Samantha_r190.wav,positive_clean,clean,1,0,1783705652825 wake detected (oww) → jarvis [score=0.602],
+20_Tessa_r220.wav,positive_clean,clean,0,0,,
+2_Samantha_r220.wav,positive_clean,clean,0,0,,
+3_Fred_r160.wav,positive_clean,clean,0,0,,
+4_Fred_r190.wav,positive_clean,clean,0,0,,
+5_Fred_r220.wav,positive_clean,clean,0,0,,
+6_Daniel_r160.wav,positive_clean,clean,0,1,,1783705677266 wake detected (vosk) → jarvis [hey(97) jarvis(51)]
+7_Daniel_r190.wav,positive_clean,clean,0,0,,
+8_Daniel_r220.wav,positive_clean,clean,0,0,,
+9_Karen_r160.wav,positive_clean,clean,1,1,1783705688096 wake detected (oww) → jarvis [score=0.940],1783705689117 wake detected (vosk) → jarvis [hey(94) jarvis(100)]
