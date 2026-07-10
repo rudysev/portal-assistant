@@ -146,8 +146,10 @@ class AssistantEngine(
      * foreground **mic-tap** with a transcript present; a wake trigger and a fresh tap pass false → clean start
      * (any stale transcript is cleared by [ConversationHub.startFresh]). Multi-turn *within* this conversation
      * is the live backend session, not replayed context.
+     * @return false when the conversation could not open (missing credential). The service gates before
+     * construction; this path is defense-in-depth only — it posts a notice and bails without calling [onEnded].
      */
-    fun start(resume: Boolean, initialText: String? = null) {
+    fun start(resume: Boolean, initialText: String? = null): Boolean {
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
         pendingInitialText = initialText?.takeIf { it.isNotBlank() }
         // No credential → don't open a socket that can only fail. Post the notice and bail BEFORE publishing
@@ -157,8 +159,7 @@ class AssistantEngine(
             DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
             ConversationHub.postNotice(CredentialMessages.missing(backendChoice.kind))
             ended = true
-            onEnded()
-            return
+            return false
         }
         // Retry a failed/stale IP-geo lookup (prewarm is one-shot); guarded internally, a no-op when fresh.
         // Result lands for the NEXT conversation — this one uses whatever's already cached.
@@ -210,6 +211,7 @@ class AssistantEngine(
             ConversationHub.setAudioLevel(lvl) // drives the speaking visualizer
             if (reveal.recompute(latestModelText())) publishTurns() // pace reveal to audio actually played
         }
+        return true
     }
 
     /**

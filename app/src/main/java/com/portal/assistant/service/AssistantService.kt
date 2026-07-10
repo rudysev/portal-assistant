@@ -132,24 +132,31 @@ class AssistantService : Service() {
         // the turn — the user just keeps talking).
         if (engine != null) return
         exitDetection() // stop the foreground detector's capture before the conversation opens its mic (single slot)
+        // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
+        // conversation so a change in Settings → Backend applies on the next turn with no restart.
+        val choice = Backends.resolve(applicationContext)
+        if (!canOpenConversation(choice.credentialMissing)) {
+            DebugLog.log("no credential → cannot start (kind=${choice.kind})")
+            ConversationHub.postNotice(Backends.missingCredentialMessage(choice.kind))
+            // exitDetection already ran — re-arm if still on screen so gen2 wake keeps working.
+            if (UiVisibility.inForeground) enterDetection()
+            return
+        }
         running = true
         startForeground(NOTIFICATION_ID, buildNotification(active = true))
         DebugLog.log("AssistantService START (trigger=$source) → conversation")
         // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
         // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
-        // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
-        // conversation so a change in Settings → Backend applies on the next turn with no restart.
-        val choice = Backends.resolve(applicationContext)
-        engine = AssistantEngine(applicationContext, choice) {
+        val newEngine = AssistantEngine(applicationContext, choice) {
             // The engine has already torn down (mic released, bar hidden) before this fires.
             DebugLog.log("conversation ended → standby")
             returnToStandby()
-        }.also {
-            // Continue the on-screen conversation ONLY on a foreground mic-tap; every other source (wake,
-            // tapped chip, and any future one) starts fresh — the safe default. A tapped chip also passes its
-            // text as the first turn (initialText). If trigger sources grow, prefer a typed source over this
-            // string check.
-            it.start(resume = source == SOURCE_TAP, initialText = initialText)
+        }
+        engine = retainIfStarted(newEngine.start(resume = source == SOURCE_TAP, initialText = initialText), newEngine)
+        if (engine == null) {
+            // Defense-in-depth: [AssistantEngine.start] can still refuse (shouldn't after the gate above).
+            // running + the active notification were already raised — roll back so the next wake/tap isn't wedged.
+            returnToStandby()
         }
     }
 
@@ -383,6 +390,15 @@ class AssistantService : Service() {
         @Volatile
         var running = false
             private set
+
+        /** Gate for [startConversation] — false when the selected backend has no credential yet. */
+        internal fun canOpenConversation(credentialMissing: Boolean): Boolean = !credentialMissing
+
+        /**
+         * Assign [candidate] to the live engine slot only when [start] opened a session — never retain a
+         * start-aborted instance (see [AssistantEngine.start]).
+         */
+        internal fun <T> retainIfStarted(started: Boolean, candidate: T): T? = candidate.takeIf { started }
 
         /** Bring the resident service up (or no-op if already up) without starting a conversation. */
         fun standby(context: Context) {

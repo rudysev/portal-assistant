@@ -97,13 +97,14 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   16 kHz-in / 24 kHz-out PCM audio contract). `BackendConfig` carries the session inputs (Gemini's API key
   becomes the generic `credential`); `VoiceBackendFactory` builds one. `conversation/backend/Backends.kt` is
   the **single composition point** that picks the concrete backend — deliberately the only file in
-  `conversation/` that imports `gemini`. Gemini's `LiveClient` implements `VoiceBackend`, wired via
-  `gemini/GeminiBackend.Factory`. So the reducer + engine never touch the `gemini` package: a local backend
-  implements `VoiceBackend`, adds a factory, and is chosen in `Backends` — though a full swap also needs the
-  still-Gemini-shaped model catalog (`AppPrefs.modelId`/`GeminiModel`) and key provisioning generalized. Seam
-  contract is unit-tested (`backend/VoiceBackendTest`).
-- `conversation/AssistantEngine.kt` — the impure shell: wires the `VoiceBackend` (Gemini's `LiveClient`
-  today, via `backendFactory`) + `MicCapture` + `PcmPlayer`
+  `conversation/` that imports `gemini` (and `local`). Gemini's `LiveClient` implements `VoiceBackend`, wired via
+  `gemini/GeminiBackend.Factory`; the opt-in LAN backend is `conversation/backend/local/LocalBackend` (Pipecat
+  voice host over `wss://`, trust-all TLS — encryption without cert setup). `Backends.resolve()` picks the
+  factory + credential (API key vs host URL) per `AppPrefs.voiceBackendKind`; `Backends.warmDns()` pre-resolves
+  the selected host. The reducer + engine never touch `gemini` or `local` directly. Seam contract is unit-tested
+  (`backend/VoiceBackendTest`, `backend/local/LocalBackendTest`).
+- `conversation/AssistantEngine.kt` — the impure shell: wires the `VoiceBackend` (via `Backends.Choice` from
+  `Backends.resolve`) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
   → no locks). Half-duplex: the mic is muted while the model speaks. `MIC_GAIN` amplifies the *forwarded*
   audio so the Live server can transcribe room-distance speech (handset mic only — no far-field array;
@@ -145,7 +146,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   engine runs the queue then. Replaces the old per-controller fixed `Handler` delays (no more guessing 2.5 s
   vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
-  `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton).
+  `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
+  the local backend's `wss://` socket).
 
 ## Design rules — don't break these
 
@@ -176,7 +178,7 @@ one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `p
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine`; `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
-`TimerStore`) · `gemini/LiveClient` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`) ·
+`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
@@ -212,10 +214,11 @@ supplies **their own** key (BYOD), set two ways:
 - **In the app** — **Settings → API key** lets them add or change it manually; **Save & verify** confirms
   the key against the API (`GeminiKeyCheck`) before storing via `AppPrefs.setApiKey`.
 
-`AssistantService` injects `AppPrefs.apiKey() ?: BuildConfig.GEMINI_API_KEY` per conversation, so a key
-changed in Settings applies on the next turn with no rebuild. The idle home shows an "Add your Gemini API
-key" nudge when neither source has a key. (Note: clipboard "Paste" was dropped — Android clipboards are
-per-device, so copying a key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
+`AssistantService` injects `Backends.resolve()` per conversation (`credential` + factory + backend kind), so a
+key, backend, or local-host change in Settings applies on the next turn with no restart. The idle home shows
+an "Add your Gemini API key" nudge when Gemini is selected and neither source has a key; Local shows a host
+address nudge instead. (Note: clipboard "Paste" was dropped — Android clipboards are per-device, so copying a
+key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
 be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a turn directly (foreground).
 
 ## Known limitations

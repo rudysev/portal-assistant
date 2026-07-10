@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
 import com.portal.assistant.conversation.tools.MediaRouting
@@ -59,6 +60,7 @@ import com.portal.assistant.conversation.tools.PackageCatalog
 import com.portal.assistant.gemini.GeminiKeyCheck
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
+import com.portal.assistant.system.LocalVoiceHost
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.Dims
@@ -72,11 +74,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The app's settings surface: the **API key** (BYOD — the user's own Gemini key, paste or type + verify),
- * the **model** Jarvis runs (a dropdown over [GeminiModel.AVAILABLE]), the **location** used for weather /
- * "near me" answers, and the **external tools** allowlist (installed provider apps the user enables to add
- * abilities). Changes apply to the **next** conversation (device context, model, and tool declarations are
- * fixed at session start).
+ * The app's settings surface: **backend** (Gemini cloud vs a local voice host on the LAN), the **API key**
+ * when Gemini is selected (BYOD — paste or type + verify), the **model** picker (Gemini only), the **local
+ * host address** (Local only), the **location** used for weather / "near me" answers, and the **external
+ * tools** allowlist. Changes apply to the **next** conversation (device context, model, and tool
+ * declarations are fixed at session start).
  *
  * Location is auto-detected once via IP geolocation on first install. The field is pre-filled from the
  * detected value immediately (or via a short poll if geo is still in flight). The detected value drives
@@ -148,46 +150,97 @@ fun SettingsScreen(onBack: () -> Unit) {
             Text("Changes take effect on your next conversation.", color = subtle, fontSize = TextSize.Body)
 
             Spacer(Modifier.size(28.dp))
-            Text("Model", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+            Text("Backend", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.size(4.dp))
-            Text("Which model Jarvis uses.", color = subtle, fontSize = TextSize.Body)
+            Text("Where Jarvis runs — Gemini in the cloud, or a local server on your network.", color = subtle, fontSize = TextSize.Body)
             Spacer(Modifier.size(14.dp))
 
-            var modelExpanded by remember { mutableStateOf(false) }
-            var model by remember { mutableStateOf(AppPrefs.modelId(context)) }
+            var backendExpanded by remember { mutableStateOf(false) }
+            var backend by remember { mutableStateOf(AppPrefs.voiceBackendKind(context)) }
             ExposedDropdownMenuBox(
-                expanded = modelExpanded,
-                onExpandedChange = { modelExpanded = it },
+                expanded = backendExpanded,
+                onExpandedChange = { backendExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = model,
+                    value = backendLabel(backend),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Model") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                    label = { Text("Backend") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = backendExpanded) },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         .fillMaxWidth(),
                 )
                 ExposedDropdownMenu(
-                    expanded = modelExpanded,
-                    onDismissRequest = { modelExpanded = false },
+                    expanded = backendExpanded,
+                    onDismissRequest = { backendExpanded = false },
                 ) {
-                    GeminiModel.AVAILABLE.forEach { id ->
+                    AppPrefs.VoiceBackendKind.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(id) },
+                            text = { Text(backendLabel(option)) },
                             onClick = {
-                                model = id
-                                AppPrefs.setModelId(context, id)
-                                modelExpanded = false
+                                backend = option
+                                AppPrefs.setVoiceBackendKind(context, option)
+                                Backends.warmDns(context)
+                                backendExpanded = false
                             },
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.size(36.dp))
-            ApiKeySection(subtle = subtle)
+            if (backend == AppPrefs.VoiceBackendKind.LOCAL) {
+                Spacer(Modifier.size(28.dp))
+                Text("Local server", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.size(4.dp))
+                Text("Where the voice host runs on your network.", color = subtle, fontSize = TextSize.Body)
+                Spacer(Modifier.size(14.dp))
+                LocalVoiceHostSection(subtle = subtle)
+            }
+
+            if (backend == AppPrefs.VoiceBackendKind.GEMINI) {
+                Spacer(Modifier.size(28.dp))
+                Text("Model", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.size(4.dp))
+                Text("Which model Jarvis uses.", color = subtle, fontSize = TextSize.Body)
+                Spacer(Modifier.size(14.dp))
+
+                var modelExpanded by remember { mutableStateOf(false) }
+                var model by remember { mutableStateOf(AppPrefs.modelId(context)) }
+                ExposedDropdownMenuBox(
+                    expanded = modelExpanded,
+                    onExpandedChange = { modelExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = model,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Model") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = modelExpanded,
+                        onDismissRequest = { modelExpanded = false },
+                    ) {
+                        GeminiModel.AVAILABLE.forEach { id ->
+                            DropdownMenuItem(
+                                text = { Text(id) },
+                                onClick = {
+                                    model = id
+                                    AppPrefs.setModelId(context, id)
+                                    modelExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.size(36.dp))
+                ApiKeySection(subtle = subtle)
+            }
 
             Spacer(Modifier.size(36.dp))
             Text("Location", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
@@ -338,6 +391,79 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** Human label for the backend picker. */
+private fun backendLabel(kind: AppPrefs.VoiceBackendKind): String = when (kind) {
+    AppPrefs.VoiceBackendKind.GEMINI -> "Gemini (cloud)"
+    AppPrefs.VoiceBackendKind.LOCAL -> "Local server (LAN)"
+}
+
+/** Strip the canonical `wss://` prefix for display in the host field. */
+private fun displayLocalVoiceHost(stored: String?): String = stored?.removePrefix("wss://").orEmpty()
+
+/**
+ * Local voice-host entry. **Save** validates shape via [LocalVoiceHost] and stores a canonical `wss://` URL.
+ * No live probe — the host may not be running yet, and the device may be offline while the address is still
+ * valid.
+ */
+@Composable
+private fun LocalVoiceHostSection(subtle: Color) {
+    val context = LocalContext.current
+    val errorColor = MaterialTheme.colorScheme.error
+    val okColor = Color(0xFF6FCF77)
+
+    var saved by remember { mutableStateOf(displayLocalVoiceHost(AppPrefs.localVoiceHost(context))) }
+    var draft by remember { mutableStateOf(saved) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var messageColor by remember { mutableStateOf(subtle) }
+
+    OutlinedTextField(
+        value = draft,
+        onValueChange = {
+            if (it.length <= 200) {
+                draft = it
+                message = null
+            }
+        },
+        singleLine = true,
+        label = { Text("Local server address") },
+        placeholder = { Text("192.168.1.5:8080") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.size(4.dp))
+    Text(
+        "The voice host on your LAN (TLS). It handles speech, the model, and web search.",
+        color = subtle,
+        fontSize = TextSize.Body,
+    )
+    Spacer(Modifier.size(12.dp))
+    Button(
+        onClick = {
+            when (LocalVoiceHost.parse(draft.trim())) {
+                is LocalVoiceHost.ParseResult.Ok -> {
+                    AppPrefs.setLocalVoiceHost(context, draft)
+                    saved = displayLocalVoiceHost(AppPrefs.localVoiceHost(context))
+                    draft = saved
+                    Backends.warmDns(context)
+                    message = "Address saved ✓"
+                    messageColor = okColor
+                }
+
+                is LocalVoiceHost.ParseResult.Invalid -> {
+                    message = "That address doesn't look right — try host:port (e.g. 192.168.1.5:8080) on your LAN."
+                    messageColor = errorColor
+                }
+            }
+        },
+        enabled = draft.isNotBlank() && draft.trim() != saved,
+        colors = settingsButtonColors(),
+    ) { Text("Save") }
+
+    message?.let {
+        Spacer(Modifier.size(8.dp))
+        Text(it, color = messageColor, fontSize = TextSize.Body)
     }
 }
 

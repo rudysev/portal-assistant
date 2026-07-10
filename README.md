@@ -46,6 +46,15 @@ step‑by‑step instructions — including how the API key works and how to cha
 
 Developers building from source: see the build/run notes in `CLAUDE.md` and use `./setup.sh`.
 
+### Local model backend (dev / demo)
+
+Gemini is the shipping default. For development you can point Jarvis at a **local voice host** on your LAN
+([`host-assistant`](https://github.com/rudysev/host-assistant) — Pipecat + Ollama on a Mac): **Settings →
+Backend → Local server**, enter `host:port` (e.g. `192.168.1.5:8080`). The app connects over **`wss://`**
+(TLS encrypted; the host auto-generates a self-signed cert, the app does not verify it — no setup on either
+side). Model picker and API-key settings hide on this backend; the host owns the model. Stall watchdog for
+Local is 30 s (generic budget for STT/LLM/tools/TTS variance).
+
 ## Talking to it
 
 - **"Hey Jarvis, …"** — hands-free wake. Where it works depends on the Portal's Android version:

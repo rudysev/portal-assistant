@@ -84,13 +84,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.portal.assistant.BuildConfig
 import com.portal.assistant.R
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.RevealProgress
 import com.portal.assistant.conversation.Role
 import com.portal.assistant.conversation.Turn
+import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.TimerStore
 import com.portal.assistant.conversation.tools.Timers
 import com.portal.assistant.gemini.GeminiModel
@@ -222,9 +222,18 @@ private fun TopBar(
     onNewConversation: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // The model the app will run (the chosen one, falling back to the default) — captured at screen entry.
+    // The backend + model the app will run — keyed on prefs so a backend/model change (e.g. returning from
+    // Settings) refreshes the subtitle without requiring a full screen teardown.
     val context = LocalContext.current
-    val modelLabel = remember { GeminiModel.prettyName(AppPrefs.modelId(context)) }
+    val backend = AppPrefs.voiceBackendKind(context)
+    val modelId = AppPrefs.modelId(context)
+    val modelLabel = remember(backend, modelId) {
+        if (backend == AppPrefs.VoiceBackendKind.LOCAL) {
+            "Local server"
+        } else {
+            GeminiModel.prettyName(modelId)
+        }
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -358,14 +367,19 @@ private val WIDE_HOME_MIN = 720.dp
 @Composable
 private fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    // No usable key (neither the user's own nor a baked dev key) → Jarvis can't answer. Point the first-time
-    // user to Settings instead of showing chips that would only fail at connect.
-    val needsKey = AppPrefs.apiKey(context) == null && BuildConfig.GEMINI_API_KEY.isBlank()
+    // Not configured → Jarvis can't answer. Use the same credential rule as [Backends.resolve] / the service
+    // start gate so the idle home never shows chips that would fail at connect.
+    val backendChoice = Backends.resolve(context)
+    val needsSetup = backendChoice.credentialMissing
+    val setupMessage = when (backendChoice.kind) {
+        AppPrefs.VoiceBackendKind.LOCAL -> "Add your local server address to get started"
+        AppPrefs.VoiceBackendKind.GEMINI -> "Add your Gemini API key to get started"
+    }
     BoxWithConstraints(modifier = modifier) {
         // Orientation is the real signal (width vs height), with WIDE_HOME_MIN only as a "wide enough" floor —
         // an absolute width threshold can't tell landscape from portrait here (both clear 720 dp at 160 dpi).
         val landscape = maxWidth > maxHeight
-        if (landscape && maxWidth >= WIDE_HOME_MIN && !needsKey) {
+        if (landscape && maxWidth >= WIDE_HOME_MIN && !needsSetup) {
             // Landscape: two panes, each centered in its own half, separated by a hairline rule. Drifts as one.
             Row(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 40.dp),
@@ -391,11 +405,11 @@ private fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit,
             ) {
                 Clock()
                 Spacer(Modifier.size(44.dp))
-                if (needsKey) {
+                if (needsSetup) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         GreetingHeader()
                         Text(
-                            text = "Add your Gemini API key to get started",
+                            text = setupMessage,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
                             fontSize = TextSize.Body,
                             textAlign = TextAlign.Center,

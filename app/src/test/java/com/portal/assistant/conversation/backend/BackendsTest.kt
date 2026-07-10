@@ -78,6 +78,17 @@ class BackendsTest {
     }
 
     @Test
+    fun `resolveChoice treats blank stored gemini key as missing credential`() {
+        val choice = Backends.resolveChoice(
+            selected = AppPrefs.VoiceBackendKind.GEMINI,
+            storedApiKey = "   ",
+            storedLocalWssUrl = null,
+            devApiKey = "",
+        )
+        assertTrue(choice.credentialMissing)
+    }
+
+    @Test
     fun `dnsHostFor local uses LocalVoiceHost on stored wss url`() {
         // Pure helper — no Context in unit test; exercise the local branch via stored URL shape.
         assertEquals("192.168.1.5", LocalVoiceHost.dnsName("wss://192.168.1.5:8080"))
