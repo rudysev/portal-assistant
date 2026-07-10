@@ -49,4 +49,6 @@ docs/*
 
 # portal-gemini-chat specifics (kept from the original .gitignore)
 build/
+# NB: the Vosk wake model is NOT bundled here — the gen2 Vosk shadow detector downloads it at runtime into
+# filesDir (see system/WakeModelInstaller). So no model asset is checked in or ignored under assets/.
 .cursorrules
