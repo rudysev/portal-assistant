@@ -197,15 +197,27 @@ gen2 foreground detector). Two plugin contracts are **not** shared deps — we m
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
-# openWakeWord ONNX models ship in portal-commons — no runtime download. Nothing to place at build time.
+# openWakeWord ONNX models ship in portal-commons — bundled in the APK; no runtime model download.
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
-./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
+```
+
+**Install on device — use the provisioner, not a bare `hzdb app install`.**  
+`provisioning/install.sh` (or `./setup.sh` for a local debug APK) calls `grant_permissions()`, which
+`pm grant`s `RECORD_AUDIO`. Without that, gen2 foreground detection logs
+`foreground detection skipped — RECORD_AUDIO not granted yet` and "hey jarvis" never fires even with
+the app on screen. Prefer:
+
+```bash
+./provisioning/install.sh --local app/build/outputs/apk/debug/app-debug.apk
+# or: ./setup.sh
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"
 ```
 
+Do **not** install `portal-wake` on gen2 (API 29+) — wake is this app's foreground openWakeWord detector only.
+
 The Gemini API key is **not** baked in — `BuildConfig.GEMINI_API_KEY` is a blank dev seam. Each user
 supplies **their own** key (BYOD), set two ways:
-- **At install** — `./setup.sh` checks whether a key is already on the device and, if not, walks the user
+- **At install** — `./setup.sh` / `provisioning/install.sh` checks whether a key is already on the device and, if not, walks the user
   through creating one and prompts them to paste it (full setup takes **no** key argument; pass one
   non-interactively only via `./setup.sh --key-only <KEY>`). It writes the key to the app's external files
   dir (`api_key.txt`); the app imports it into prefs on first launch and deletes the file (import-once,
@@ -218,8 +230,8 @@ supplies **their own** key (BYOD), set two ways:
 key, backend, or local-host change in Settings applies on the next turn with no restart. The idle home shows
 an "Add your Gemini API key" nudge when Gemini is selected and neither source has a key; Local shows a host
 address nudge instead. (Note: clipboard "Paste" was dropped — Android clipboards are per-device, so copying a
-key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
-be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a turn directly (foreground).
+key on a laptop can't reach the Portal.) On **gen2**, say "hey jarvis" with Jarvis on screen; on **gen1**,
+install `portal-wake` for background wake, or tap **Tap to talk** in the app.
 
 ## Known limitations
 
