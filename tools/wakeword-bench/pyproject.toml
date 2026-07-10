@@ -1,0 +1,26 @@
+[project]
+name = "wakeword-bench"
+version = "0.1.0"
+description = "macOS benchmark harness comparing wake-word detectors on 'hey jarvis'"
+requires-python = ">=3.11,<3.13"   # 3.12 recommended (broadest wheel coverage)
+
+dependencies = [
+    # detectors (thin adapters over each library's own API — libraries used as-is)
+    "vosk",                 # baseline (grammar-restricted Kaldi), matches the device
+    "openwakeword",         # pretrained hey_jarvis (onnxruntime backend)
+    "sherpa-onnx",          # open-vocabulary keyword spotting
+    "pvporcupine",          # built-in 'jarvis' keyword (needs PICOVOICE_ACCESS_KEY)
+    # audio / corpus generation
+    "numpy",
+    "scipy",                # RIR convolution + resampling (augment.py)
+    "soundfile",            # wav I/O
+    # sherpa-onnx-cli text2token (keyword-file generation) needs these:
+    "click",
+    "sentencepiece",
+    "pypinyin",
+    # dev
+    "pytest",
+]
+
+# audiomentations is intentionally NOT used — it pulls numba/llvmlite which fail to build
+# on macOS without LLVM. augment.py does noise-mix + RIR reverb with numpy/scipy instead.

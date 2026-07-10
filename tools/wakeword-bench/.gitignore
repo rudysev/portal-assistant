@@ -1,0 +1,9 @@
+.venv/
+corpus/
+results/*.jsonl
+__pycache__/
+*.pyc
+train/*.onnx
+train/*.tflite
+*.log
+results/*.log

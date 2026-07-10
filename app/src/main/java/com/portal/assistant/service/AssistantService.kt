@@ -217,15 +217,21 @@ class AssistantService : Service() {
                 DebugLog.log("foreground detectors: oww (primary); vosk shadow pending model download")
             }
         }
+        // files/wakebench: score-only mode for speaker→mic A/B — log both detectors, never start a turn,
+        // and zero the handoff cooldown so Vosk isn't gated mid-utterance after an oWW fire.
+        val benchMode = File(getExternalFilesDir(null), "wakebench").exists()
+        if (benchMode) DebugLog.log("wakebench marker present — detection-only (no conversation handoff)")
         return WakeMicEngine(
             context = applicationContext,
             config = WakeMicConfig(
                 wakeWords = listOf(FOREGROUND_WAKE_WORD),
                 detectors = factories,
+                wakeHandoffCooldownMs = if (benchMode) 0L else WakeMicConfig.DEFAULT_WAKE_HANDOFF_COOLDOWN_MS,
                 onDetectorUnavailable = { id ->
                     mainHandler.post { onDetectorUnavailable(id) }
                 },
                 onWake = { event ->
+                    if (benchMode) return@WakeMicConfig
                     if (!WakeRouting.shouldRoute(event.detectorId, event.wakeId, OWW_OWNED_IDS)) return@WakeMicConfig
                     mainHandler.post {
                         exitDetection()
