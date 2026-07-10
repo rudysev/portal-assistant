@@ -16,15 +16,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
-import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.system.AppPrefs
-import com.portal.assistant.system.NetworkStatus
-import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
+import com.portal.commons.audio.OpenWakeWordDetector
 import com.portal.commons.audio.WakeDetectors
-import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
 import com.portal.commons.audio.WakeWord
@@ -57,20 +54,6 @@ class AssistantService : Service() {
 
     // WakeMicEngine invokes onWake on the capture thread; start/pause belong on main — hop before handoff.
     private val mainHandler = Handler(Looper.getMainLooper())
-
-    // The gen2 wake model is downloaded at runtime (not shipped in the APK — dead weight on gen1). Fetched
-    // once on first foreground detection, then the detector loads it from disk. See [WakeModelInstaller].
-    private val modelInstaller by lazy { WakeModelInstaller(filesDir) }
-
-    @Volatile private var modelDownloading = false
-
-    // Bounds the delete+re-download recovery to once per process, so a genuinely unloadable model can't loop.
-    private var modelReloadTried = false
-
-    // Hard stop for this process: set after repeated download-install failures or a second load failure, so
-    // enterDetection stops re-fetching the model / rebuilding a doomed mic-grabbing detector on every foreground.
-    @Volatile private var wakeSetupFailed = false
-    private var modelDownloadAttempts = 0 // main-thread; failed downloads counted toward MAX_MODEL_DOWNLOAD_ATTEMPTS
 
     @Volatile private var prewarmed = false
 
@@ -174,17 +157,16 @@ class AssistantService : Service() {
     }
 
     /**
-     * Start (or resume) foreground "hey jarvis" detection. Built lazily on first use — the wake model loads
-     * once and stays resident (see [exitDetection]). Only meaningful while idle (`engine == null`); the
-     * [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same
-     * entry point as the portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
+     * Start (or resume) foreground "hey jarvis" detection with **openWakeWord** (bundled ONNX assets from
+     * `commons-android` — no runtime model download). Built lazily on first use and kept resident (see
+     * [exitDetection]). Only meaningful while idle (`engine == null`); the [onStartCommand]
+     * `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same entry point as the
+     * portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
      */
     private fun enterDetection() {
         // Gen2 (API 29+) ONLY: A10 silences a background mic, so this foreground detector is the wake path here;
         // gen1 (API 28) is portal-wake's, where a second detector would just fight it for the single mic slot.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        // Gave up for this process (the model can't be installed or loaded) — don't re-fetch/rebuild every foreground.
-        if (wakeSetupFailed) return
         // Don't build the detector until we can actually record — otherwise a pre-grant onResume
         // loads the model for a capture that can only fail. Re-armed after the first conversation (which is
         // what prompts the RECORD_AUDIO grant) via returnToStandby.
@@ -192,17 +174,14 @@ class AssistantService : Service() {
             DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
             return
         }
-        // The model isn't bundled (dead weight on gen1) — download it once on first gen2 use, then arm.
-        if (!modelInstaller.isInstalled()) {
-            ensureModelThenArm()
-            return
-        }
         val d = detector ?: WakeMicEngine(
             context = applicationContext,
             config = WakeMicConfig(
                 wakeWords = listOf(FOREGROUND_WAKE_WORD),
-                detectors = listOf(WakeDetectors.vosk(modelDir = modelInstaller.modelDir())),
-                onDetectorUnavailable = { handleModelLoadFailure() },
+                detectors = listOf(WakeDetectors.oww()),
+                onDetectorUnavailable = {
+                    DebugLog.log("foreground detector unavailable — oww assets missing?")
+                },
                 onWake = { event ->
                     mainHandler.post {
                         exitDetection()
@@ -218,78 +197,11 @@ class AssistantService : Service() {
     }
 
     /**
-     * First-run gen2: the wake model isn't in the APK, so fetch it once (off-thread), publishing progress for
-     * the idle-home setup indicator ([ConversationHub.setModelSetup]), then re-enter detection to arm. Guarded
-     * so a burst of onResume/returnToStandby calls kicks off only one download. Skipped quietly when offline —
-     * a later foreground attempt with network still succeeds (the device needs network for Gemini anyway).
-     */
-    private fun ensureModelThenArm() {
-        if (modelDownloading) return
-        if (!NetworkStatus.isOnline(this)) {
-            DebugLog.log("wake model not downloaded and offline — foreground detection off for now")
-            return
-        }
-        modelDownloading = true
-        DebugLog.log("wake model missing → downloading (gen2 first-run)")
-        ConversationHub.setModelSetup(ModelSetup.Downloading(0f))
-        Thread {
-            val ok = modelInstaller.install { p -> ConversationHub.setModelSetup(ModelSetup.Downloading(p)) }
-            mainHandler.post {
-                modelDownloading = false
-                if (ok) {
-                    modelDownloadAttempts = 0
-                    ConversationHub.setModelSetup(ModelSetup.Idle)
-                    // Arm now if still foreground + idle; otherwise the next onResume re-enters.
-                    if (UiVisibility.inForeground && engine == null) enterDetection()
-                } else {
-                    ConversationHub.setModelSetup(ModelSetup.Failed)
-                    // Bound the retries: a transient network failure gets a few more foregrounds, but a
-                    // permanently-failing install (bad layout / silently-truncated no-length response) stops
-                    // re-fetching the model every time. Offline doesn't count — it returns before attempting.
-                    if (++modelDownloadAttempts >= MAX_MODEL_DOWNLOAD_ATTEMPTS) {
-                        wakeSetupFailed = true
-                        DebugLog.log("wake model download failed $modelDownloadAttempts× — giving up this session")
-                    }
-                }
-            }
-        }.apply {
-            isDaemon = true
-            name = "wake-model-install"
-        }.start()
-    }
-
-    /**
      * Pause foreground detection: releases the mic (so a conversation can take it, or portal-wake can reclaim
      * when we background) but **keeps the model resident** so re-arming is instant. `pause()` is idempotent.
      */
     private fun exitDetection() {
         detector?.pause()
-    }
-
-    /**
-     * The downloaded model failed to load — corrupt, downloaded partially past [WakeModelInstaller.isInstalled]'s
-     * gate, or an incompatible format. Tear down the failed detector (it opened the mic to buffer while the
-     * model loaded), delete the bad model so a fresh copy is fetched, and re-arm — but only **once** per process,
-     * so a genuinely unloadable model can't loop re-downloading on every foreground. Main thread.
-     */
-    private fun handleModelLoadFailure() {
-        if (wakeSetupFailed) return // already gave up this session — don't re-delete or re-enter on a double onUnavailable
-        detector?.close() // release the mic/capture the failed detector opened
-        detector = null
-        if (modelReloadTried) {
-            // The re-downloaded model ALSO failed to load — a fresh copy won't help (incompatible/corrupt). Give
-            // up for this process AND delete it, so enterDetection (guarded by wakeSetupFailed) stops rebuilding a
-            // doomed detector that grabs the mic each foreground, and we don't re-download the model again either.
-            wakeSetupFailed = true
-            modelInstaller.delete()
-            ConversationHub.setModelSetup(ModelSetup.Failed)
-            DebugLog.log("wake model load failed again — giving up foreground detection this session")
-            return
-        }
-        modelReloadTried = true
-        DebugLog.log("wake model load failed → deleting for re-download")
-        modelInstaller.delete()
-        if (UiVisibility.inForeground && engine == null) enterDetection()
     }
 
     /**
@@ -374,14 +286,14 @@ class AssistantService : Service() {
         /** Conversation trigger source: a tapped suggestion chip — sends its text as the first turn. */
         const val SOURCE_CHIP = "chip"
 
-        /** The foreground detector's wake word — "hey jarvis" at the strict floor, matching portal-wake's
-         *  built-in jarvis default so accuracy is identical. Non-null: the phrase is a valid two-word phrase. */
+        /** The foreground detector's wake word — "hey jarvis" at the default openWakeWord threshold,
+         *  matching portal-wake's built-in jarvis default. */
         private val FOREGROUND_WAKE_WORD =
-            WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)!!
-
-        // Failed wake-model downloads tolerated this process before giving up (bounds the re-fetch loop against
-        // a permanently-failing install; a transient network blip still gets a few foreground retries).
-        private const val MAX_MODEL_DOWNLOAD_ATTEMPTS = 3
+            WakeWord.fromPhrase(
+                "hey jarvis",
+                id = "jarvis",
+                minConf = OpenWakeWordDetector.DEFAULT_SCORE_THRESHOLD.toDouble(),
+            )!!
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001
