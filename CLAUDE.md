@@ -9,7 +9,7 @@ version.
 `com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
 `conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
 package (see the architecture section). **Triggered by `portal-wake`** in the background, plus its **own
-foreground** Vosk detector on gen2 (see the wake note below for why the split). Responds as background
+foreground** openWakeWord detector on gen2 (see the wake note below for why the split). Responds as background
 voice (orange bar, no screen takeover); the foreground 2-way chat UI (Phase 3) is built. No skills — those
 come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobile Services.
 
@@ -80,7 +80,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
 
 ## Architecture (the conversation — Phase 2.a)
 
-A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake's `WakeMatcher`):
+A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake's handoff/recovery rules):
 - `conversation/ConversationState.kt` — pure `reduce(state, event, multiTurn)` state machine
   (CONNECTING → LISTENING → SPEAKING → ENDED), **fully unit-tested**. Exactly two client timers:
   **no-speech** (release the mic when the user stops; re-armed on transcription) and a **stall
@@ -155,9 +155,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
-  silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
+  silences a background mic), so the assistant runs its **own foreground** openWakeWord detector while on screen
   (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` +
-  `WakeDetectors.vosk(modelDir)` from portal-commons); a match routes through
+  `WakeDetectors.oww()` from portal-commons); a match routes through
   the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
   contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
@@ -187,7 +187,7 @@ session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Tran
 bar) + `UiVisibility` (foreground flag) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
-shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `VoskWakeDetector` for the
+shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `OpenWakeWordDetector` for the
 gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
 `ToolContract` is **local to this app** (`conversation/tools/ToolContract`); the inbound wake contract
 (`com.portal.wake.action.WAKE` / `…extra.ID`) is **portal-wake's** `WakeContract`, mirrored as literals in
@@ -197,9 +197,7 @@ gen2 foreground detector). Two plugin contracts are **not** shared deps — we m
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
-# The gen2 "hey jarvis" Vosk model is NOT bundled — the app downloads it at runtime on first gen2 use
-#   (system/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
-#   place at build time. gen1 is unaffected (it uses portal-wake, which bundles its own model).
+# openWakeWord ONNX models ship in portal-commons — no runtime download. Nothing to place at build time.
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"

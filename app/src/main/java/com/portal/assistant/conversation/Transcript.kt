@@ -3,7 +3,7 @@ package com.portal.assistant.conversation
 /**
  * Pure, immutable accumulator that folds the Live API's streaming input/output transcription deltas
  * into an ordered list of conversation [Turn]s for the chat UI. No Android, no I/O — so it's exhaustively
- * unit-tested (the same pure-logic pattern as [ConversationState] / portal-wake's `WakeMatcher`).
+ * unit-tested (the same pure-logic pattern as [ConversationState]).
  *
  * The engine drives turn boundaries explicitly from the conversation phase — it knows when the user
  * (re)starts speaking and when the model takes the turn — so this class never has to *infer* them:
