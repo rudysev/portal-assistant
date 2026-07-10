@@ -9,7 +9,8 @@ version.
 `com.portal.assistant`, currently powered by the Gemini Live API behind a model-neutral
 `conversation/backend/VoiceBackend` seam — the reducer + engine are fully decoupled from the `gemini`
 package (see the architecture section). **Triggered by `portal-wake`** in the background, plus its **own
-foreground** openWakeWord detector on gen2 (see the wake note below for why the split). Responds as background
+foreground** openWakeWord detector on gen2 (with Vosk as a parallel shadow for benchmarking — see the wake
+note below for why the split). Responds as background
 voice (orange bar, no screen takeover); the foreground 2-way chat UI (Phase 3) is built. No skills — those
 come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobile Services.
 
@@ -158,8 +159,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   silences a background mic), so the assistant runs its **own foreground** openWakeWord detector while on screen
   (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` +
   `WakeDetectors.oww()` from portal-commons); a match routes through
-  the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
-  contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
+  the same `AssistantService.start(...)`. **Vosk** may run in parallel as a shadow (`WakeDetectors.vosk` +
+  `WakeRouting`) once `WakeModelInstaller` has downloaded the model — oWW still owns the handoff. On gen1 the
+  two apps share the single mic via portal-wake's contention/reclaim (no signal). Keep the detector
+  foreground-only and gen2-only — a background mic gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
   Hold the mic only while the conversation is live, release cleanly when finished. (2.b: keep the
   `AudioRecord` open across turns — mute between turns — so portal-wake can't reclaim mid-conversation.)
@@ -181,14 +184,14 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
 `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`) ·
-`system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
+`system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`, `WakeModelInstaller`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
 bar) + `UiVisibility` (foreground flag) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
-shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `OpenWakeWordDetector` for the
-gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
+shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `OpenWakeWordDetector` /
+`VoskWakeDetector` / `WakeRouting` for the gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
 `ToolContract` is **local to this app** (`conversation/tools/ToolContract`); the inbound wake contract
 (`com.portal.wake.action.WAKE` / `…extra.ID`) is **portal-wake's** `WakeContract`, mirrored as literals in
 `wake/WakeHandoffReceiver`.
@@ -197,7 +200,8 @@ gen2 foreground detector). Two plugin contracts are **not** shared deps — we m
 
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
-# openWakeWord ONNX models ship in portal-commons — no runtime download. Nothing to place at build time.
+# openWakeWord ONNX models ship in portal-commons — no build-time download for the primary detector.
+# The parallel Vosk shadow downloads its model at runtime via WakeModelInstaller on first gen2 use.
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"

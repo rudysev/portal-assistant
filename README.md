@@ -62,7 +62,7 @@ Local is 30 s (generic budget for STT/LLM/tools/TTS variance).
   | Scenario | Wake path |
   |---|---|
   | **Gen 1** (Android 9), any state | the companion **`portal-wake`** app (background) |
-  | **Gen 2** (Android 10), app open | Jarvis's **own foreground** detector — no `portal-wake` needed |
+  | **Gen 2** (Android 10), app open | Jarvis's **own foreground** openWakeWord detector (Vosk may run as a logged shadow) — no `portal-wake` needed |
   | **Gen 2**, app in background | *no hands-free wake* (Android 10 silences a background mic) — tap **Tap to talk** |
 
   So on Gen 1 install `portal-wake` for hands-free anywhere; on Gen 2 hands-free works whenever Jarvis is on

@@ -16,14 +16,19 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
+import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.system.AppPrefs
+import com.portal.assistant.system.NetworkStatus
+import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
 import com.portal.commons.audio.OpenWakeWordDetector
+import com.portal.commons.audio.VoskWakeDetector
 import com.portal.commons.audio.WakeDetectors
 import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
+import com.portal.commons.audio.WakeRouting
 import com.portal.commons.audio.WakeWord
 import java.io.File
 
@@ -50,7 +55,16 @@ class AssistantService : Service() {
     // wake works here whenever the assistant is on screen. Built lazily on first foreground detection and kept
     // resident (paused, not unloaded) so re-arming is instant. Gen1 (API 28) skips this entirely and stays
     // portal-wake-only; when this runs, portal-wake yields by *detecting* our recording (no-signal handoff).
+    // openWakeWord is primary; Vosk runs in parallel as a shadow once its model is downloaded.
     private var detector: WakeMicEngine? = null
+
+    /** True when the current [detector] was built with the Vosk shadow attached. */
+    private var voskAttached = false
+
+    private val modelInstaller by lazy { WakeModelInstaller(filesDir) }
+    private var modelDownloading = false
+    private var modelDownloadAttempts = 0
+    private var modelReloadTried = false
 
     // WakeMicEngine invokes onWake on the capture thread; start/pause belong on main — hop before handoff.
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -105,6 +119,7 @@ class AssistantService : Service() {
         running = false
         detector?.close() // tear down the resident wake detector (releases its model)
         detector = null
+        voskAttached = false
         DebugLog.log("AssistantService destroyed → mic released")
     }
 
@@ -157,11 +172,11 @@ class AssistantService : Service() {
     }
 
     /**
-     * Start (or resume) foreground "hey jarvis" detection with **openWakeWord** (bundled ONNX assets from
-     * `commons-android` — no runtime model download). Built lazily on first use and kept resident (see
-     * [exitDetection]). Only meaningful while idle (`engine == null`); the [onStartCommand]
-     * `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same entry point as the
-     * portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
+     * Start (or resume) foreground "hey jarvis" detection. **openWakeWord** (bundled ONNX) arms immediately;
+     * **Vosk** is attached as a parallel shadow once [WakeModelInstaller] has the model on disk. Built lazily
+     * on first use and kept resident (see [exitDetection]). Only meaningful while idle (`engine == null`);
+     * the [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, [WakeRouting] ensures only
+     * oWW starts the conversation (Vosk fires are logged shadows).
      */
     private fun enterDetection() {
         // Gen2 (API 29+) ONLY: A10 silences a background mic, so this foreground detector is the wake path here;
@@ -174,15 +189,44 @@ class AssistantService : Service() {
             DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
             return
         }
-        val d = detector ?: WakeMicEngine(
+        val includeVosk = modelInstaller.isInstalled()
+        if (!includeVosk) ensureVoskModelThenRebuild()
+        // Rebuild when the Vosk model just became available and the resident engine is still oWW-only.
+        if (detector != null && includeVosk && !voskAttached) {
+            DebugLog.log("vosk model ready → rebuilding foreground detector with oWW + Vosk shadow")
+            detector?.close()
+            detector = null
+            voskAttached = false
+        }
+        val d = detector ?: buildDetector(includeVosk = includeVosk).also {
+            detector = it
+            voskAttached = includeVosk
+        }
+        // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
+        // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
+        if (!d.start()) DebugLog.log("foreground detector start refused (capture wedged)")
+    }
+
+    private fun buildDetector(includeVosk: Boolean): WakeMicEngine {
+        val factories = buildList {
+            add(WakeDetectors.oww())
+            if (includeVosk) {
+                DebugLog.log("foreground detectors: oww (primary) + vosk (shadow)")
+                add(WakeDetectors.vosk(modelDir = modelInstaller.modelDir()))
+            } else {
+                DebugLog.log("foreground detectors: oww (primary); vosk shadow pending model download")
+            }
+        }
+        return WakeMicEngine(
             context = applicationContext,
             config = WakeMicConfig(
                 wakeWords = listOf(FOREGROUND_WAKE_WORD),
-                detectors = listOf(WakeDetectors.oww()),
-                onDetectorUnavailable = {
-                    DebugLog.log("foreground detector unavailable — oww assets missing?")
+                detectors = factories,
+                onDetectorUnavailable = { id ->
+                    mainHandler.post { onDetectorUnavailable(id) }
                 },
                 onWake = { event ->
+                    if (!WakeRouting.shouldRoute(event.detectorId, event.wakeId, OWW_OWNED_IDS)) return@WakeMicConfig
                     mainHandler.post {
                         exitDetection()
                         start(applicationContext, "wake:${event.wakeId}")
@@ -190,10 +234,75 @@ class AssistantService : Service() {
                 },
                 onError = { DebugLog.log("foreground detector error: $it") },
             ),
-        ).also { detector = it }
-        // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
-        // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
-        if (!d.start()) DebugLog.log("foreground detector start refused (capture wedged)")
+        )
+    }
+
+    private fun onDetectorUnavailable(id: String) {
+        when (id) {
+            VoskWakeDetector.ID -> handleVoskModelLoadFailure()
+            else -> DebugLog.log("foreground detector unavailable ($id)")
+        }
+    }
+
+    /**
+     * First-run gen2: fetch the Vosk shadow model off-thread while oWW keeps detecting. On success, rebuild
+     * the engine with both detectors if still foreground + idle.
+     */
+    private fun ensureVoskModelThenRebuild() {
+        if (modelDownloading) return
+        if (!NetworkStatus.isOnline(this)) {
+            DebugLog.log("vosk shadow model not downloaded and offline — oWW-only for now")
+            return
+        }
+        if (modelDownloadAttempts >= MAX_MODEL_DOWNLOAD_ATTEMPTS) return
+        modelDownloading = true
+        DebugLog.log("vosk shadow model missing → downloading (gen2)")
+        ConversationHub.setModelSetup(ModelSetup.Downloading(0f))
+        Thread {
+            val ok = modelInstaller.install { p -> ConversationHub.setModelSetup(ModelSetup.Downloading(p)) }
+            mainHandler.post {
+                modelDownloading = false
+                if (ok) {
+                    modelDownloadAttempts = 0
+                    ConversationHub.setModelSetup(ModelSetup.Idle)
+                    if (UiVisibility.inForeground && engine == null) enterDetection()
+                } else {
+                    ConversationHub.setModelSetup(ModelSetup.Failed)
+                    if (++modelDownloadAttempts >= MAX_MODEL_DOWNLOAD_ATTEMPTS) {
+                        DebugLog.log(
+                            "vosk shadow model download failed $modelDownloadAttempts× — " +
+                                "giving up this session (oWW still active)",
+                        )
+                    }
+                }
+            }
+        }.apply {
+            isDaemon = true
+            name = "wake-model-install"
+        }.start()
+    }
+
+    /**
+     * Vosk shadow failed to load — delete the bad model and retry once. oWW keeps running (rebuild without
+     * Vosk if the current engine had it attached).
+     */
+    private fun handleVoskModelLoadFailure() {
+        if (voskAttached) {
+            detector?.close()
+            detector = null
+            voskAttached = false
+            if (UiVisibility.inForeground && engine == null) enterDetection() // re-arm oWW-only immediately
+        }
+        if (modelReloadTried) {
+            modelInstaller.delete()
+            ConversationHub.setModelSetup(ModelSetup.Failed)
+            DebugLog.log("vosk shadow model load failed again — oWW-only this session")
+            return
+        }
+        modelReloadTried = true
+        DebugLog.log("vosk shadow model load failed → deleting for re-download")
+        modelInstaller.delete()
+        if (UiVisibility.inForeground && engine == null) ensureVoskModelThenRebuild()
     }
 
     /**
@@ -294,6 +403,11 @@ class AssistantService : Service() {
                 id = "jarvis",
                 scoreThreshold = OpenWakeWordDetector.DEFAULT_SCORE_THRESHOLD.toDouble(),
             )!!
+
+        /** oWW owns jarvis on gen2 — Vosk fires of the same id are shadows only. */
+        private val OWW_OWNED_IDS = setOf("jarvis")
+
+        private const val MAX_MODEL_DOWNLOAD_ATTEMPTS = 3
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001

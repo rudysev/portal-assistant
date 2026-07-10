@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.portal.assistant.R
 import com.portal.assistant.conversation.ConversationHub
+import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.RevealProgress
 import com.portal.assistant.conversation.Role
 import com.portal.assistant.conversation.Turn
@@ -444,6 +445,31 @@ private fun AskPanel(onSuggestion: (String) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         GreetingHeader()
         SuggestionChips(onSuggestion)
+        WakeSetupIndicator()
+    }
+}
+
+/**
+ * A quiet one-line indicator for the one-time **gen2** Vosk-shadow model download ([ConversationHub.modelSetup]):
+ * while it fetches, "Setting up voice wake… NN%"; on failure, a soft note that tap-to-talk / oWW still work.
+ * Renders nothing once the model is present — so it's invisible on gen1 and after the first download.
+ */
+@Composable
+private fun WakeSetupIndicator() {
+    val setup by ConversationHub.modelSetup.collectAsStateWithLifecycle()
+    val text = when (val s = setup) {
+        is ModelSetup.Downloading -> "Setting up voice wake… ${(s.progress * 100).toInt()}%"
+        ModelSetup.Failed -> "Voice wake setup didn’t finish — tap the mic to talk"
+        ModelSetup.Idle -> null
+    }
+    if (text != null) {
+        Spacer(Modifier.size(16.dp))
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+            fontSize = TextSize.Body,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
