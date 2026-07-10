@@ -7,8 +7,8 @@ import com.portal.assistant.gemini.GeminiBackend
  * the *only* place in [conversation][com.portal.assistant.conversation] that imports `gemini`, so the
  * engine and the pure reducer stay backend-agnostic.
  *
- * Today there is one backend (Gemini Live). When a local/LAN backend lands, choose here (e.g. by a
- * user pref) and everything upstream is unchanged.
+ * Today there is one backend (Gemini Live). When the local/LAN backend lands, choose here from
+ * [AppPrefs.voiceBackendKind] (opt-in for users running their own model) and everything upstream is unchanged.
  */
 object Backends {
     val default: VoiceBackendFactory = GeminiBackend.Factory

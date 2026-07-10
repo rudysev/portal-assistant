@@ -17,9 +17,10 @@ object Http {
     val shared: OkHttpClient = OkHttpClient()
 
     /**
-     * OkHttp for the opt-in LAN voice backend ([wss://][wss]). The host auto-generates a self-signed TLS
-     * cert on first boot — no install step — so we encrypt the wire but do **not** authenticate the server
-     * (trust-all). Gemini keeps using [shared] with normal PKI verification.
+     * OkHttp for the opt-in local voice backend ([wss://][wss]) — users who run their own model on a
+     * LAN host. That host auto-generates a self-signed TLS cert on first boot — no install step — so we
+     * encrypt the wire but do **not** authenticate the server (trust-all). Gemini keeps using [shared]
+     * with normal PKI verification.
      */
     val lanVoice: OkHttpClient by lazy {
         val trustAll = object : X509TrustManager {

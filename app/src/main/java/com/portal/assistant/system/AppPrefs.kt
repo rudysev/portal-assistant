@@ -96,6 +96,54 @@ object AppPrefs {
         prefs(context).edit().remove(KEY_API).apply()
     }
 
+    // Voice backend — which model powers a conversation (Settings → Backend). Ships defaulting to GEMINI
+    // (the cloud Gemini Live API); LOCAL is an opt-in path for users running their own model on a
+    // voice host on the home LAN (Settings → host address).
+    const val KEY_VOICE_BACKEND = "voice_backend" // VoiceBackendKind.name
+    const val KEY_LOCAL_VOICE_HOST = "local_voice_host" // canonical wss://host:port from [LocalVoiceHost]
+
+    /** Which voice backend powers a conversation. See [Backends][com.portal.assistant.conversation.backend.Backends]. */
+    enum class VoiceBackendKind { GEMINI, LOCAL }
+
+    /** The selected backend, defaulting to [VoiceBackendKind.GEMINI] if unset/unknown. */
+    fun voiceBackendKind(context: Context): VoiceBackendKind = if (prefs(context).getString(KEY_VOICE_BACKEND, null) == VoiceBackendKind.LOCAL.name) {
+        VoiceBackendKind.LOCAL
+    } else {
+        VoiceBackendKind.GEMINI
+    }
+
+    /** Persist the chosen backend (applies to the next conversation). */
+    fun setVoiceBackendKind(context: Context, kind: VoiceBackendKind) {
+        prefs(context).edit().putString(KEY_VOICE_BACKEND, kind.name).apply()
+    }
+
+    /** Canonical `wss://host:port` for the local voice host, or null if unset/invalid. Self-heals corrupt prefs. */
+    fun localVoiceHost(context: Context): String? {
+        val saved = prefs(context).getString(KEY_LOCAL_VOICE_HOST, null)?.trim()?.ifBlank { null } ?: return null
+        return when (val parsed = LocalVoiceHost.parse(saved)) {
+            is LocalVoiceHost.ParseResult.Ok -> parsed.wssUrl
+
+            is LocalVoiceHost.ParseResult.Invalid -> {
+                prefs(context).edit().remove(KEY_LOCAL_VOICE_HOST).apply()
+                null
+            }
+        }
+    }
+
+    /** Set the local voice host (`host:port` or `wss://host:port`); invalid input is ignored. Null/blank clears. */
+    fun setLocalVoiceHost(context: Context, host: String?) {
+        val edit = prefs(context).edit()
+        when {
+            host.isNullOrBlank() -> edit.remove(KEY_LOCAL_VOICE_HOST)
+
+            else -> when (val parsed = LocalVoiceHost.parse(host)) {
+                is LocalVoiceHost.ParseResult.Ok -> edit.putString(KEY_LOCAL_VOICE_HOST, parsed.wssUrl)
+                is LocalVoiceHost.ParseResult.Invalid -> return // same contract as setModelId — reject silently
+            }
+        }
+        edit.apply()
+    }
+
     /** Name of the one-shot provisioning file the install script drops in the app's external files dir. */
     const val PROVISION_FILE = "api_key.txt"
 
