@@ -14,17 +14,17 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.portal.assistant.BuildConfig
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
+import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
-import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeDetectors
+import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
 import com.portal.commons.audio.WakeWord
@@ -137,10 +137,10 @@ class AssistantService : Service() {
         DebugLog.log("AssistantService START (trigger=$source) → conversation")
         // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
         // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
-        // BYOD: prefer the user's own key (Settings → API key); fall back to the baked dev key. Read per
-        // conversation so a key changed in Settings applies on the next turn with no restart.
-        val key = AppPrefs.apiKey(applicationContext) ?: BuildConfig.GEMINI_API_KEY
-        engine = AssistantEngine(applicationContext, key) {
+        // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
+        // conversation so a change in Settings → Backend applies on the next turn with no restart.
+        val choice = Backends.resolve(applicationContext)
+        engine = AssistantEngine(applicationContext, choice) {
             // The engine has already torn down (mic released, bar hidden) before this fires.
             DebugLog.log("conversation ended → standby")
             returnToStandby()
@@ -288,9 +288,10 @@ class AssistantService : Service() {
     /**
      * One-shot, off-thread pre-warm of the *conversation code path* so the first "hey jarvis" doesn't
      * pay it. Keeping the process resident (standby) avoids the cold spawn, but the first conversation
-     * still cold-loads [AssistantEngine]/[LiveClient]/OkHttp + builds the shared client (~1.5 s measured).
-     * Here we build the OkHttp client, class-load the stack, pre-resolve the Live host's DNS, and snapshot
-     * the installed tool-provider list. **No mic, no overlay, no socket** is opened — pure warm-up, safe in standby.
+     * still cold-loads [AssistantEngine]/[LiveClient]/[LocalBackend]/OkHttp + builds the shared clients (~1.5 s measured).
+     * Here we build the OkHttp clients, class-load the stack (both backends), pre-resolve the selected
+     * backend's host DNS ([Backends.warmDns]), and snapshot the installed tool-provider list. **No mic, no
+     * overlay, no socket** is opened — pure warm-up, safe in standby.
      */
     private fun prewarm() {
         if (prewarmed) return
@@ -298,11 +299,13 @@ class AssistantService : Service() {
         Thread {
             runCatching {
                 com.portal.assistant.util.Http.shared // builds the OkHttpClient (dispatcher + pool)
+                com.portal.assistant.util.Http.lanVoice // local voice trust-all client
                 Class.forName("com.portal.assistant.gemini.LiveClient")
+                Class.forName("com.portal.assistant.conversation.backend.local.LocalBackend")
                 Class.forName("com.portal.assistant.conversation.AssistantEngine")
                 Class.forName("com.portal.assistant.audio.MicCapture")
                 Class.forName("com.portal.assistant.audio.PcmPlayer")
-                java.net.InetAddress.getByName("generativelanguage.googleapis.com") // warm DNS
+                Backends.warmDns(applicationContext)
                 com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
                 com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext) // pre-scan installed tool providers off the wake path
                 com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext) // pre-scan installed music apps off the wake path

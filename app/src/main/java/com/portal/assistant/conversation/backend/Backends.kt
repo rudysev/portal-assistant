@@ -29,7 +29,7 @@ object Backends {
     /** User-facing notice when [resolve] yields a blank credential — see [CredentialMessages]. */
     fun missingCredentialMessage(kind: AppPrefs.VoiceBackendKind): String = CredentialMessages.missing(kind)
 
-    /** The shipping default — Gemini. Kept as the engine's constructor default and for tests. */
+    /** The shipping default factory — Gemini. Used by tests and any code that needs a concrete backend. */
     val default: VoiceBackendFactory = gemini
 
     /**

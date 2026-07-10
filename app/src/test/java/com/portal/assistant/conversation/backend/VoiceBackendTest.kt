@@ -91,9 +91,12 @@ class VoiceBackendTest {
     fun `factory receives config and listener, backend drives the full turn`() {
         val listener = RecordingListener()
         var seenConfig: BackendConfig? = null
-        val factory = VoiceBackendFactory { config, l ->
-            seenConfig = config
-            FakeVoiceBackend(l)
+        val factory = object : VoiceBackendFactory {
+            override val deadAirStallMs = 5_000L
+            override fun create(config: BackendConfig, l: VoiceBackend.Listener): VoiceBackend {
+                seenConfig = config
+                return FakeVoiceBackend(l)
+            }
         }
 
         val config = BackendConfig(
@@ -181,6 +184,13 @@ class VoiceBackendTest {
             RecordingListener(),
         )
         assertTrue(backend is LocalBackend)
+    }
+
+    @Test
+    fun `each shipping factory declares a dead-air stall budget`() {
+        assertEquals(GeminiBackend.DEAD_AIR_STALL_MS, GeminiBackend.Factory.deadAirStallMs)
+        assertEquals(LocalBackend.DEAD_AIR_STALL_MS, LocalBackend.Factory.deadAirStallMs)
+        assertTrue(LocalBackend.Factory.deadAirStallMs > GeminiBackend.Factory.deadAirStallMs)
     }
 
     @Test

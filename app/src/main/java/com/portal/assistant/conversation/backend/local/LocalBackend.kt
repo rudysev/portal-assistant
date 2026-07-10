@@ -2,6 +2,7 @@ package com.portal.assistant.conversation.backend.local
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.BackendConfig
 import com.portal.assistant.conversation.backend.LocalTlsMode
 import com.portal.assistant.conversation.backend.LocalWireOptions
 import com.portal.assistant.conversation.backend.VoiceBackend
@@ -216,12 +217,20 @@ class LocalBackend(
         }
 
         /**
+         * A LAN pipeline can sit silent longer than Gemini's co-streamed first audio — STT, LLM, on-device
+         * tool round-trips, optional web search, and local TTS all precede the first PCM chunk.
+         */
+        const val DEAD_AIR_STALL_MS = 30_000L
+
+        /**
          * Adapts the neutral [BackendConfig][com.portal.assistant.conversation.backend.BackendConfig] onto
          * this client: the generic `credential` carries the host URL, and `model` is ignored (the host owns
          * which local model runs). Selected in [Backends][com.portal.assistant.conversation.backend.Backends].
          */
-        val Factory = VoiceBackendFactory { config, listener ->
-            LocalBackend(
+        val Factory: VoiceBackendFactory = object : VoiceBackendFactory {
+            override val deadAirStallMs = DEAD_AIR_STALL_MS
+
+            override fun create(config: BackendConfig, listener: VoiceBackend.Listener): VoiceBackend = LocalBackend(
                 hostUrl = config.credential.orEmpty(),
                 systemPrompt = config.systemPrompt,
                 functionDeclarations = config.functionDeclarations,

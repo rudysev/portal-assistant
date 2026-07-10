@@ -101,6 +101,15 @@ data class BackendConfig(
 )
 
 /** Builds a [VoiceBackend] for a session. Swapping the model = swapping the factory in [Backends]. */
-fun interface VoiceBackendFactory {
+interface VoiceBackendFactory {
+
+    /**
+     * How long [AssistantEngine] waits for the first audio (or post-drain dead air) before giving up on a
+     * wedged model turn. Each backend's pipeline differs — Gemini co-streams audio fast; a LAN host may sit
+     * silent through STT → LLM → on-device tool round-trips → optional web search → local TTS. Hardware
+     * varies on LAN, so the local budget is a conservative generic default, not tuned to one machine.
+     */
+    val deadAirStallMs: Long
+
     fun create(config: BackendConfig, listener: VoiceBackend.Listener): VoiceBackend
 }

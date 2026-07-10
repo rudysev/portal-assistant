@@ -6,10 +6,9 @@ import android.os.Looper
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmGain
 import com.portal.assistant.audio.PcmPlayer
-import com.portal.assistant.conversation.backend.BackendConfig
 import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.backend.CredentialMessages
 import com.portal.assistant.conversation.backend.VoiceBackend
-import com.portal.assistant.conversation.backend.VoiceBackendFactory
 import com.portal.assistant.conversation.tools.ToolRegistry
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
@@ -48,15 +47,15 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class AssistantEngine(
     context: Context,
-    private val apiKey: String,
-    // Before onEnded so the trailing-lambda call site still binds to onEnded; kept injectable so a fake backend can be supplied in tests.
-    private val backendFactory: VoiceBackendFactory = Backends.default,
+    private val backendChoice: Backends.Choice,
     private val onEnded: () -> Unit,
 ) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val overlay = RecordingOverlay(appContext)
     private val player = PcmPlayer()
+
+    private val stallMs: Long = backendChoice.factory.deadAirStallMs
 
     // Side effects deferred until the assistant finishes speaking the turn (mute, DND-enable). Fired by
     // Action.FireAfterSpeech on turn-end; cleared on teardown. Passed to the controllers via ToolRegistry.
@@ -151,12 +150,12 @@ class AssistantEngine(
     fun start(resume: Boolean, initialText: String? = null) {
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
         pendingInitialText = initialText?.takeIf { it.isNotBlank() }
-        // No key → don't open a socket that can only fail with an opaque auth error. Post the notice and
-        // bail BEFORE publishing CONNECTING, so the user gets a plain message with no connecting flash
-        // (the phase stays IDLE, so the banner sits over the idle home).
-        if (apiKey.isBlank()) {
-            DebugLog.log("no api key → cannot start")
-            ConversationHub.postNotice("Jarvis isn’t set up yet — a Gemini API key is missing.")
+        // No credential → don't open a socket that can only fail. Post the notice and bail BEFORE publishing
+        // CONNECTING, so the user gets a plain message with no connecting flash (the phase stays IDLE, so
+        // the banner sits over the idle home).
+        if (backendChoice.credentialMissing) {
+            DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
+            ConversationHub.postNotice(CredentialMessages.missing(backendChoice.kind))
             ended = true
             onEnded()
             return
@@ -189,8 +188,13 @@ class AssistantEngine(
         // overlaps the network round-trip instead of delaying it. Playback isn't needed until the model speaks
         // (long after Ready), and nothing reads `player` before it's started — onAudio can't fire pre-Ready,
         // onFrame never touches it — so starting it after connect()/mic is safe.
-        backend = backendFactory.create(
-            BackendConfig(apiKey, AppPrefs.modelId(appContext), systemPrompt, toolRegistry.declarations()),
+        backend = backendChoice.factory.create(
+            BackendSessionConfig.build(
+                choice = backendChoice,
+                model = AppPrefs.modelId(appContext),
+                systemPrompt = systemPrompt,
+                functionDeclarations = toolRegistry.declarations(),
+            ),
             backendListener,
         ).also { it.connect() }
         // Buffer mic frames from the moment the device opens (CONNECTING) so the opening words survive the
@@ -358,7 +362,7 @@ class AssistantEngine(
         }
         override fun onError(message: String) {
             DebugLog.log("backend error: $message")
-            handler.post { surfaceDisconnect() }
+            handler.post { surfaceDisconnect(notice = message) }
         }
         override fun onClosed() {
             handler.post { surfaceDisconnect() }
@@ -376,10 +380,18 @@ class AssistantEngine(
      * (Even a redundant post would be idempotent — [ConversationHub.notice] is a StateFlow that drops an
      * equal value.)
      */
-    private fun surfaceDisconnect() {
-        if (!ended) ConversationHub.postNotice(disconnectMessage())
+    private fun surfaceDisconnect(notice: String? = null) {
+        if (!ended) {
+            ConversationHub.postNotice(userDisconnectNotice(notice))
+        }
         dispatch(Event.Disconnected)
     }
+
+    private fun userDisconnectNotice(backendError: String?): String = DisconnectNotice.message(
+        backendError = backendError,
+        offline = !NetworkStatus.isOnline(appContext),
+        connectedOk = connectedOk,
+    )
 
     /**
      * Send a tapped suggestion as the user's first turn. Runs on the handler right after [Event.Ready] put us
@@ -395,12 +407,6 @@ class AssistantEngine(
         publishTurns()
         backend?.sendText(text)
         DebugLog.log("sent initial text: \"$text\"")
-    }
-
-    private fun disconnectMessage(): String = when {
-        !NetworkStatus.isOnline(appContext) -> "You’re offline. Check your Wi-Fi connection and try again."
-        connectedOk -> "Connection lost. Please try again."
-        else -> "Couldn’t reach Jarvis. Please try again."
     }
 
     // ---- orchestration (main thread) ---------------------------------------------------------------
@@ -489,7 +495,7 @@ class AssistantEngine(
 
         Action.ArmStallTimer -> {
             handler.removeCallbacks(stallTimer)
-            handler.postDelayed(stallTimer, STALL_MS)
+            handler.postDelayed(stallTimer, stallMs)
         }
 
         Action.CancelStallTimer -> handler.removeCallbacks(stallTimer)
@@ -586,11 +592,5 @@ class AssistantEngine(
 
         // The only two client timers (see ConversationState). Tunable on device.
         const val NO_SPEECH_MS = 5_000L // release the mic if the user says nothing (device-tuned 2.b)
-
-        // Give up on a wedged/truncated model turn and re-listen. The reducer arms this only as a **dead-air**
-        // clock — the pre-first-audio Search/"thinking" gap, or playback draining without a turnComplete (Bug
-        // 1 truncation) — and cancels it while audio plays, so it never cuts a long answer the server streamed
-        // ahead of realtime. 10 s covers both gaps.
-        const val STALL_MS = 10_000L
     }
 }
