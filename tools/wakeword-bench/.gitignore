@@ -7,3 +7,4 @@ train/*.onnx
 train/*.tflite
 *.log
 results/*.log
+interferers/

@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.portal.assistant.audio.WakeInterferer
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
@@ -69,6 +70,9 @@ class AssistantService : Service() {
     // WakeMicEngine invokes onWake on the capture thread; start/pause belong on main — hop before handoff.
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /** Bench-only same-device music/speech loop (see [WakeInterferer]). */
+    private val wakeInterferer by lazy { WakeInterferer(applicationContext) }
+
     @Volatile private var prewarmed = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -117,6 +121,7 @@ class AssistantService : Service() {
         engine?.stop()
         engine = null
         running = false
+        wakeInterferer.stop()
         detector?.close() // tear down the resident wake detector (releases its model)
         detector = null
         voskAttached = false
@@ -205,6 +210,7 @@ class AssistantService : Service() {
         // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
         // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
         if (!d.start()) DebugLog.log("foreground detector start refused (capture wedged)")
+        wakeInterferer.startIfPresent()
     }
 
     private fun buildDetector(includeVosk: Boolean): WakeMicEngine {
@@ -316,6 +322,7 @@ class AssistantService : Service() {
      * when we background) but **keeps the model resident** so re-arming is instant. `pause()` is idempotent.
      */
     private fun exitDetection() {
+        wakeInterferer.stop()
         detector?.pause()
     }
 
