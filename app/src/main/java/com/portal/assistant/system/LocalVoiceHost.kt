@@ -2,7 +2,7 @@ package com.portal.assistant.system
 
 /**
  * The single entry point for local voice host addresses — Settings ([AppPrefs]), DNS pre-warm
- * ([Backends.warmDns]), and the wire client all go through here.
+ * ([dnsName]), and the wire client all go through here.
  *
  * Accepts **`host:port`** (the Settings-friendly form) or an explicit **`wss://host:port`**, always
  * normalizing to a canonical `wss://` URL. The LAN transport uses [com.portal.assistant.util.Http.lanVoice]

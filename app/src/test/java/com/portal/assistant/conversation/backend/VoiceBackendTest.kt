@@ -2,6 +2,7 @@ package com.portal.assistant.conversation.backend
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.local.LocalBackend
 import com.portal.assistant.gemini.GeminiBackend
 import com.portal.assistant.gemini.LiveClient
 import org.json.JSONObject
@@ -26,29 +27,64 @@ class VoiceBackendTest {
         var connected = false
         var closed = false
 
-        override fun connect() { connected = true }
-        override fun sendAudio(pcm: ByteArray) { sentAudio += pcm }
-        override fun sendText(text: String) { sentText += text }
-        override fun sendToolResponse(results: List<ToolResult>) { sentToolResponses += results }
-        override fun close() { closed = true }
+        override fun connect() {
+            connected = true
+        }
+        override fun sendAudio(pcm: ByteArray) {
+            sentAudio += pcm
+        }
+        override fun sendText(text: String) {
+            sentText += text
+        }
+        override fun sendToolResponse(results: List<ToolResult>) {
+            sentToolResponses += results
+        }
+        override fun close() {
+            closed = true
+        }
     }
 
     /** Records every callback the seam raises, so a test can assert the engine-facing surface. */
     private class RecordingListener : VoiceBackend.Listener {
         val events = mutableListOf<String>()
         val audio = mutableListOf<ByteArray>()
-        override fun onReady() { events += "ready" }
-        override fun onInputTranscript(textDelta: String) { events += "in:$textDelta" }
-        override fun onOutputTranscript(textDelta: String) { events += "out:$textDelta" }
-        override fun onAudio(pcm24k: ByteArray) { events += "audio:${pcm24k.size}"; audio += pcm24k }
-        override fun onTurnComplete() { events += "turnComplete" }
-        override fun onInterrupted() { events += "interrupted" }
-        override fun onModelGenerating() { events += "generating" }
-        override fun onToolCall(calls: List<FunctionCall>) { events += "toolCall:${calls.map { it.name }}" }
-        override fun onToolCancel(ids: List<String>) { events += "toolCancel:$ids" }
-        override fun onServerClosingSoon(graceMs: Long) { events += "closingSoon:$graceMs" }
-        override fun onError(message: String) { events += "error:$message" }
-        override fun onClosed() { events += "closed" }
+        override fun onReady() {
+            events += "ready"
+        }
+        override fun onInputTranscript(textDelta: String) {
+            events += "in:$textDelta"
+        }
+        override fun onOutputTranscript(textDelta: String) {
+            events += "out:$textDelta"
+        }
+        override fun onAudio(pcm24k: ByteArray) {
+            events += "audio:${pcm24k.size}"
+            audio += pcm24k
+        }
+        override fun onTurnComplete() {
+            events += "turnComplete"
+        }
+        override fun onInterrupted() {
+            events += "interrupted"
+        }
+        override fun onModelGenerating() {
+            events += "generating"
+        }
+        override fun onToolCall(calls: List<FunctionCall>) {
+            events += "toolCall:${calls.map { it.name }}"
+        }
+        override fun onToolCancel(ids: List<String>) {
+            events += "toolCancel:$ids"
+        }
+        override fun onServerClosingSoon(graceMs: Long) {
+            events += "closingSoon:$graceMs"
+        }
+        override fun onError(message: String) {
+            events += "error:$message"
+        }
+        override fun onClosed() {
+            events += "closed"
+        }
     }
 
     @Test
@@ -94,8 +130,14 @@ class VoiceBackendTest {
 
         assertEquals(
             listOf(
-                "ready", "in:set a timer", "generating", "toolCall:[portal.set_timer]",
-                "out:Timer set.", "audio:480", "turnComplete", "closed",
+                "ready",
+                "in:set a timer",
+                "generating",
+                "toolCall:[portal.set_timer]",
+                "out:Timer set.",
+                "audio:480",
+                "turnComplete",
+                "closed",
             ),
             listener.events,
         )
@@ -121,6 +163,24 @@ class VoiceBackendTest {
             RecordingListener(),
         )
         assertTrue(backend is LiveClient)
+    }
+
+    @Test
+    fun `Local adapter maps neutral config onto a LocalBackend`() {
+        val backend = LocalBackend.Factory.create(
+            BackendConfig(credential = "wss://192.168.1.5:8080", model = "ignored", systemPrompt = "p"),
+            RecordingListener(),
+        )
+        assertTrue("Local backend should be a LocalBackend", backend is LocalBackend)
+    }
+
+    @Test
+    fun `Local adapter tolerates a null credential`() {
+        val backend = LocalBackend.Factory.create(
+            BackendConfig(credential = null, model = "m", systemPrompt = "p"),
+            RecordingListener(),
+        )
+        assertTrue(backend is LocalBackend)
     }
 
     @Test
