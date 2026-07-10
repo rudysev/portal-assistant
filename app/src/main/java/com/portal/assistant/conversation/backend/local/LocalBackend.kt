@@ -2,6 +2,8 @@ package com.portal.assistant.conversation.backend.local
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.LocalTlsMode
+import com.portal.assistant.conversation.backend.LocalWireOptions
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.VoiceBackendFactory
 import com.portal.assistant.system.LocalVoiceHost
@@ -32,22 +34,22 @@ import java.util.concurrent.TimeUnit
  *    `input_transcript` and `output_transcript` carry **deltas** (new text since the last frame for that
  *    side), not the full utterance — the engine accumulates them into the chat bubble, same as Gemini Live.
  *
- * Auth: none — the "credential" is just the host URL (canonical `wss://` from [LocalVoiceHost]). TLS is
- * required; the host auto-generates a self-signed cert and [Http.lanVoice] connects with encryption but
- * without authenticating the server (trust-all). Callbacks arrive on OkHttp's thread; the engine marshals
- * them onto its single orchestration thread. Inbound JSON parsing is the pure, unit-tested
- * [parseServerMessage]; the socket callbacks feed it and relay [ServerEvent]s to [listener]. The host should
- * emit `model_generating` before the first audio frame; the client also infers it on first binary PCM as a
- * safety net.
+ * Auth: none — the "credential" is just the host URL (canonical `wss://` from [LocalVoiceHost]). TLS mode
+ * comes from [LocalWireOptions] on [BackendConfig][com.portal.assistant.conversation.backend.BackendConfig].
+ * Callbacks arrive on OkHttp's thread; the engine marshals them onto its single orchestration thread. Inbound
+ * JSON parsing is the pure, unit-tested [parseServerMessage]; the socket callbacks feed it and relay
+ * [ServerEvent]s to [listener]. The host should emit `model_generating` before the first audio frame; the
+ * client also infers it on first binary PCM as a safety net.
  */
 class LocalBackend(
     private val hostUrl: String,
     private val systemPrompt: String,
     private val functionDeclarations: List<JSONObject> = emptyList(),
+    private val wire: LocalWireOptions = LocalWireOptions(),
     private val listener: VoiceBackend.Listener,
 ) : VoiceBackend {
 
-    private val http = Http.lanVoice.newBuilder()
+    private val http = httpClient(wire).newBuilder()
         .pingInterval(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS) // keep the socket open
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -208,6 +210,11 @@ class LocalBackend(
     }
 
     companion object {
+        private fun httpClient(wire: LocalWireOptions) = when (wire.tls) {
+            LocalTlsMode.TRUST_SELF_SIGNED -> Http.lanVoice
+            LocalTlsMode.SYSTEM -> Http.shared
+        }
+
         /**
          * Adapts the neutral [BackendConfig][com.portal.assistant.conversation.backend.BackendConfig] onto
          * this client: the generic `credential` carries the host URL, and `model` is ignored (the host owns
@@ -218,6 +225,7 @@ class LocalBackend(
                 hostUrl = config.credential.orEmpty(),
                 systemPrompt = config.systemPrompt,
                 functionDeclarations = config.functionDeclarations,
+                wire = config.local,
                 listener = listener,
             )
         }

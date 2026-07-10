@@ -2,6 +2,7 @@ package com.portal.assistant.conversation.backend
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.system.AppPrefs
 import org.json.JSONObject
 
 /**
@@ -80,14 +81,23 @@ interface VoiceBackend {
 }
 
 /**
- * Model-neutral inputs for one session. Gemini's API key becomes the generic [credential]; a backend
- * that needs no credential may ignore it. [functionDeclarations] are the OpenAPI-subset tool schemas.
+ * Model-neutral inputs for one session, passed to every [VoiceBackendFactory]. Fields are not uniform
+ * across backends — each factory reads the slice it needs and ignores the rest:
+ *  - **Gemini:** [credential] = API key, [model] required, [gemini] wire options, [local] ignored.
+ *  - **Local:** [credential] = canonical `wss://` host URL, [model] ignored, [local] wire options,
+ *    [gemini] ignored.
+ *
+ * Shared: [systemPrompt], [functionDeclarations]. [kind] tags which factory was selected so adapters
+ * can assert or branch without guessing from [credential] shape.
  */
 data class BackendConfig(
     val credential: String?,
     val model: String,
     val systemPrompt: String,
     val functionDeclarations: List<JSONObject> = emptyList(),
+    val kind: AppPrefs.VoiceBackendKind = AppPrefs.VoiceBackendKind.GEMINI,
+    val gemini: GeminiWireOptions = GeminiWireOptions(),
+    val local: LocalWireOptions = LocalWireOptions(),
 )
 
 /** Builds a [VoiceBackend] for a session. Swapping the model = swapping the factory in [Backends]. */

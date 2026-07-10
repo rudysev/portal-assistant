@@ -36,6 +36,7 @@ class LiveClient(
     private val model: String,
     private val systemPrompt: String,
     private val functionDeclarations: List<JSONObject> = emptyList(),
+    private val wsBase: String = WS_BASE,
     private val listener: VoiceBackend.Listener,
 ) : VoiceBackend {
 
@@ -54,7 +55,7 @@ class LiveClient(
             listener.onError("No Gemini API key is set. Add one in Settings → API key.")
             return
         }
-        val request = Request.Builder().url("$WS_BASE?key=$apiKey").build()
+        val request = Request.Builder().url("$wsBase?key=$apiKey").build()
         DebugLog.log("live connecting model=$model")
         ws = http.newWebSocket(request, socketListener)
     }
