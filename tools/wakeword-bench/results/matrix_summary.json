@@ -1,0 +1,72 @@
+{
+  "threshold": 0.5,
+  "cells": {
+    "A": {
+      "slug": "mac_file",
+      "desc": "Mac file inject (model + Mac ORT)",
+      "file": "matrix_A_mac_file.csv",
+      "n": 97,
+      "n_pos": 42,
+      "n_near": 45,
+      "recall": 85.7,
+      "near_fa": 15.6,
+      "bg_fa_per_hr": 0.0,
+      "by_cond": {
+        "clean": 100.0,
+        "noisy": 82.1,
+        "quiet": 100.0,
+        "reverb": 75.0
+      }
+    },
+    "B": {
+      "slug": "mac_acoustic",
+      "desc": "Mac acoustic (control)",
+      "file": "matrix_B_mac_acoustic.csv",
+      "n": 0,
+      "recall": null,
+      "near_fa": null,
+      "bg_fa_per_hr": null,
+      "n_pos": 0,
+      "n_near": 0
+    },
+    "C": {
+      "slug": "portal_file",
+      "desc": "Portal file inject (model + Android ORT)",
+      "file": "matrix_C_portal_file.csv",
+      "n": 97,
+      "n_pos": 42,
+      "n_near": 45,
+      "recall": 88.1,
+      "near_fa": 15.6,
+      "bg_fa_per_hr": 0.0,
+      "by_cond": {
+        "clean": 100.0,
+        "noisy": 85.7,
+        "quiet": 100.0,
+        "reverb": 75.0
+      }
+    },
+    "D": {
+      "slug": "portal_acoustic",
+      "desc": "Portal acoustic (mic + FX + model)",
+      "file": "matrix_D_portal_acoustic.csv",
+      "n": 97,
+      "n_pos": 42,
+      "n_near": 45,
+      "recall": 66.7,
+      "near_fa": 17.8,
+      "bg_fa_per_hr": 0.0,
+      "by_cond": {
+        "clean": 100.0,
+        "noisy": 60.7,
+        "quiet": 100.0,
+        "reverb": 25.0
+      }
+    }
+  },
+  "deltas": {
+    "A_minus_C": -2.4,
+    "C_minus_D": 21.4,
+    "A_minus_D": 19.0
+  }
+}

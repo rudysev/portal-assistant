@@ -25,3 +25,11 @@ dependencies = [
 
 # audiomentations is intentionally NOT used — it pulls numba/llvmlite which fail to build
 # on macOS without LLVM. augment.py does noise-mix + RIR reverb with numpy/scipy instead.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["data", "detectors", "matrix"]
+py-modules = ["bench", "analyze", "analyze_device", "analyze_sources", "wakematcher"]

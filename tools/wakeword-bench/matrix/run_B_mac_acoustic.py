@@ -1,6 +1,6 @@
 """Cell B — Mac acoustic: afplay clip → Mac default mic → openWakeWord (control cell).
 
-Requires: sounddevice, openwakeword. Sets Mac output volume to ACOUSTIC_VOLUME (65).
+Requires: sounddevice, openwakeword. Sets Mac output volume to ACOUSTIC_VOLUME (100).
 
 Usage:
   python -m matrix.run_B_mac_acoustic [--clips matrix/clips_smoke.txt]
@@ -45,31 +45,49 @@ def wav_duration_s(path: Path) -> float:
     return float(info.duration)
 
 
-def capture_while_playing(path: Path) -> np.ndarray:
+def capture_while_playing(path: Path, input_device: int | None = None) -> np.ndarray:
+    """Play path via afplay while recording Mac default (or explicit) input at 16 kHz mono."""
     import sounddevice as sd
 
     dur = wav_duration_s(path) + PRE_ROLL_S + POST_PLAY_S
     frames = int(dur * SAMPLE_RATE)
-    # Start recording, then play.
-    rec = sd.rec(frames, samplerate=SAMPLE_RATE, channels=1, dtype="int16")
-    time.sleep(PRE_ROLL_S)
-    subprocess.run(["afplay", str(path)], check=False)
-    time.sleep(POST_PLAY_S)
-    sd.wait()
-    return rec.reshape(-1)
+    kwargs = dict(samplerate=SAMPLE_RATE, channels=1, dtype="int16")
+    if input_device is not None:
+        kwargs["device"] = input_device
+    # Prefer a short InputStream open with explicit blocksize — more reliable than sd.rec on macOS.
+    recorded: list[np.ndarray] = []
+
+    def callback(indata, frame_count, time_info, status):  # noqa: ARG001
+        recorded.append(indata.copy())
+
+    stream = sd.InputStream(callback=callback, **kwargs)
+    stream.start()
+    try:
+        time.sleep(PRE_ROLL_S)
+        subprocess.run(["afplay", str(path)], check=False)
+        time.sleep(POST_PLAY_S)
+    finally:
+        stream.stop()
+        stream.close()
+    if not recorded:
+        return np.zeros(frames, dtype=np.int16)
+    pcm = np.concatenate(recorded, axis=0).reshape(-1)
+    if len(pcm) > frames:
+        pcm = pcm[:frames]
+    return pcm
 
 
-def run(clips_path: Path, threshold: float, out: Path, volume: int) -> Path:
+def run(clips_path: Path, threshold: float, out: Path, volume: int, input_device: int | None) -> Path:
     clips = load_clip_list(clips_path)
     missing = [c for c in clips if not c.path.is_file()]
     if missing:
         raise SystemExit(f"{len(missing)} clips missing (first: {missing[0].path})")
     set_volume(volume)
-    print(f"B Mac acoustic — volume={volume}%  clips={len(clips)}  thr={threshold}")
+    print(f"B Mac acoustic — volume={volume}%  clips={len(clips)}  thr={threshold}  input={input_device}")
     det = OwwDetector(threshold=threshold, name="openwakeword")
     rows = []
     for i, c in enumerate(clips, 1):
-        pcm = capture_while_playing(c.path)
+        pcm = capture_while_playing(c.path, input_device=input_device)
         # Trim to whole frames for the detector
         n = (len(pcm) // FRAME_SAMPLES) * FRAME_SAMPLES
         pcm = pcm[:n] if n else pcm
@@ -84,7 +102,7 @@ def run(clips_path: Path, threshold: float, out: Path, volume: int) -> Path:
             "fired": int(fired_at(peak, threshold) or result.fired),
             "duration_ms": int(len(pcm) * 1000 / SAMPLE_RATE),
         })
-        print(f"  B [{i}/{len(clips)}] {c.label} peak={peak:.3f} fired={rows[-1]['fired']}")
+        print(f"  B [{i}/{len(clips)}] {c.label} peak={peak:.3f} fired={rows[-1]['fired']}", flush=True)
     det.close()
     write_matrix_csv(out, rows)
     print(f"B done → {out}")
@@ -97,8 +115,10 @@ def main():
     ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     ap.add_argument("--out", type=Path, default=RESULTS / "matrix_B_mac_acoustic.csv")
     ap.add_argument("--volume", type=int, default=ACOUSTIC_VOLUME)
+    ap.add_argument("--input-device", type=int, default=None,
+                    help="sounddevice input device index (default: system default)")
     a = ap.parse_args()
-    run(a.clips, a.threshold, a.out, a.volume)
+    run(a.clips, a.threshold, a.out, a.volume, a.input_device)
 
 
 if __name__ == "__main__":

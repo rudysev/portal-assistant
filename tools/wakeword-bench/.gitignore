@@ -10,5 +10,6 @@ results/*.log
 interferers/
 results/matrix_*.csv
 results/matrix_*.log
-results/matrix_*.json
-results/MATRIX.md
+results/matrix_C_raw.csv
+!results/MATRIX.md
+!results/matrix_summary.json

@@ -14,7 +14,7 @@ ADB="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
 PKG=com.portal.assistant
 DBG=/sdcard/Android/data/$PKG/files/debug.txt
 
-osascript -e 'set volume output volume 65' >/dev/null
+osascript -e 'set volume output volume 100' >/dev/null
 # Arm ONCE up front and wait for the detector to load (never relaunch mid-run — bench mode never pauses).
 $ADB shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 </dev/null
 echo "arming detector…"; sleep 8

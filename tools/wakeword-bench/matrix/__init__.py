@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
 DEFAULT_THRESHOLD = 0.5
-# Acoustic cells: Mac speaker output volume (0–100). Plan allows up to 65%.
-ACOUSTIC_VOLUME = 65
+# Acoustic cells: Mac speaker output volume (0–100). Default 100 for max SNR into the mic.
+ACOUSTIC_VOLUME = 100
 
 
 @dataclass

@@ -2,7 +2,7 @@
 # Run the 2×2 wake recall isolation matrix (oWW-only).
 #
 #   A  Mac file inject
-#   B  Mac acoustic (control) — Mac speaker @ MATRIX_VOLUME (default 65)
+#   B  Mac acoustic (control) — Mac speaker @ MATRIX_VOLUME (default 100)
 #   C  Portal file inject (portal-wake WakeBenchmark)
 #   D  Portal acoustic (assistant wakebench)
 #
@@ -14,7 +14,7 @@
 #   ./matrix/run_matrix.sh --skip-corpus    # assume corpus + clip list already exist
 #
 # Env:
-#   MATRIX_VOLUME   Mac output volume for B/D (default 65, max recommended 65)
+#   MATRIX_VOLUME   Mac output volume for B/D (default 100)
 #   ANDROID_HOME    for C/D
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -24,7 +24,7 @@ cd "$ROOT"
 CELLS="A,B,C,D"
 LIST_KIND=smoke   # smoke | full | quick
 SKIP_CORPUS=0
-VOLUME="${MATRIX_VOLUME:-65}"
+VOLUME="${MATRIX_VOLUME:-100}"
 export MATRIX_VOLUME="$VOLUME"
 
 while [ $# -gt 0 ]; do

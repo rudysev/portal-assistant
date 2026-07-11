@@ -19,9 +19,9 @@ Same `say`-generated WAVs, four paths:
 ```
 corpus (say TTS WAVs)
    ├─► A  Mac file inject
-   ├─► B  Mac acoustic   (speaker @ 65%)
+   ├─► B  Mac acoustic   (speaker @ 100%)
    ├─► C  Portal file inject  (portal-wake WakeBenchmark)
-   └─► D  Portal acoustic     (assistant wakebench @ 65%)
+   └─► D  Portal acoustic     (assistant wakebench @ 100%)
               └─► results/MATRIX.md  (A−C / C−D / A−D deltas)
 ```
 
@@ -34,7 +34,7 @@ corpus (say TTS WAVs)
 | **A ≫ C** | Android path / asset / frame mismatch | Fix port before training |
 | **A ≈ D** | Model is the bottleneck end-to-end | Train / phrase / architecture |
 
-Acoustic cells also include **speaker, volume, distance, and room** — not “mic alone.” Fix those in the script (volume **65%**, screen stay-on, `VOICE_RECOGNITION`). Cell **B** is a control, not a Portal product proxy.
+Acoustic cells also include **speaker, volume, distance, and room** — not “mic alone.” Fix those in the script (volume **100%**, screen stay-on, `VOICE_RECOGNITION`). Cell **B** is a control, not a Portal product proxy.
 
 Kitchen / same-device playback remains a separate fifth condition (`device_bench_kitchen.sh`) — do not mix it into this matrix.
 
@@ -52,8 +52,8 @@ pip install -e .
 ./matrix/run_matrix.sh --full           # all manifest clips
 ./matrix/run_matrix.sh --quick          # tiny wiring check
 
-# Acoustic volume (Mac output), default 65:
-MATRIX_VOLUME=65 ./matrix/run_matrix.sh --cells B,D
+# Acoustic volume (Mac output), default 100:
+MATRIX_VOLUME=100 ./matrix/run_matrix.sh --cells B,D
 ```
 
 **Device cells (C/D)** need a connected Portal, `ANDROID_HOME`, and:
@@ -78,7 +78,7 @@ Rebuild lists after regenerating the corpus: `python -m matrix.build_clip_list` 
 
 ### Fixed acoustic setup (B / D)
 
-- Mac **output volume 65%** (`MATRIX_VOLUME`, also `device_bench.sh`)
+- Mac **output volume 100%** (`MATRIX_VOLUME`, also `device_bench.sh`)
 - Portal on screen, stay-awake enabled (Android 10 silences the mic when the display dozes)
 - Capture: `VOICE_RECOGNITION` (product default)
 - Same physical Mac↔Portal placement across runs; note distance in your lab log
