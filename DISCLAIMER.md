@@ -30,31 +30,32 @@ any damage, data loss, or other harm arising from its use.
 
 ## Privacy
 
-Portal-Assistant has no analytics and no accounts of its own. **It is not
-on-device only.** To answer you, Jarvis streams your
-microphone audio — only while a conversation is live — to **Google's Gemini Live
-API**, where it is transcribed and answered by the model. That network
-communication, and any data Google receives, is governed by **Google's** terms
-of service and privacy policy, not this project's.
+Portal-Assistant has no analytics and no accounts of its own. Audio is captured
+and forwarded **only while a conversation is active** (the orange bar is
+showing). Between turns and in standby, no audio leaves the device. Jarvis does
+not record or store your audio itself. Where that audio goes depends on
+**Settings → Backend**:
 
-- You supply **your own** Gemini API key (BYOD). It is stored only on your device
-  (in app preferences) and is sent only to Google to authenticate your requests.
-  The project never receives it.
-- Audio is captured and forwarded **only while a conversation is active** (the
-  orange bar is showing). Between turns and in standby, no audio leaves the
-  device. Jarvis does not record or store your audio itself.
-- Web-grounded answers are produced by Google's `googleSearch` tool on Google's
-  side; device actions (timers, volume, brightness, etc.) run locally.
-- Hands-free triggering is handled by a separate companion wake-word app, which
-  detects the wake word **on-device** and hands off the microphone — see that
-  app's own disclaimer for its privacy notes.
-- The `DebugLog` helper writes a best-effort local log file
-  (`files/debug.txt`) on the device only. No personal data is collected by the
-  project.
+- **Gemini (default)** — mic audio streams to **Google's Gemini Live API** under
+  **your own** API key (BYOD). The key is stored only on your device and sent
+  only to Google to authenticate requests; this project never receives it.
+  That traffic is governed by **Google's** terms and privacy policy. Web-grounded
+  answers use Google's `googleSearch` on Google's side.
+- **Local server** — mic audio streams over your LAN to the voice host you
+  configured (`wss://`, self-signed TLS; the app does not verify the cert).
+  Nothing is sent to Google on this path. Grounding and model choice are
+  whatever that host provides.
 
-In short: deciding to use Jarvis means deciding to send your spoken questions to
-Google's Gemini service under your own key. If that is not acceptable for your
-use, do not install it.
+Device actions (timers, volume, brightness, etc.) always run on-device.
+Hands-free triggering is handled by a separate companion wake-word app, which
+detects the wake word **on-device** and hands off the microphone — see that
+app's own disclaimer for its privacy notes. The `DebugLog` helper writes a
+best-effort local log file (`files/debug.txt`) on the device only; no personal
+data is collected by the project.
+
+In short: Gemini means sending spoken questions to Google under your key; Local
+means sending them to your own LAN host. Choose the backend that matches your
+comfort.
 
 ## Reporting issues
 

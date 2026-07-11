@@ -1,13 +1,13 @@
 # Portal-Assistant
 
-**Jarvis** is a hands-free conversational AI assistant for the Meta Portal+, powered by the Gemini Live
-API. You talk to it in plain language and it answers out loud in a natural voice — looking things up on the
-web, controlling the device, and opening apps for you. It runs as **background voice**: the answer plays
-through the speaker with just a small orange bar over whatever's on screen (no takeover). Open the app and
-you also get a **live on-screen chat** of the conversation.
+**Jarvis** is a hands-free conversational AI assistant for the Meta Portal+. You talk to it in plain
+language and it answers out loud in a natural voice — looking things up on the web, controlling the
+device, and opening apps for you. It runs as **background voice**: the answer plays through the speaker
+with just a small orange bar over whatever's on screen (no takeover). Open the app and you also get a
+**live on-screen chat** of the conversation.
 
-The AI model is a swappable seam, not the app's identity — "Jarvis" is the assistant; Gemini is what
-currently powers it.
+The voice backend is a swappable seam — "Jarvis" is the assistant; **Settings → Backend** picks
+**Gemini Live** (cloud, default) or a **local server** on your LAN.
 
 <p align="center">
   <a href="https://buymeacoffee.com/linuxbarista"><img src="docs/img/bmc-button.png" alt="Buy Me A Coffee" width="200"></a>
@@ -38,22 +38,21 @@ Google Gemini API key** (create one at <https://aistudio.google.com/apikey>), an
 step‑by‑step instructions — including how the API key works and how to change it later — are in
 [`provisioning/README.md`](provisioning/README.md).
 
-> **You bring your own Gemini API key.** It's free, it stays only on your Portal, and Jarvis can't answer
-> without one. You can install without it and add it later in **Settings → API key**, but it won't work
-> until you do. Hands‑free **"hey jarvis"** works on its own on **Gen 2** (Android 10) while Jarvis is on
-> screen; on **Gen 1** (Android 9) it needs the companion **portal-wake** app — details under
-> [Talking to it](#talking-to-it).
+> **Gemini (default) needs your own API key.** It's free, stays only on your Portal, and Gemini
+> conversations won't connect without one. Install without it and add it later in **Settings → API key**,
+> or switch to a [local server](#local-server-backend). Hands‑free **"hey jarvis"** works on its own on
+> **Gen 2** (Android 10) while Jarvis is on screen; on **Gen 1** (Android 9) it needs the companion
+> **portal-wake** app — details under [Talking to it](#talking-to-it).
 
 Developers building from source: see the build/run notes in `CLAUDE.md` and use `./setup.sh`.
 
-### Local model backend (dev / demo)
+### Local server backend
 
-Gemini is the shipping default. For development you can point Jarvis at a **local voice host** on your LAN
-([`host-assistant`](https://github.com/rudysev/host-assistant) — Pipecat + Ollama on a Mac): **Settings →
-Backend → Local server**, enter `host:port` (e.g. `192.168.1.5:8080`). The app connects over **`wss://`**
-(TLS encrypted; the host auto-generates a self-signed cert, the app does not verify it — no setup on either
-side). Model picker and API-key settings hide on this backend; the host owns the model. Stall watchdog for
-Local is 30 s (generic budget for STT/LLM/tools/TTS variance).
+Point Jarvis at a voice host on your LAN
+([`host-assistant`](https://github.com/rudysev/host-assistant) — Pipecat + Ollama): **Settings → Backend →
+Local server**, enter `host:port` (e.g. `192.168.1.5:8080`). Connects over **`wss://`** (TLS; host
+self-signed cert, app does not verify — no cert setup). Private/LAN addresses only. Model picker and API
+key hide; the host owns the model.
 
 ## Talking to it
 
@@ -87,8 +86,8 @@ Local is 30 s (generic budget for STT/LLM/tools/TTS variance).
 | **Media** | "Play Bohemian Rhapsody", "Play some jazz on TIDAL", "Pause", "Next track", "What's playing?" |
 | **Open apps** | "Open Spotify", "Open the calendar", "Open the camera" |
 
-Answers that need current information (weather, news, scores, prices, hours) are grounded with Google
-Search. Device actions run on-device via Gemini function-calling.
+Answers that need current information (weather, news, scores, prices, hours) are web-grounded (Google
+Search on Gemini; whatever the host provides on Local). Device actions run on-device via function-calling.
 
 **Music plays on your app of choice.** Jarvis discovers the music apps installed on your Portal (Spotify,
 TIDAL, Apple Music…) — pick your favorite as the default in **Settings → Default music app**, and just say
@@ -166,7 +165,7 @@ capability is available by voice on the next conversation.
 Portal-Assistant ("Jarvis") is an independent community project — **not affiliated with, endorsed by, or
 sponsored by Meta or Google**. "Meta Portal" and "Portal" are trademarks of Meta Platforms, Inc., and
 "Gemini" is a trademark of Google LLC, used here only to identify compatible hardware and the AI service it
-talks to. It is a sideloaded app for discontinued devices and is **use-at-your-own-risk** (may void
-warranty; no guarantees). Jarvis is **not** on-device only: to answer you it streams
-your microphone audio to **Google's Gemini Live API** under **your own** API key, subject to Google's terms
-and privacy policy. See [DISCLAIMER.md](DISCLAIMER.md) for the full text and privacy notes.
+can talk to. It is a sideloaded app for discontinued devices and is **use-at-your-own-risk** (may void
+warranty; no guarantees). With **Gemini**, live mic audio streams to **Google's Gemini Live API** under
+your API key (Google's terms/privacy). With **Local server**, audio stays on your LAN (your host). See
+[DISCLAIMER.md](DISCLAIMER.md) for the full text and privacy notes.
