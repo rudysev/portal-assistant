@@ -1,0 +1,922 @@
+{
+  "n_clips": 97,
+  "oww_thresh": 0.3,
+  "conditions": [
+    "clean",
+    "reverb",
+    "quiet",
+    "noisy20",
+    "noisy10",
+    "noisy5",
+    "noisy0"
+  ],
+  "oww_recall_by_cond": {
+    "clean": 83.3,
+    "reverb": 50.0,
+    "quiet": 83.3,
+    "noisy20": 83.3,
+    "noisy10": 83.3,
+    "noisy5": 66.7,
+    "noisy0": 50.0
+  },
+  "vosk_recall_by_cond": {
+    "clean": 66.7,
+    "reverb": 33.3,
+    "quiet": 66.7,
+    "noisy20": 83.3,
+    "noisy10": 83.3,
+    "noisy5": 50.0,
+    "noisy0": 16.7
+  },
+  "oww_recall_by_cond_mac": {
+    "clean": 83.3,
+    "reverb": 83.3,
+    "quiet": 100.0,
+    "noisy20": 100.0,
+    "noisy10": 50.0,
+    "noisy5": 100.0,
+    "noisy0": 50.0
+  },
+  "vosk_recall_by_cond_mac": {
+    "clean": 100.0,
+    "reverb": 100.0,
+    "quiet": 100.0,
+    "noisy20": 83.3,
+    "noisy10": 83.3,
+    "noisy5": 66.7,
+    "noisy0": 50.0
+  },
+  "oww_device": {
+    "recall": 71.4,
+    "near_fa": 31.1,
+    "bg_fa": 0.0,
+    "n_pos": 42,
+    "n_nm": 45,
+    "n_bg": 10
+  },
+  "vosk_device": {
+    "recall": 57.1,
+    "near_fa": 20.0,
+    "bg_fa": 0.0,
+    "n_pos": 42,
+    "n_nm": 45,
+    "n_bg": 10
+  },
+  "oww_mac": {
+    "recall": 81.0,
+    "near_fa": 26.7,
+    "bg_fa": 0.0,
+    "n_pos": 42,
+    "n_nm": 45,
+    "n_bg": 10
+  },
+  "vosk_mac": {
+    "recall": 83.3,
+    "near_fa": 35.6,
+    "bg_fa": 0.0,
+    "n_pos": 42,
+    "n_nm": 45,
+    "n_bg": 10
+  },
+  "oww_sweep": [
+    {
+      "thr": 0.05,
+      "recall": 95.2,
+      "near_fa": 55.6,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.1,
+      "recall": 88.1,
+      "near_fa": 46.7,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.15,
+      "recall": 85.7,
+      "near_fa": 42.2,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.2,
+      "recall": 81.0,
+      "near_fa": 37.8,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.25,
+      "recall": 76.2,
+      "near_fa": 33.3,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.3,
+      "recall": 71.4,
+      "near_fa": 31.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.35,
+      "recall": 66.7,
+      "near_fa": 28.9,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.4,
+      "recall": 66.7,
+      "near_fa": 20.0,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.45,
+      "recall": 61.9,
+      "near_fa": 17.8,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.5,
+      "recall": 57.1,
+      "near_fa": 11.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.55,
+      "recall": 52.4,
+      "near_fa": 11.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.6,
+      "recall": 52.4,
+      "near_fa": 11.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.65,
+      "recall": 52.4,
+      "near_fa": 11.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.7,
+      "recall": 52.4,
+      "near_fa": 11.1,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.75,
+      "recall": 47.6,
+      "near_fa": 6.7,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.8,
+      "recall": 45.2,
+      "near_fa": 6.7,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.85,
+      "recall": 45.2,
+      "near_fa": 6.7,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.9,
+      "recall": 42.9,
+      "near_fa": 6.7,
+      "bg_fa": 0.0
+    },
+    {
+      "thr": 0.95,
+      "recall": 40.5,
+      "near_fa": 4.4,
+      "bg_fa": 0.0
+    }
+  ],
+  "oww_dev_vs_mac": [
+    {
+      "label": "00054_Sandy_200_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.972,
+      "mac": 0.998
+    },
+    {
+      "label": "00042_Junior_200_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.998,
+      "mac": 0.999
+    },
+    {
+      "label": "00032_Grandma_def_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.973,
+      "mac": 0.996
+    },
+    {
+      "label": "00066_Moira_200_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.994,
+      "mac": 0.996
+    },
+    {
+      "label": "00043_Junior_240_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.899,
+      "mac": 0.999
+    },
+    {
+      "label": "00023_Ralph_240_clean.wav",
+      "category": "positive",
+      "condition": "clean",
+      "device": 0.284,
+      "mac": 0.286
+    },
+    {
+      "label": "00023_Ralph_240_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.001,
+      "mac": 0.35
+    },
+    {
+      "label": "00054_Sandy_200_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.993,
+      "mac": 0.957
+    },
+    {
+      "label": "00000_Samantha_def_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.16,
+      "mac": 0.886
+    },
+    {
+      "label": "00063_Tessa_240_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.733,
+      "mac": 0.611
+    },
+    {
+      "label": "00047_Reed_240_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.34,
+      "mac": 0.988
+    },
+    {
+      "label": "00016_Kathy_def_reverb.wav",
+      "category": "positive",
+      "condition": "reverb",
+      "device": 0.246,
+      "mac": 0.989
+    },
+    {
+      "label": "00016_Kathy_def_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.196,
+      "mac": 0.999
+    },
+    {
+      "label": "00014_Fred_200_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.997,
+      "mac": 0.999
+    },
+    {
+      "label": "00054_Sandy_200_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.95,
+      "mac": 0.998
+    },
+    {
+      "label": "00015_Fred_240_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.996,
+      "mac": 0.999
+    },
+    {
+      "label": "00064_Moira_def_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.995,
+      "mac": 0.998
+    },
+    {
+      "label": "00021_Ralph_160_quiet.wav",
+      "category": "positive",
+      "condition": "quiet",
+      "device": 0.998,
+      "mac": 0.998
+    },
+    {
+      "label": "00039_Grandpa_240_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.994,
+      "mac": 0.993
+    },
+    {
+      "label": "00030_Flo_200_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.974,
+      "mac": 0.991
+    },
+    {
+      "label": "00004_Daniel_def_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.995,
+      "mac": 0.996
+    },
+    {
+      "label": "00024_Albert_def_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.432,
+      "mac": 0.998
+    },
+    {
+      "label": "00054_Sandy_200_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.215,
+      "mac": 0.988
+    },
+    {
+      "label": "00045_Reed_160_noisy20.wav",
+      "category": "positive",
+      "condition": "noisy20",
+      "device": 0.996,
+      "mac": 0.998
+    },
+    {
+      "label": "00019_Kathy_240_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.419,
+      "mac": 0.967
+    },
+    {
+      "label": "00023_Ralph_240_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.452,
+      "mac": 0.41
+    },
+    {
+      "label": "00063_Tessa_240_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.534,
+      "mac": 0.394
+    },
+    {
+      "label": "00026_Albert_200_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.98,
+      "mac": 0.99
+    },
+    {
+      "label": "00062_Tessa_200_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.963,
+      "mac": 0.443
+    },
+    {
+      "label": "00003_Samantha_240_noisy10.wav",
+      "category": "positive",
+      "condition": "noisy10",
+      "device": 0.0,
+      "mac": 0.998
+    },
+    {
+      "label": "00000_Samantha_def_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.345,
+      "mac": 0.997
+    },
+    {
+      "label": "00054_Sandy_200_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.255,
+      "mac": 0.779
+    },
+    {
+      "label": "00037_Grandpa_160_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.968,
+      "mac": 0.992
+    },
+    {
+      "label": "00043_Junior_240_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.093,
+      "mac": 0.961
+    },
+    {
+      "label": "00058_Shelley_200_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.945,
+      "mac": 0.972
+    },
+    {
+      "label": "00027_Albert_240_noisy5.wav",
+      "category": "positive",
+      "condition": "noisy5",
+      "device": 0.791,
+      "mac": 0.998
+    },
+    {
+      "label": "00063_Tessa_240_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.548,
+      "mac": 0.89
+    },
+    {
+      "label": "00010_Karen_200_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.097,
+      "mac": 0.94
+    },
+    {
+      "label": "00015_Fred_240_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.713,
+      "mac": 0.476
+    },
+    {
+      "label": "00049_Rocko_160_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.12,
+      "mac": 0.017
+    },
+    {
+      "label": "00030_Flo_200_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.052,
+      "mac": 0.785
+    },
+    {
+      "label": "00012_Fred_def_noisy0.wav",
+      "category": "positive",
+      "condition": "noisy0",
+      "device": 0.478,
+      "mac": 0.44
+    },
+    {
+      "label": "00006_hey-jeremy_Albert_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.204,
+      "mac": 0.03
+    },
+    {
+      "label": "00007_hey-jeremy_Flo_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.073,
+      "mac": 0.033
+    },
+    {
+      "label": "00006_hey-jeremy_Albert_noisy10.wav",
+      "category": "near_miss",
+      "condition": "noisy10",
+      "device": 0.362,
+      "mac": 0.042
+    },
+    {
+      "label": "00015_hey-travis_Flo_noisy10.wav",
+      "category": "near_miss",
+      "condition": "noisy10",
+      "device": 0.0,
+      "mac": 0.451
+    },
+    {
+      "label": "00009_hey-travis_Daniel_noisy0.wav",
+      "category": "near_miss",
+      "condition": "noisy0",
+      "device": 0.0,
+      "mac": 0.237
+    },
+    {
+      "label": "00014_hey-travis_Albert_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.004,
+      "mac": 0.017
+    },
+    {
+      "label": "00020_hi-jarvis_Kathy_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.356,
+      "mac": 0.346
+    },
+    {
+      "label": "00023_hi-jarvis_Flo_quiet.wav",
+      "category": "near_miss",
+      "condition": "quiet",
+      "device": 0.352,
+      "mac": 0.998
+    },
+    {
+      "label": "00018_hi-jarvis_Karen_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.705,
+      "mac": 0.469
+    },
+    {
+      "label": "00024_a-jarvis_Samantha_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.109,
+      "mac": 0.998
+    },
+    {
+      "label": "00031_a-jarvis_Flo_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.001,
+      "mac": 0.947
+    },
+    {
+      "label": "00025_a-jarvis_Daniel_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.141,
+      "mac": 0.998
+    },
+    {
+      "label": "00038_hey-there_Albert_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.082,
+      "mac": 0.039
+    },
+    {
+      "label": "00032_hey-there_Samantha_quiet.wav",
+      "category": "near_miss",
+      "condition": "quiet",
+      "device": 0.039,
+      "mac": 0.018
+    },
+    {
+      "label": "00038_hey-there_Albert_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.0,
+      "mac": 0.044
+    },
+    {
+      "label": "00045_hey-darkness_Ralph_noisy10.wav",
+      "category": "near_miss",
+      "condition": "noisy10",
+      "device": 0.151,
+      "mac": 0.029
+    },
+    {
+      "label": "00040_hey-darkness_Samantha_quiet.wav",
+      "category": "near_miss",
+      "condition": "quiet",
+      "device": 0.019,
+      "mac": 0.36
+    },
+    {
+      "label": "00044_hey-darkness_Kathy_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.026,
+      "mac": 0.74
+    },
+    {
+      "label": "00052_jarvis_Kathy_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.001,
+      "mac": 0.422
+    },
+    {
+      "label": "00051_jarvis_Fred_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.992,
+      "mac": 0.997
+    },
+    {
+      "label": "00053_jarvis_Ralph_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.004,
+      "mac": 0.453
+    },
+    {
+      "label": "00056_hey-alexa_Samantha_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.01,
+      "mac": 0.002
+    },
+    {
+      "label": "00063_hey-alexa_Flo_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.081,
+      "mac": 0.001
+    },
+    {
+      "label": "00060_hey-alexa_Kathy_noisy10.wav",
+      "category": "near_miss",
+      "condition": "noisy10",
+      "device": 0.016,
+      "mac": 0.01
+    },
+    {
+      "label": "00071_hey-harris_Flo_noisy0.wav",
+      "category": "near_miss",
+      "condition": "noisy0",
+      "device": 0.343,
+      "mac": 0.12
+    },
+    {
+      "label": "00070_hey-harris_Albert_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.031,
+      "mac": 0.021
+    },
+    {
+      "label": "00069_hey-harris_Ralph_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.491,
+      "mac": 0.06
+    },
+    {
+      "label": "00075_hey-james_Fred_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.012,
+      "mac": 0.041
+    },
+    {
+      "label": "00076_hey-james_Kathy_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.032,
+      "mac": 0.006
+    },
+    {
+      "label": "00074_hey-james_Karen_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.391,
+      "mac": 0.283
+    },
+    {
+      "label": "00080_okay-jarvis_Samantha_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.907,
+      "mac": 0.993
+    },
+    {
+      "label": "00083_okay-jarvis_Fred_noisy0.wav",
+      "category": "near_miss",
+      "condition": "noisy0",
+      "device": 0.485,
+      "mac": 0.305
+    },
+    {
+      "label": "00082_okay-jarvis_Karen_noisy20.wav",
+      "category": "near_miss",
+      "condition": "noisy20",
+      "device": 0.737,
+      "mac": 0.983
+    },
+    {
+      "label": "00088_hey-jervis_Samantha_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.012,
+      "mac": 0.986
+    },
+    {
+      "label": "00094_hey-jervis_Albert_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.455,
+      "mac": 0.314
+    },
+    {
+      "label": "00091_hey-jervis_Fred_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.413,
+      "mac": 0.371
+    },
+    {
+      "label": "00101_hey-charmless_Ralph_reverb.wav",
+      "category": "near_miss",
+      "condition": "reverb",
+      "device": 0.298,
+      "mac": 0.995
+    },
+    {
+      "label": "00102_hey-charmless_Albert_noisy10.wav",
+      "category": "near_miss",
+      "condition": "noisy10",
+      "device": 0.062,
+      "mac": 0.988
+    },
+    {
+      "label": "00099_hey-charmless_Fred_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.995,
+      "mac": 0.726
+    },
+    {
+      "label": "00108_they-marvis_Kathy_clean.wav",
+      "category": "near_miss",
+      "condition": "clean",
+      "device": 0.205,
+      "mac": 0.013
+    },
+    {
+      "label": "00111_they-marvis_Flo_noisy0.wav",
+      "category": "near_miss",
+      "condition": "noisy0",
+      "device": 0.036,
+      "mac": 0.039
+    },
+    {
+      "label": "00109_they-marvis_Ralph_quiet.wav",
+      "category": "near_miss",
+      "condition": "quiet",
+      "device": 0.014,
+      "mac": 0.007
+    },
+    {
+      "label": "00114_hey-service_Karen_quiet.wav",
+      "category": "near_miss",
+      "condition": "quiet",
+      "device": 0.003,
+      "mac": 0.001
+    },
+    {
+      "label": "00118_hey-service_Albert_noisy5.wav",
+      "category": "near_miss",
+      "condition": "noisy5",
+      "device": 0.194,
+      "mac": 0.028
+    },
+    {
+      "label": "00114_hey-service_Karen_noisy0.wav",
+      "category": "near_miss",
+      "condition": "noisy0",
+      "device": 0.007,
+      "mac": 0.069
+    },
+    {
+      "label": "bg_00022.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.0,
+      "mac": 0.001
+    },
+    {
+      "label": "bg_00024.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.004,
+      "mac": 0.0
+    },
+    {
+      "label": "bg_00012.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.005,
+      "mac": 0.0
+    },
+    {
+      "label": "bg_00137.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.001,
+      "mac": 0.0
+    },
+    {
+      "label": "bg_00167.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.0,
+      "mac": 0.0
+    },
+    {
+      "label": "bg_00101.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.019,
+      "mac": 0.0
+    },
+    {
+      "label": "bg_00152.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.01,
+      "mac": 0.005
+    },
+    {
+      "label": "bg_00065.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.001,
+      "mac": 0.002
+    },
+    {
+      "label": "bg_00159.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.002,
+      "mac": 0.001
+    },
+    {
+      "label": "bg_00176.wav",
+      "category": "background",
+      "condition": "speech",
+      "device": 0.0,
+      "mac": 0.0
+    }
+  ],
+  "oww_pos_median_device": 0.723,
+  "oww_pos_median_mac": 0.99,
+  "oww_top_near_miss": [
+    {
+      "label": "00099_hey-charmless_Fred_clean.wav",
+      "condition": "clean",
+      "peak": 0.995
+    },
+    {
+      "label": "00051_jarvis_Fred_noisy20.wav",
+      "condition": "noisy20",
+      "peak": 0.992
+    },
+    {
+      "label": "00080_okay-jarvis_Samantha_noisy5.wav",
+      "condition": "noisy5",
+      "peak": 0.907
+    },
+    {
+      "label": "00082_okay-jarvis_Karen_noisy20.wav",
+      "condition": "noisy20",
+      "peak": 0.737
+    },
+    {
+      "label": "00018_hi-jarvis_Karen_noisy5.wav",
+      "condition": "noisy5",
+      "peak": 0.705
+    },
+    {
+      "label": "00069_hey-harris_Ralph_reverb.wav",
+      "condition": "reverb",
+      "peak": 0.491
+    },
+    {
+      "label": "00083_okay-jarvis_Fred_noisy0.wav",
+      "condition": "noisy0",
+      "peak": 0.485
+    },
+    {
+      "label": "00094_hey-jervis_Albert_clean.wav",
+      "condition": "clean",
+      "peak": 0.455
+    }
+  ]
+}

@@ -174,23 +174,29 @@ class AssistantService : Service() {
             DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
             return
         }
-        val d = detector ?: WakeMicEngine(
-            context = applicationContext,
-            config = WakeMicConfig(
-                wakeWords = listOf(FOREGROUND_WAKE_WORD),
-                detectors = listOf(WakeDetectors.oww()),
-                onDetectorUnavailable = {
-                    DebugLog.log("foreground detector unavailable — oww assets missing?")
-                },
-                onWake = { event ->
-                    mainHandler.post {
-                        exitDetection()
-                        start(applicationContext, "wake:${event.wakeId}")
-                    }
-                },
-                onError = { DebugLog.log("foreground detector error: $it") },
-            ),
-        ).also { detector = it }
+        val d = detector ?: run {
+            val benchMode = File(getExternalFilesDir(null), "wakebench").exists()
+            if (benchMode) DebugLog.log("wakebench marker present — detection-only (no conversation handoff)")
+            WakeMicEngine(
+                context = applicationContext,
+                config = WakeMicConfig(
+                    wakeWords = listOf(FOREGROUND_WAKE_WORD),
+                    detectors = listOf(WakeDetectors.oww()),
+                    wakeHandoffCooldownMs = if (benchMode) 0L else WakeMicConfig.DEFAULT_WAKE_HANDOFF_COOLDOWN_MS,
+                    benchMode = benchMode,
+                    onDetectorUnavailable = {
+                        DebugLog.log("foreground detector unavailable — oww assets missing?")
+                    },
+                    onWake = { event ->
+                        mainHandler.post {
+                            exitDetection()
+                            start(applicationContext, "wake:${event.wakeId}")
+                        }
+                    },
+                    onError = { DebugLog.log("foreground detector error: $it") },
+                ),
+            ).also { detector = it }
+        }
         // start() returns false only when a prior capture thread is wedged and the rebuild-retry was also
         // refused — rare, but log it so a silently-off detector is diagnosable from debug.txt.
         if (!d.start()) DebugLog.log("foreground detector start refused (capture wedged)")
