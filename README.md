@@ -48,8 +48,7 @@ Developers building from source: see the build/run notes in `CLAUDE.md` and use 
 
 ### Local server backend
 
-Point Jarvis at a voice host on your LAN
-([`host-assistant`](https://github.com/rudysev/host-assistant) — Pipecat + Ollama): **Settings → Backend →
+Point Jarvis at a voice host on your LAN: **Settings → Backend →
 Local server**, enter `host:port` (e.g. `192.168.1.5:8080`). Connects over **`wss://`** (TLS; host
 self-signed cert, app does not verify — no cert setup). Private/LAN addresses only. Model picker and API
 key hide; the host owns the model.
