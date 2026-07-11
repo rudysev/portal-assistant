@@ -5,7 +5,7 @@ Threshold **0.5**. Same clip list across cells that have data.
 | Cell | Path | Recall | Near-miss FA | BG FA/hr | n |
 |------|------|-------:|-------------:|---------:|--:|
 | **A** | Mac file inject (model + Mac ORT) | 85.7% | 15.6% | 0.00 | 97 |
-| **B** | Mac acoustic (control) | — | — | — | 0 |
+| **B** | Mac acoustic (control) | 71.4% | 8.9% | 0.00 | 97 |
 | **C** | Portal file inject (model + Android ORT) | 88.1% | 15.6% | 0.00 | 97 |
 | **D** | Portal acoustic (mic + FX + model) | 66.7% | 17.8% | 0.00 | 97 |
 
@@ -29,6 +29,7 @@ Cell **B** (Mac acoustic) is a control only — not a Portal product proxy.
 | Cell | clean | noisy | quiet | reverb |
 |------|------:|------:|------:|------:|
 | A | 100.0% | 82.1% | 100.0% | 75.0% |
+| B | 75.0% | 67.9% | 100.0% | 50.0% |
 | C | 100.0% | 85.7% | 100.0% | 75.0% |
 | D | 100.0% | 60.7% | 100.0% | 25.0% |
 
