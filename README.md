@@ -18,7 +18,7 @@ The voice backend is a swappable seam — "Jarvis" is the assistant; **Settings 
 <table>
   <tr>
     <td width="50%"><img src="docs/img/screenshot-home.png" alt="Idle home screen"><br><sub><b>Home</b> — greeting and suggestions</sub></td>
-    <td width="50%"><img src="docs/img/screenshot-settings.png" alt="Settings screen"><br><sub><b>Settings</b> — preferences and enable 3rd-party apps</sub></td>
+    <td width="50%"><img src="docs/img/screenshot-settings.png" alt="Settings screen"><br><sub><b>Settings</b> — pick the backend (Gemini or local server), model, and API key</sub></td>
   </tr>
   <tr>
     <td colspan="2"><img src="docs/img/screenshot-conversation.png" alt="Multi-turn conversation"><br><sub><b>Conversation</b> — multi-turn conversation with the assistant</sub></td>

@@ -29,7 +29,9 @@ The installer will prompt you for it, but you can grab it first:
 5. **When prompted, paste your Gemini API key** and press Enter. The installer checks it
    with Google before saving.
 6. Wait for **"Done."** — open **Jarvis** from the Portal's app grid, or say
-   **"hey jarvis"** (that hands‑free trigger needs the companion **portal-wake** app).
+   **"hey jarvis"**. On a **Gen 2** Portal (Android 10), "hey jarvis" works on its own while
+   Jarvis is on screen — no companion app. On a **Gen 1** Portal (Android 9), that hands‑free
+   trigger needs the companion **portal-wake** app.
 
 The installer does everything else automatically: it downloads Android's `adb` if you
 don't have it, downloads the app, installs it, grants the microphone and the other
@@ -59,8 +61,11 @@ Double-click **`Uninstall-Jarvis`** (`.command` on macOS, `.bat` on Windows).
 - **macOS "unidentified developer":** if double-clicking is blocked, right-click
   `Install-Jarvis.command` → **Open** → **Open**.
 - **"More than one device is connected":** unplug other Android devices and re-run.
-- **"hey jarvis" does nothing:** the hands-free wake word is provided by the separate
-  **portal-wake** app — install that too. Without it, open Jarvis and tap **Tap to talk**.
+- **"hey jarvis" does nothing:** it depends on your Portal. On **Gen 2** (Android 10) "hey jarvis"
+  works on its own **only while Jarvis is on screen** (Android 10 silences a background mic) — when
+  it's in the background, tap **Tap to talk**. On **Gen 1** (Android 9) the hands-free wake word is
+  provided by the separate **portal-wake** app — install that too. Either way you can always open
+  Jarvis and tap **Tap to talk**.
 - **Advanced:** the scripts (`install.sh` / `install.ps1`) also accept `--local`
   (`-Local`) to install a locally built APK, `--key` (`-Key`) to re-enter the API key,
   plus `--uninstall` (`-Uninstall`) and `--status` (`-Status`). `--local` uses the repo's
