@@ -26,7 +26,10 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   (`START_STICKY`) started at boot by `AssistantBootReceiver` (`RECEIVE_BOOT_COMPLETED`) and re-warmed at app
   launch by `MainActivity` (so a first foreground tap after install also hits a warm process); after a turn it
   returns to **standby** (mic-less, no bar) instead of `stopSelf`, and `prewarm()` pre-builds OkHttp +
-  conversation classes + Live-host DNS + the installed tool-provider snapshot. So a wake hand-off hits a warm process — dropping the cold first
+  conversation classes + Live-host DNS + the installed tool-provider snapshot. (The wake earcon's ~50 ms of
+  synthesis is warmed separately in `onCreate`, not `prewarm()`, since the first post-install trigger arrives
+  via `ACTION_START` and never runs the standby branch — same reason IP-geo is warmed there.) So a wake
+  hand-off hits a warm process — dropping the cold first
   "hey jarvis" → orange bar latency substantially (`detected → bar`).
 - **Phase 2.b — multi-turn (ongoing conversation).** ✅ Built (`AssistantEngine.MULTI_TURN = true`): after
   each answer the mic re-opens for a follow-up and the conversation ends only when the user goes silent
@@ -60,7 +63,8 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   process-wide `conversation/tools/TimerStore`; ✕ to cancel). **Failures** (offline / couldn't-connect /
   connection-lost / missing key / mic-permission denied) surface as a dismissible `NoticeBanner` via
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
-  (`ui/SettingsScreen`): model picker, default-music-app picker, location override, external-tool toggles.
+  (`ui/SettingsScreen`): model picker, default-music-app picker, location override, wake-chime toggle,
+  external-tool toggles.
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the
   engine publishes `session: StateFlow<ConversationSession>` (id, phase, turns) + a high-frequency
@@ -147,7 +151,19 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (`turnComplete && playbackIdle && no tools in flight`, after `PcmPlayer`'s hardware-tail drain) and the
   engine runs the queue then. Replaces the old per-controller fixed `Handler` delays (no more guessing 2.5 s
   vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
-- `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
+- `audio/Earcon` (pure, tested) + `audio/EarconPlayer` — the app's two synthesized UI sounds, generated in
+  memory (no assets, no dependence on the device's unknown system sounds): `TIMER_ALERT` (the timer bell, on
+  the media stream so the volume rocker governs it) and `WAKE_LISTENING` — a single soft Rhodes-like C6
+  (~0.44 s), played **once** when a hands-free "hey jarvis" opens the mic. A `Spec` is pure data (partials,
+  decay, per-partial decay + inharmonicity for a struck-string character, peak), so retuning the sound is a
+  one-block change with no other code touched. The wake earcon fires from the engine's
+  `Action.StartForwarding` handler via a one-shot flag, so it lands exactly when the orange bar appears and
+  **never** on a multi-turn re-listen, a tap, or a chip (the gate is the pure
+  `AssistantService.shouldPlayWakeChime(source, enabled)` — hands-free sources are built by
+  `AssistantService.wakeSource(id)`; toggled by Settings → Wake chime, on by default). While it sounds the
+  engine mutes the *forwarded* mic (`wakeChimeMuteUntilMs`) — see Known limitations.
+- `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio` (assistant speech + earcon output
+  attributes), `audio/PcmGain` (pure, tested),
   `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
   the local backend's `wss://` socket).
 
@@ -167,7 +183,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `RecordingOverlay` bar. The chat UI (Phase 3) appears only when the user opens the app.
 - **Orange bar only while the mic is recording** (LISTENING). Off while the model speaks (mic muted).
 - **Don't assume timeouts.** Exactly two client timers, each justified; turn-taking is otherwise the
-  Gemini server VAD. Any new delay must be justified, not guessed.
+  Gemini server VAD. Any new delay must be justified, not guessed. The wake earcon's
+  `AssistantEngine.wakeChimeMuteUntilMs` is the one reviewed deviation and is **not** a third timer: it is
+  the exact play length of a sound we just started, read inline on the capture thread (monotonic clock —
+  nothing to arm or cancel). Don't pad it with slack; if the sound is retuned, its `Spec` carries the new
+  length automatically.
 - **Mic config:** `VOICE_RECOGNITION`, 16 kHz mono, no audio effects (matches portal-wake; proven).
 - **Gain only the conversation stream** (`PcmGain` on forwarded frames) — never the wake capture (that's
   portal-wake's; gain there masks its dead-mic signal).
@@ -177,10 +197,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 `wake/WakeHandoffReceiver` (trigger entry) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
 one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
-classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine`; `ConversationHub` =
+classes + DNS + the tool-provider snapshot, and `onCreate` warms the wake earcon) · `conversation/` (`ConversationState` reducer + `AssistantEngine`; `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
-`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`) ·
+`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`,
+`PcmPlayer`, `SpeechAudio`, `PcmGain`, `Earcon` + `EarconPlayer` = the wake/timer chimes) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
@@ -225,6 +246,14 @@ be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a tu
 
 ## Known limitations
 
+- **The wake earcon deafens the forwarded mic for its own length** (~0.44 s after the bar appears). The mic
+  has no AEC, so a chime that plays while frames are streaming is heard by the backend and can transcribe as
+  a user turn — the mute is inherent to playing any sound at all here, not a tunable. Those frames are
+  **dropped, not buffered**: buffering and flushing them later would forward the chime itself, defeating the
+  point. Speech captured *before* the chime is unaffected (`connectBuffer` drains independently of the mute).
+  A user who talks straight through the earcon therefore loses that window — accepted, because both wake
+  paths gate on "hey jarvis" as a discrete phrase (so a one-breath swoop never triggers a hand-off anyway)
+  and the chime's whole purpose is to say "speak now".
 - **First-query clip**: the connect-window buffer (`AssistantEngine.connectBuffer`) now recovers speech
   spoken while the socket is connecting on a **voice** query (wake or tap), so the foreground tap path
   ("Connecting…" on screen) keeps its opening words. (A tapped chip is a text query, so it doesn't buffer.)

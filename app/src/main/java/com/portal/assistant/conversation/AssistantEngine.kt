@@ -3,9 +3,13 @@ package com.portal.assistant.conversation
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import com.portal.assistant.audio.Earcon
+import com.portal.assistant.audio.EarconPlayer
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmGain
 import com.portal.assistant.audio.PcmPlayer
+import com.portal.assistant.audio.SpeechAudio
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.CredentialMessages
 import com.portal.assistant.conversation.backend.VoiceBackend
@@ -101,6 +105,23 @@ class AssistantEngine(
     /** A text prompt (e.g. a tapped suggestion) to send as the first user turn, once the socket is ready. */
     private var pendingInitialText: String? = null
 
+    /**
+     * One-shot: play the wake earcon at the **first** LISTENING boundary. Set by [start] for a hands-free
+     * trigger only (see `AssistantService.shouldPlayWakeChime`) and consumed in [Action.StartForwarding],
+     * which fires again on every multi-turn re-listen — so the chime is per conversation, not per turn.
+     * Handler-thread only.
+     */
+    private var wakeChimePending = false
+
+    /**
+     * Monotonic ([SystemClock.elapsedRealtime]) deadline through which forwarded mic frames are dropped while
+     * the wake earcon sounds: the mic has no AEC (see [MicCapture]), so the backend would otherwise hear the
+     * chime at [MIC_GAIN] and transcribe it as a user turn. Wall-clock would risk an NTP jump leaving the
+     * deadline forever in the future, muting the mic for the rest of the conversation. (Why this isn't a
+     * third client timer: see the "Don't assume timeouts" rule in CLAUDE.md.)
+     */
+    @Volatile private var wakeChimeMuteUntilMs = 0L
+
     /** Wall-clock of the last audio chunk (set on the OkHttp thread); used to diagnose stalls. */
     @Volatile private var lastAudioAtMs = 0L
 
@@ -146,12 +167,15 @@ class AssistantEngine(
      * foreground **mic-tap** with a transcript present; a wake trigger and a fresh tap pass false → clean start
      * (any stale transcript is cleared by [ConversationHub.startFresh]). Multi-turn *within* this conversation
      * is the live backend session, not replayed context.
+     * @param playWakeChime sound the wake earcon once the mic actually goes live. True only for a hands-free
+     * "hey jarvis" with the setting on — a tap or a chip is already acknowledged on screen.
      * @return false when the conversation could not open (missing credential). The service gates before
      * construction; this path is defense-in-depth only — it posts a notice and bails without calling [onEnded].
      */
-    fun start(resume: Boolean, initialText: String? = null): Boolean {
+    fun start(resume: Boolean, initialText: String? = null, playWakeChime: Boolean = false): Boolean {
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
         pendingInitialText = initialText?.takeIf { it.isNotBlank() }
+        wakeChimePending = playWakeChime
         // No credential → don't open a socket that can only fail. Post the notice and bail BEFORE publishing
         // CONNECTING, so the user gets a plain message with no connecting flash (the phase stays IDLE, so
         // the banner sits over the idle home).
@@ -247,21 +271,33 @@ class AssistantEngine(
      * Capture thread. While LISTENING, forward to the model and drive the bar from the live level. During the
      * initial CONNECTING window of a voice query (wake/tap; a chip's query is text, so it doesn't buffer —
      * connectBuffering is false), buffer frames (so the opening words aren't clipped) instead of dropping them.
-     * While SPEAKING (half-duplex mute) drop them. On the first LISTENING frame the connect buffer is flushed in
-     * capture order *before* the live frame, so the model gets the pre-Ready speech ahead of everything live.
+     * While SPEAKING (half-duplex mute) drop them, as during the brief window the wake earcon is sounding
+     * ([wakeChimeMuteUntilMs]). On the first forwarded LISTENING frame the connect buffer is flushed in capture
+     * order *before* the live frame, so the model gets the pre-Ready speech ahead of everything live.
      */
     private fun onFrame(buf: ByteArray, n: Int) {
         if (forwarding) {
-            val gained = outgoingAudio(buf, n)
-            if (connectBuffering) { // first LISTENING frame: flush what we captured while connecting, in order
+            // First LISTENING frame: flush what we captured while connecting, in order. Deliberately OUTSIDE
+            // the chime mute below — the buffer holds *pre-chime* audio, which the chime cannot contaminate,
+            // and leaving it gated would widen the window in which StopForwarding discards it (see that
+            // handler) from one frame to the whole chime.
+            if (connectBuffering) {
                 connectBuffering = false
                 drainConnectBuffer()
             }
-            backend?.sendAudio(gained)
-            // Local speech signal for the no-speech grace: measure the *gained* frame (what the server hears), not
-            // the raw mic, so distant late speech still registers. The bar/visualizer keep the raw level below.
-            if (PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL) lastSpeechAtMs = System.currentTimeMillis()
-            val level = PcmLevel.normalized(buf, n)
+            // Drop the live frames while the wake earcon sounds ([wakeChimeMuteUntilMs]); the user hasn't
+            // started talking yet — the chime IS the "speak now" cue.
+            val chiming = SystemClock.elapsedRealtime() < wakeChimeMuteUntilMs
+            if (!chiming) {
+                val gained = outgoingAudio(buf, n)
+                backend?.sendAudio(gained)
+                // Local speech signal for the no-speech grace: measure the *gained* frame (what the server hears),
+                // not the raw mic, so distant late speech still registers. The bar/visualizer keep the raw level below.
+                if (PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL) lastSpeechAtMs = System.currentTimeMillis()
+            }
+            // Publish silence while chiming: the mic hears the chime near full scale, so a live level would
+            // pulse the orb/bar on the assistant's own sound just as the UI says "Listening…".
+            val level = if (chiming) 0f else PcmLevel.normalized(buf, n)
             ConversationHub.setAudioLevel(level) // drives the in-app listening visualizer
             // The orange bar is the *backgrounded* mic indicator; when the app is open the in-UI state
             // replaces it. (bar add + "overlay shown" log live in RecordingOverlay.show())
@@ -475,6 +511,12 @@ class AssistantEngine(
             // audio, whichever the server sends first — opens a fresh bubble instead of extending the prior
             // answer's, which dropped the new answer's opening words when transcription arrived first.
             transcript = transcript.beginUserTurn().beginModelTurn()
+            // Hands-free start only, and only the first time we reach LISTENING (this action repeats on every
+            // multi-turn re-listen).
+            if (wakeChimePending) {
+                wakeChimePending = false
+                startWakeChime()
+            }
             forwarding = true
         }
 
@@ -514,6 +556,37 @@ class AssistantEngine(
         is Action.ExecuteTools -> submitToolBatch(action.calls)
 
         is Action.SendToolResponse -> backend?.sendToolResponse(action.results)
+    }
+
+    /**
+     * Sound the wake earcon and deafen the forwarded mic for its length.
+     *
+     * Playback runs off this thread ([EarconPlayer.play] threads itself and can't throw): it sits between "mic
+     * live" and `forwarding = true`, on the `detected → orange bar` latency the resident-prewarm design
+     * protects, so no AudioTrack build or cold synthesis touches the orchestration thread.
+     *
+     * The mute deadline is armed three ways so it exactly brackets the real sound:
+     *  - **upfront**, before `forwarding = true`, so no chime frame leaks even if playback starts instantly;
+     *  - **re-based on `onStarted`** to the sound's actual start — on a cold first wake the earcon thread may
+     *    still be synthesizing, so the tone can begin tens of ms late and would otherwise outlast the upfront
+     *    deadline, its tail leaking to the AEC-less mic;
+     *  - **cleared on `onComplete`** if the earcon never sounds (build/write failure), so a silent failure
+     *    doesn't deafen the mic and drop the user's opening words (no-op on success — the deadline has passed).
+     *
+     * The re-base/clear are plain volatile writes from whatever thread the callback lands on; the field is
+     * built for cross-thread reads. [teardown] doesn't cancel an in-flight chime — ending inside the window
+     * lets a quiet sound finish a moment late, not worth the plumbing to hold the track reachable.
+     */
+    private fun startWakeChime() {
+        val muteFor = { wakeChimeMuteUntilMs = SystemClock.elapsedRealtime() + Earcon.WAKE_LISTENING.durationMs }
+        muteFor()
+        EarconPlayer.play(
+            Earcon.WAKE_LISTENING,
+            SpeechAudio.earconAttributes(),
+            onStarted = muteFor,
+            onComplete = { wakeChimeMuteUntilMs = 0L },
+        )
+        DebugLog.log("wake chime → listening")
     }
 
     /**

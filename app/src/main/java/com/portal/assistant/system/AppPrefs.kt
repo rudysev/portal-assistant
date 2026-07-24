@@ -37,6 +37,10 @@ object AppPrefs {
     // pick is uninstalled.
     const val KEY_DEFAULT_MUSIC_PKG = "music_default_pkg"
 
+    // Wake chime (Settings → Wake chime) — the soft earcon played when the assistant starts listening after
+    // a hands-free "hey jarvis". On by default; never plays for a tap or a suggestion chip.
+    const val KEY_WAKE_CHIME = "wake_chime_enabled"
+
     // Gemini API key — the user's own key (Settings → API key). BYOD: a broadly-released build has no key
     // baked in, so each user supplies their own here. Falls back to BuildConfig.GEMINI_API_KEY (dev builds)
     // at the injection site; this stores only the user-entered value.
@@ -75,6 +79,15 @@ object AppPrefs {
         val edit = prefs(context).edit()
         if (pkg.isNullOrBlank()) edit.remove(KEY_DEFAULT_MUSIC_PKG) else edit.putString(KEY_DEFAULT_MUSIC_PKG, pkg)
         edit.apply()
+    }
+
+    /** Whether the wake earcon plays when a hands-free "hey jarvis" opens the mic. Defaults to on — read at
+     *  conversation start, so a change applies to the next conversation. */
+    fun wakeChimeEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_WAKE_CHIME, true)
+
+    /** Turn the wake earcon on/off (applies to the next conversation). */
+    fun setWakeChimeEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_WAKE_CHIME, enabled).apply()
     }
 
     /** The user's stored Gemini API key, trimmed, or null if unset/blank. The injection site

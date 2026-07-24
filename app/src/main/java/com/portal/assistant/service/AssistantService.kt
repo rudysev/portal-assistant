@@ -14,6 +14,8 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.portal.assistant.audio.Earcon
+import com.portal.assistant.audio.EarconPlayer
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
@@ -86,6 +88,13 @@ class AssistantService : Service() {
         // "hey jarvis what's the weather" as the FIRST trigger after install (which arrives via ACTION_START,
         // not the standby branch that runs prewarm) still has a location to inject. Async + self-guarding.
         com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext)
+        // Render the wake earcon here for the same reason, and NOT in [prewarm]: the first trigger after
+        // install arrives via ACTION_START, which never runs the standby branch — so the earcon would be
+        // synthesized (~50 ms) exactly as the mic goes live, starting the sound part-way into its own mute
+        // window and leaking the tail to the backend. Off-thread: onCreate is the main thread.
+        Thread({ runCatching { EarconPlayer.prewarm(Earcon.WAKE_LISTENING) } }, "earcon-prewarm")
+            .apply { isDaemon = true }
+            .start()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -152,7 +161,12 @@ class AssistantService : Service() {
             DebugLog.log("conversation ended → standby")
             returnToStandby()
         }
-        engine = retainIfStarted(newEngine.start(resume = source == SOURCE_TAP, initialText = initialText), newEngine)
+        val started = newEngine.start(
+            resume = source == SOURCE_TAP,
+            initialText = initialText,
+            playWakeChime = shouldPlayWakeChime(source, AppPrefs.wakeChimeEnabled(applicationContext)),
+        )
+        engine = retainIfStarted(started, newEngine)
         if (engine == null) {
             // Defense-in-depth: [AssistantEngine.start] can still refuse (shouldn't after the gate above).
             // running + the active notification were already raised — roll back so the next wake/tap isn't wedged.
@@ -206,7 +220,7 @@ class AssistantService : Service() {
                 onWake = { event ->
                     mainHandler.post {
                         exitDetection()
-                        start(applicationContext, "wake:${event.wakeId}")
+                        start(applicationContext, wakeSource(event.wakeId))
                     }
                 },
                 onError = { DebugLog.log("foreground detector error: $it") },
@@ -374,6 +388,14 @@ class AssistantService : Service() {
         /** Conversation trigger source: a tapped suggestion chip — sends its text as the first turn. */
         const val SOURCE_CHIP = "chip"
 
+        /** Prefix of a hands-free trigger source. Both wake paths — the gen1 portal-wake hand-off
+         *  ([com.portal.assistant.wake.WakeHandoffReceiver]) and the gen2 foreground detector — build their
+         *  source through [wakeSource], so "was this hands-free?" is one named contract, not two literals. */
+        const val SOURCE_WAKE_PREFIX = "wake"
+
+        /** The trigger source for a wake-word hand-off carrying the detector's wake id. */
+        fun wakeSource(wakeId: String): String = "$SOURCE_WAKE_PREFIX:$wakeId"
+
         /** The foreground detector's wake word — "hey jarvis" at the strict floor, matching portal-wake's
          *  built-in jarvis default so accuracy is identical. Non-null: the phrase is a valid two-word phrase. */
         private val FOREGROUND_WAKE_WORD =
@@ -393,6 +415,14 @@ class AssistantService : Service() {
 
         /** Gate for [startConversation] — false when the selected backend has no credential yet. */
         internal fun canOpenConversation(credentialMissing: Boolean): Boolean = !credentialMissing
+
+        /**
+         * Whether this conversation opens with the wake earcon: only a **hands-free** trigger (either wake
+         * path), and only while the user has the setting on. A foreground tap or a tapped suggestion chip is
+         * already visibly acknowledged on screen, so it stays silent.
+         */
+        internal fun shouldPlayWakeChime(source: String, enabledInSettings: Boolean): Boolean =
+            enabledInSettings && source.startsWith("$SOURCE_WAKE_PREFIX:")
 
         /**
          * Assign [candidate] to the live engine slot only when [start] opened a session — never retain a

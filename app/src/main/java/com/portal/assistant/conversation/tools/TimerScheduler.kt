@@ -9,6 +9,9 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
+import com.portal.assistant.audio.Earcon
+import com.portal.assistant.audio.EarconPlayer
+import com.portal.assistant.audio.SpeechAudio
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 
@@ -135,13 +138,16 @@ class TimerScheduler(context: Context) {
     /**
      * Alert the user. On this Portal the launcher does NOT surface third-party notifications (same reason the
      * app draws the orange bar via SYSTEM_ALERT_WINDOW), so the notification alone is inaudible/invisible —
-     * we therefore **play a soft chime explicitly** ([ChimeSound], on the media stream so it follows the
-     * user's volume) and post the notification only as a best-effort extra for standard-Android surfaces.
+     * we therefore **play a soft chime explicitly** ([Earcon.TIMER_ALERT], on the media stream so it follows
+     * the volume the user actually controls, not the always-loud alarm stream) and post the notification only
+     * as a best-effort extra for standard-Android surfaces.
      */
     private fun fireAlert(id: Int, label: String, onAlertDone: () -> Unit) {
         postAlarmNotification(id, label)
         DebugLog.log("timer fired id=$id label='$label' → chime + notification")
-        ChimeSound.play(onAlertDone) // onAlertDone runs after the chime finishes (receiver releases its wake-lock)
+        // Synthesis + playback happen on EarconPlayer's own thread, so this returns immediately (onFired runs
+        // on the main thread); onAlertDone fires when the chime finishes and releases the receiver's wake-lock.
+        EarconPlayer.play(Earcon.TIMER_ALERT, SpeechAudio.mediaAlertAttributes(), onComplete = onAlertDone)
     }
 
     private fun postAlarmNotification(id: Int, label: String) {
@@ -162,7 +168,7 @@ class TimerScheduler(context: Context) {
         val channel = NotificationChannel(CHANNEL_ID, "Timers", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Timer alarms"
             // Channel sound is dead config on this Portal (the launcher doesn't surface the notification, so it
-            // never plays) — kept for correctness on standard-Android surfaces; the audible alert is ChimeSound.
+            // never plays) — kept for correctness on standard-Android surfaces; the audible alert is the Earcon.
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
                 AudioAttributes.Builder()

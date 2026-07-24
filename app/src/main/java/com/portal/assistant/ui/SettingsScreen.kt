@@ -330,6 +330,28 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.size(36.dp))
+            Text("Wake chime", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.size(4.dp))
+            Text(
+                "Play a soft chime when Jarvis starts listening after \"hey jarvis\".",
+                color = subtle,
+                fontSize = TextSize.Body,
+            )
+            Spacer(Modifier.size(14.dp))
+
+            var wakeChime by remember { mutableStateOf(AppPrefs.wakeChimeEnabled(context)) }
+            SettingRow(label = "Chime when listening starts") {
+                Switch(
+                    checked = wakeChime,
+                    onCheckedChange = { on ->
+                        wakeChime = on
+                        AppPrefs.setWakeChimeEnabled(context, on)
+                    },
+                    colors = settingsSwitchColors(),
+                )
+            }
+
+            Spacer(Modifier.size(36.dp))
             Text("External tools", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.size(4.dp))
             Text(
@@ -344,48 +366,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("No tool provider apps installed.", color = subtle, fontSize = TextSize.Body)
             } else {
                 providers.forEach { p ->
-                    // Each provider is one bounded row (surface-tinted) so the label and its switch read as a
-                    // single tappable unit across the wide gap — not a label stranded far from its control.
                     // Under the app name we say what it actually adds, in plain words — the provider's own
                     // required one-sentence summary (ToolContract.META_SUMMARY) — not the reverse-domain tool
                     // ids, which meant nothing to a user.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                            .clip(RoundedCornerShape(Radii.Card))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(p.label, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ToolLabel, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.size(2.dp))
-                            Text(
-                                p.summary,
-                                color = subtle,
-                                fontSize = TextSize.Meta,
-                                lineHeight = TextSize.Body,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                    SettingRow(label = p.label, summary = p.summary) {
                         Switch(
                             checked = p.enabled,
                             onCheckedChange = { on ->
                                 AppPrefs.setProviderEnabled(context, p.pkg, on)
                                 providers = providers.map { if (it.pkg == p.pkg) it.copy(enabled = on) else it }
                             },
-                            colors = SwitchDefaults.colors(
-                                // On = warm orange track with a clean white thumb (the conventional, on-brand
-                                // look). Off = muted surface, so the control reads against the near-black bg.
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Accent,
-                                checkedBorderColor = Color.Transparent,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surface,
-                                uncheckedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     }
                 }
@@ -586,6 +577,54 @@ private fun ApiKeySection(subtle: Color) {
         Text(it, color = messageColor, fontSize = TextSize.Body)
     }
 }
+
+/**
+ * One toggleable setting as a bounded, surface-tinted row: [label] (and an optional [summary] beneath it) on
+ * the left, [control] on the right — so the label and its switch read as a single unit across the wide Portal
+ * display instead of a label stranded far from its control.
+ */
+@Composable
+private fun SettingRow(label: String, summary: String? = null, control: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(Radii.Card))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ToolLabel, fontWeight = FontWeight.Medium)
+            if (summary != null) {
+                Spacer(Modifier.size(2.dp))
+                Text(
+                    summary,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                    fontSize = TextSize.Meta,
+                    lineHeight = TextSize.Body,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        control()
+    }
+}
+
+/**
+ * Shared colors for the form's switches. On = warm orange track with a clean white thumb (the conventional,
+ * on-brand look). Off = muted surface, so the control still reads against the near-black background.
+ */
+@Composable
+private fun settingsSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = Accent,
+    checkedBorderColor = Color.Transparent,
+    uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+    uncheckedTrackColor = MaterialTheme.colorScheme.surface,
+    uncheckedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+)
 
 /**
  * Shared colors for the form's primary buttons. Enabled = the brand orange (filled, obvious). Disabled reads

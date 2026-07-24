@@ -22,7 +22,7 @@ class WakeHandoffReceiver : BroadcastReceiver() {
         if (intent?.action != ACTION_WAKE) return
         val id = intent.getStringExtra(EXTRA_WAKE_ID) ?: "?"
         DebugLog.log("WAKE received (id=$id) → starting AssistantService")
-        AssistantService.start(context, source = "wake:$id")
+        AssistantService.start(context, source = AssistantService.wakeSource(id))
     }
 
     private companion object {
