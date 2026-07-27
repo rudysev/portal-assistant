@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -23,6 +24,8 @@ import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
+import com.portal.commons.audio.WakeAudit
+import com.portal.commons.audio.WakeClipRecorder
 import com.portal.commons.audio.WakeDetectors
 import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
@@ -61,6 +64,27 @@ class AssistantService : Service() {
     // The gen2 wake model is downloaded at runtime (not shipped in the APK — dead weight on gen1). Fetched
     // once on first foreground detection, then the detector loads it from disk. See [WakeModelInstaller].
     private val modelInstaller by lazy { WakeModelInstaller(filesDir) }
+
+    /**
+     * The audio behind every cascade decision, on debug builds only — the same seam portal-wake uses, for
+     * the same reason: **a score you can't listen to is not evidence.** Every finding in
+     * `../../hey-jarvis/` turned on being able to replay the window (openWakeWord's 0.998 on ordinary
+     * conversation was only understood that way), and gen2 is unmeasured territory for the cascade — a
+     * different mic path and a foreground-only capture. Writes `wake_`/`rej_`/`near_` clips to
+     * `files/clips/`, capped per kind, on `WakeClipRecorder`'s own thread (never the capture thread).
+     *
+     * Gated on `FLAG_DEBUGGABLE`, so an evaluation build captures with no extra step and a release build
+     * can never record the household. Built lazily, on main, when the engine is first assembled.
+     */
+    private val auditClips: WakeAudit? by lazy {
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) {
+            DebugLog.log("audit clips: off (release build)")
+            return@lazy null
+        }
+        val dir = File(getExternalFilesDir(null), "clips")
+        DebugLog.log("audit clips → ${dir.absolutePath} (cap ${WakeClipRecorder.DEFAULT_CAP_PER_KIND}/kind)")
+        WakeClipRecorder(dir)
+    }
 
     @Volatile private var modelDownloading = false
 
@@ -201,7 +225,16 @@ class AssistantService : Service() {
             context = applicationContext,
             config = WakeMicConfig(
                 wakeWords = listOf(FOREGROUND_WAKE_WORD),
-                detectors = listOf(WakeDetectors.vosk(modelDir = modelInstaller.modelDir())),
+                // **The same detection path portal-wake runs** — openWakeWord proposes at 0.30, a
+                // phrase-constrained Vosk decode of the same 2 s window disposes. It is an AND, not an OR.
+                // Measured on gen1 (`../../hey-jarvis/HANDOFF_PHASE_E.md` §1, 80 utterances / 4.78 h):
+                // Vosk-only 84 % recall at 1 FA per 46 min, openWakeWord-only @0.30 100 % at 20 FA, the
+                // **cascade 99 % at 0 FA**. Keeping the two apps on one path also means a finding on either
+                // transfers, rather than each carrying its own detector's quirks.
+                //
+                // Stage 1's ONNX rides in from `commons-android`'s `assets/oww/`; stage 2 reuses the model
+                // this app already downloads for gen2, which is exactly the `modelDir` seam `twoStage` has.
+                detectors = listOf(WakeDetectors.twoStage(modelDir = modelInstaller.modelDir(), audit = auditClips)),
                 onDetectorUnavailable = { handleModelLoadFailure() },
                 onWake = { event ->
                     mainHandler.post {

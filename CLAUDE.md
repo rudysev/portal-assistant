@@ -155,11 +155,27 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
-  silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
-  (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` +
-  `WakeDetectors.vosk(modelDir)` from portal-commons); a match routes through
-  the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
-  contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
+  silences a background mic), so the assistant runs its **own foreground** detector while on screen
+  (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` from portal-commons);
+  a match routes through the same `AssistantService.start(...)`. On gen1 the two apps share the single mic
+  via portal-wake's contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a
+  background mic gets silenced.
+- **The foreground detector runs the SAME cascade as portal-wake — `WakeDetectors.twoStage(modelDir)`,
+  not `vosk(modelDir)`.** openWakeWord proposes at a loose 0.30, a phrase-constrained Vosk decode of the
+  same 2 s window disposes; it is an **AND**, not an OR. Measured on gen1
+  (`../../hey-jarvis/HANDOFF_PHASE_E.md` §1, 80 utterances / 4.78 h): Vosk-only **84 %** recall at **1 FA
+  per 46 min**, openWakeWord-only @0.30 **100 %** at **20 FA**, the **cascade 99 % at 0 FA**. Configuring
+  `oww()` and `vosk()` as two parallel entries in `detectors` is an OR and unions their false accepts —
+  don't. Stage 1's ONNX rides in from `commons-android`'s `assets/oww/`; stage 2 reuses the model
+  `WakeModelInstaller` already downloads, which is what `twoStage`'s `modelDir` seam is for.
+  ⚠️ **Those numbers are gen1, measured through portal-wake.** gen2 is a different mic path and a
+  foreground-only capture, so the cascade is **unmeasured there** — which is why this app now writes
+  audit clips on debug builds (below). Don't quote the gen1 figures as if they were gen2 results.
+- **Keep the audit clips — a score you can't listen to is not evidence.** Same seam and same reasoning as
+  portal-wake: on a debug build the cascade writes the 2 s window behind every fire (`wake_`), every
+  stage-1 candidate it declined (`rej_`) and every sub-threshold near-miss (`near_`) to `files/clips/`.
+  Gated on `FLAG_DEBUGGABLE`, so an evaluation build captures with no extra step and a release build never
+  records the household. The write happens on `WakeClipRecorder`'s own thread, **not** the capture thread.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
   Hold the mic only while the conversation is live, release cleanly when finished. (2.b: keep the
   `AudioRecord` open across turns — mute between turns — so portal-wake can't reclaim mid-conversation.)
