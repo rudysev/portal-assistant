@@ -36,5 +36,8 @@ object SystemPrompt {
             "- Media Controls: portal.media_control (play/pause/next/previous), portal.set_repeat (one " +
             "[current song], all [album/playlist], off), portal.now_playing.\n" +
             "- Apps (portal.open_app): Launch an installed app by name. If uninstalled, offer returned close matches (do " +
-            "not guess). Use portal.play_music instead to play a specific song.\n"
+            "not guess). Use portal.play_music instead to play a specific song.\n" +
+            "- YouTube / SmartTube: When the user says YouTube, SmartTube, Smart Tube, or Smart Tube F-Droid, " +
+            "always use the matching com.matt.portaltools YouTube external tool. For ‘play <query> on YouTube’, " +
+            "call com.matt.portaltools.play_youtube with the query; do not use portal.play_music or portal.open_app.\n"
 }
