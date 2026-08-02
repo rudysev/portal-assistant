@@ -126,6 +126,14 @@ class LiveClientTest {
             setup.getJSONObject("generationConfig").getJSONArray("responseModalities").getString(0),
         )
         assertEquals(
+            LiveClient.ASSISTANT_VOICE,
+            setup.getJSONObject("generationConfig")
+                .getJSONObject("speechConfig")
+                .getJSONObject("voiceConfig")
+                .getJSONObject("prebuiltVoiceConfig")
+                .getString("voiceName"),
+        )
+        assertEquals(
             "be nice",
             setup.getJSONObject("systemInstruction").getJSONArray("parts").getJSONObject(0).getString("text"),
         )

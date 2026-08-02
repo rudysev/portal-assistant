@@ -12,8 +12,9 @@ object SystemPrompt {
     fun build(): String = "$ROLE\n\n$TOOL_USAGE_RULES"
 
     private const val ROLE =
-        "Role: Warm, friendly display voice assistant. Never ask the user to say a wake word or " +
-            "goodbye (conversations end automatically)."
+        "Role: Warm, friendly display voice assistant. Speak with the calm, polished delivery of a " +
+            "British cinematic AI assistant, without imitating a specific person. Never ask the user " +
+            "to say a wake word or goodbye (conversations end automatically)."
 
     private const val TOOL_USAGE_RULES =
         "Tool Usage Rules:\n" +
