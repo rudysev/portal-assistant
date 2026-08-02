@@ -18,10 +18,13 @@ import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.tools.MediaAction
+import com.portal.assistant.conversation.tools.MediaControl
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
+import com.portal.assistant.wake.WakeAcknowledgement
 import com.portal.commons.DebugLog
 import com.portal.commons.audio.WakeDetectors
 import com.portal.commons.audio.WakeMatcher
@@ -132,6 +135,8 @@ class AssistantService : Service() {
         // the turn — the user just keeps talking).
         if (engine != null) return
         exitDetection() // stop the foreground detector's capture before the conversation opens its mic (single slot)
+        val wakeTriggered = source.startsWith(WAKE_SOURCE_PREFIX)
+        if (wakeTriggered) pauseExternalMediaForWake()
         // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
         // conversation so a change in Settings → Backend applies on the next turn with no restart.
         val choice = Backends.resolve(applicationContext)
@@ -152,12 +157,26 @@ class AssistantService : Service() {
             DebugLog.log("conversation ended → standby")
             returnToStandby()
         }
-        engine = retainIfStarted(newEngine.start(resume = source == SOURCE_TAP, initialText = initialText), newEngine)
+        val firstText = initialText ?: if (wakeTriggered) WakeAcknowledgement.prompt() else null
+        engine = retainIfStarted(
+            newEngine.start(
+                resume = source == SOURCE_TAP,
+                initialText = firstText,
+                showInitialText = initialText != null,
+            ),
+            newEngine,
+        )
         if (engine == null) {
             // Defense-in-depth: [AssistantEngine.start] can still refuse (shouldn't after the gate above).
             // running + the active notification were already raised — roll back so the next wake/tap isn't wedged.
             returnToStandby()
         }
+    }
+
+    /** Silence whatever was playing before Jarvis speaks its wake acknowledgment. */
+    private fun pauseExternalMediaForWake() {
+        runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
+            .onFailure { DebugLog.log("wake media pause failed: ${it.message}") }
     }
 
     /**
@@ -385,6 +404,7 @@ class AssistantService : Service() {
 
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001
+        private const val WAKE_SOURCE_PREFIX = "wake:"
 
         /** True while a conversation is live — lets the Activity toggle and start be idempotent. */
         @Volatile

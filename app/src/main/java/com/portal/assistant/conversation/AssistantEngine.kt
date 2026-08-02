@@ -50,6 +50,8 @@ class AssistantEngine(
     private val backendChoice: Backends.Choice,
     private val onEnded: () -> Unit,
 ) {
+    private data class PendingInitialText(val text: String, val showInTranscript: Boolean)
+
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val overlay = RecordingOverlay(appContext)
@@ -98,8 +100,8 @@ class AssistantEngine(
     /** Set once the backend session is ready — lets a disconnect read as "lost" vs. "couldn't connect". */
     private var connectedOk = false
 
-    /** A text prompt (e.g. a tapped suggestion) to send as the first user turn, once the socket is ready. */
-    private var pendingInitialText: String? = null
+    /** A text prompt to send once ready; wake acknowledgments are deliberately hidden from the transcript. */
+    private var pendingInitialText: PendingInitialText? = null
 
     /** Wall-clock of the last audio chunk (set on the OkHttp thread); used to diagnose stalls. */
     @Volatile private var lastAudioAtMs = 0L
@@ -149,9 +151,16 @@ class AssistantEngine(
      * @return false when the conversation could not open (missing credential). The service gates before
      * construction; this path is defense-in-depth only — it posts a notice and bails without calling [onEnded].
      */
-    fun start(resume: Boolean, initialText: String? = null): Boolean {
-        // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
-        pendingInitialText = initialText?.takeIf { it.isNotBlank() }
+    fun start(
+        resume: Boolean,
+        initialText: String? = null,
+        showInitialText: Boolean = true,
+    ): Boolean {
+        // Sent once the socket is ready. Suggestion chips are visible user turns; the internal wake
+        // acknowledgment directive is hidden so the transcript starts with Jarvis's spoken greeting.
+        pendingInitialText = initialText?.takeIf { it.isNotBlank() }?.let {
+            PendingInitialText(it, showInitialText)
+        }
         // No credential → don't open a socket that can only fail. Post the notice and bail BEFORE publishing
         // CONNECTING, so the user gets a plain message with no connecting flash (the phase stays IDLE, so
         // the banner sits over the idle home).
@@ -199,10 +208,9 @@ class AssistantEngine(
             backendListener,
         ).also { it.connect() }
         // Buffer mic frames from the moment the device opens (CONNECTING) so the opening words survive the
-        // ~440 ms connect — but only for a VOICE query (wake / tap). A tapped chip's query is the text turn, not
-        // speech, so buffering would just flush connect-window noise alongside it (and the chip path stays
-        // identical to pre-buffer behaviour). pendingInitialText (set above) is non-null only for a chip. Set
-        // before mic.start() spawns the capture thread, so this volatile write is visible to it.
+        // ~440 ms connect — but only when there is no initial text turn. A suggestion chip or hidden wake
+        // acknowledgment supplies that first turn itself, so flushing connect-window noise beside it would be
+        // wrong. Set before mic.start() spawns the capture thread, so this write is visible to it.
         connectBuffering = pendingInitialText == null
         mic = MicCapture { buf, n -> onFrame(buf, n) }.also { it.start() }
         player.start()
@@ -301,10 +309,10 @@ class AssistantEngine(
             handler.post {
                 connectedOk = true
                 dispatch(Event.Ready) // CONNECTING → LISTENING (mic armed)
-                // If a suggestion was tapped, send it now as the first turn (we're LISTENING + setupDone).
-                pendingInitialText?.let { text ->
+                // Send a suggestion or hidden wake acknowledgment now (we're LISTENING + setupDone).
+                pendingInitialText?.let { pending ->
                     pendingInitialText = null
-                    sendInitialText(text)
+                    sendInitialText(pending)
                 }
             }
         }
@@ -399,19 +407,22 @@ class AssistantEngine(
     )
 
     /**
-     * Send a tapped suggestion as the user's first turn. Runs on the handler right after [Event.Ready] put us
-     * in LISTENING (so [VoiceBackend.sendText] sees the session ready). We deliberately KEEP the no-speech timer that
+     * Send an initial text turn. Runs on the handler right after [Event.Ready] put us in LISTENING (so
+     * [VoiceBackend.sendText] sees the session ready). Suggestion text is shown in the transcript; an internal
+     * wake acknowledgment prompt is hidden. We deliberately KEEP the no-speech timer that
      * LISTENING just armed: a text turn's mic hears nothing, so that 5 s timer is exactly the guard that ends
      * the conversation if the server never starts a turn (a StallTimeout would be a no-op in LISTENING). On the
      * normal path [Event.ModelActivity] cancels it the instant the model begins — well under 5 s. The prompt is
      * shown as the user's turn immediately so the chip text doesn't wait on the server.
      */
-    private fun sendInitialText(text: String) {
+    private fun sendInitialText(pending: PendingInitialText) {
         if (state.phase != Phase.LISTENING) return
-        transcript = transcript.appendUser(text)
-        publishTurns()
-        backend?.sendText(text)
-        DebugLog.log("sent initial text: \"$text\"")
+        if (pending.showInTranscript) {
+            transcript = transcript.appendUser(pending.text)
+            publishTurns()
+        }
+        backend?.sendText(pending.text)
+        DebugLog.log("sent initial text (visible=${pending.showInTranscript})")
     }
 
     // ---- orchestration (main thread) ---------------------------------------------------------------
