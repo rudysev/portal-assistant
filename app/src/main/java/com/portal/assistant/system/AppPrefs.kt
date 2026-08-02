@@ -28,6 +28,7 @@ object AppPrefs {
     // External tool providers (Phase 3.d) — packages the user has enabled to contribute tools. Off by
     // default: an installed provider grants nothing until its package is added here.
     const val KEY_TOOLS_ENABLED = "tools_enabled_pkgs" // Set<String> of enabled provider package names
+    const val KEY_ALIASES = "voice_aliases" // newline-separated `phrase => instruction` rules
 
     // Model — the Gemini model the assistant runs (Settings → Model). Defaults to GeminiModel.ID.
     const val KEY_MODEL = "model_id"
@@ -180,5 +181,12 @@ object AppPrefs {
     fun setProviderEnabled(context: Context, pkg: String, enabled: Boolean) {
         val updated = enabledProviders(context).toMutableSet().apply { if (enabled) add(pkg) else remove(pkg) }
         prefs(context).edit().putStringSet(KEY_TOOLS_ENABLED, updated).apply()
+    }
+
+    /** User-defined wake phrases and the instruction Jarvis should follow when one is heard. */
+    fun voiceAliases(context: Context): String = prefs(context).getString(KEY_ALIASES, "").orEmpty()
+
+    fun setVoiceAliases(context: Context, value: String) {
+        prefs(context).edit().putString(KEY_ALIASES, value.trim()).apply()
     }
 }

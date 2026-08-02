@@ -243,6 +243,29 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.size(36.dp))
+            Text("Custom voice aliases", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.size(4.dp))
+            Text("Teach Jarvis personal phrases. Use one rule per line: phrase => instruction.", color = subtle, fontSize = TextSize.Body)
+            Spacer(Modifier.size(14.dp))
+            var aliases by remember { mutableStateOf(AppPrefs.voiceAliases(context)) }
+            var savedAliases by remember { mutableStateOf(aliases) }
+            OutlinedTextField(
+                value = aliases,
+                onValueChange = { if (it.length <= 4000) aliases = it },
+                label = { Text("Voice rules") },
+                placeholder = { Text("movie time => open SmartTube") },
+                minLines = 3,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.size(10.dp))
+            Button(
+                onClick = { AppPrefs.setVoiceAliases(context, aliases); savedAliases = aliases },
+                enabled = aliases.trim() != savedAliases.trim(),
+                colors = settingsButtonColors(),
+            ) { Text("Save voice rules") }
+
+            Spacer(Modifier.size(36.dp))
             Text("Location", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.size(4.dp))
             Text("Used for weather and other location-aware answers.", color = subtle, fontSize = TextSize.Body)

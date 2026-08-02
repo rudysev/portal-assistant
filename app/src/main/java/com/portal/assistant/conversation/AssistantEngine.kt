@@ -174,7 +174,18 @@ class AssistantEngine(
         // Result lands for the NEXT conversation — this one uses whatever's already cached.
         LocationProvider.refreshIfStale(appContext)
         val prior = ConversationHub.session.value.turns
-        val externalToolLines = toolRegistry.externalPromptLines()
+        val externalToolLines = toolRegistry.externalPromptLines().toMutableList().apply {
+            AppPrefs.voiceAliases(appContext).lineSequence()
+                .map { it.trim() }
+                .filter { it.contains("=>") }
+                .take(32)
+                .forEach { rule ->
+                    val parts = rule.split("=>", limit = 2).map { it.trim() }
+                    if (parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                        add("- When the user says '${parts[0]}', follow this instruction: ${parts[1]}.")
+                    }
+                }
+        }
         val deviceContextLines = deviceContextLines()
         val resumeTurns: List<Turn>
         if (resume && prior.isNotEmpty()) {
