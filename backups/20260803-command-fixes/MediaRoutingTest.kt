@@ -126,15 +126,19 @@ class MediaRoutingTest {
 
     // --- strategy ---
 
-    @Test fun strategySpotifyUsesPlayFromSearchWhenSupported() {
-        assertEquals(PlayStrategy.PLAY_FROM_SEARCH, MediaRouting.strategyFor(spotify.pkg, spotifyPkgs) { true })
+    @Test fun strategySpotifyIsDeepLink() {
+        assertEquals(PlayStrategy.DEEP_LINK, MediaRouting.strategyFor(spotify.pkg, spotifyPkgs) { true })
     }
 
-    @Test fun strategySpotifyFallsBackToDeepLinkWhenSearchUnsupported() {
+    @Test fun strategySpotifySkipsThePlayFromSearchProbe() {
+        // The capability thunk must not even be invoked for Spotify (avoids a wasted resolveActivity IPC).
+        var probed = false
         val s = MediaRouting.strategyFor(spotify.pkg, spotifyPkgs) {
-            false
+            probed = true
+            true
         }
         assertEquals(PlayStrategy.DEEP_LINK, s)
+        assertEquals(false, probed)
     }
 
     @Test fun strategyPlayFromSearchWhenSupported() {

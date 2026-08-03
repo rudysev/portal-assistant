@@ -94,10 +94,14 @@ object MediaRouting {
      */
     fun effectiveDefault(discovered: List<AppEntry>, all: () -> List<AppEntry>, spotifyPkgs: List<String>): AppEntry? = autoDefault(discovered, spotifyPkgs) ?: autoDefault(all(), spotifyPkgs)
 
-    /** Prefer the app's real search-play contract, including Spotify, and fall back to deep link or launch. */
+    /**
+     * How to start playback on [pkg]: Spotify → its deep link (see [MediaControl] for why), an app handling
+     * `MEDIA_PLAY_FROM_SEARCH` → that intent, else launch. [hasPlayFromSearch] is a thunk, so its
+     * resolveActivity probe is skipped for the Spotify path.
+     */
     fun strategyFor(pkg: String, spotifyPkgs: List<String>, hasPlayFromSearch: () -> Boolean): PlayStrategy = when {
-        hasPlayFromSearch() -> PlayStrategy.PLAY_FROM_SEARCH
         pkg in spotifyPkgs -> PlayStrategy.DEEP_LINK
+        hasPlayFromSearch() -> PlayStrategy.PLAY_FROM_SEARCH
         else -> PlayStrategy.LAUNCH_ONLY
     }
 
