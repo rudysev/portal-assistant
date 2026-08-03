@@ -8,8 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioManager
-import android.view.KeyEvent
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -179,14 +177,6 @@ class AssistantService : Service() {
     private fun pauseExternalMediaForWake() {
         runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
             .onFailure { DebugLog.log("wake media pause failed: ${it.message}") }
-        // Some Portal media apps do not publish a notification-backed session.
-        // Send the framework pause key as a best-effort fallback; it leaves the
-        // assistant's own response stream available.
-        runCatching {
-            val audio = getSystemService(AudioManager::class.java)
-            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
-        }.onFailure { DebugLog.log("wake media-key pause failed: ${it.message}") }
     }
 
     /**

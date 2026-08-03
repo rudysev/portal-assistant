@@ -9,8 +9,6 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.MediaStore
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -130,13 +128,6 @@ class MediaControl(context: Context) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
         )
-        // Spotify on the Portal opens its search page but does not honor the
-        // generic play-from-search intent. Once its session appears, ask it to
-        // resume the selected result; if it exposes no session this is harmless.
-        Handler(Looper.getMainLooper()).postDelayed({
-            runCatching { control(MediaAction.PLAY) }
-                .onFailure { DebugLog.log("spotify delayed play failed: ${it.message}") }
-        }, 1800L)
         DebugLog.log("play_music → spotify:search \"$q\"")
         JSONObject().put("playing", true).put("query", q).put("app", label)
     }.getOrElse {
