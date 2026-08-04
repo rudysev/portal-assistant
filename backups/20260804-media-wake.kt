@@ -185,13 +185,12 @@ class AssistantService : Service() {
         resumeMediaAfterWake = runCatching {
             MediaControl(applicationContext).nowPlaying().optBoolean("playing", false)
         }.getOrDefault(false)
-        val sessionPause = runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
+        runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
             .onFailure { DebugLog.log("wake media pause failed: ${it.message}") }
-            .getOrNull()
-        // Only send a global key when no notification-backed session could be
-        // paused. On the Portal, dispatching a second key after a successful
-        // session pause can steal the wake/microphone handoff from Jarvis.
-        if (sessionPause == null || sessionPause.has("error")) runCatching {
+        // Some Portal media apps do not publish a notification-backed session.
+        // Send the framework pause key as a best-effort fallback; it leaves the
+        // assistant's own response stream available.
+        runCatching {
             val audio = getSystemService(AudioManager::class.java)
             audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
             audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
