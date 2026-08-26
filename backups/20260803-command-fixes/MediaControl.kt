@@ -4,14 +4,11 @@ import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.MediaStore
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -131,13 +128,6 @@ class MediaControl(context: Context) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
         )
-        // Spotify on the Portal opens its search page but does not honor the
-        // generic play-from-search intent. Once its session appears, ask it to
-        // resume the selected result; if it exposes no session this is harmless.
-        Handler(Looper.getMainLooper()).postDelayed({
-            runCatching { control(MediaAction.PLAY) }
-                .onFailure { DebugLog.log("spotify delayed play failed: ${it.message}") }
-        }, 1800L)
         DebugLog.log("play_music → spotify:search \"$q\"")
         JSONObject().put("playing", true).put("query", q).put("app", label)
     }.getOrElse {
@@ -147,20 +137,6 @@ class MediaControl(context: Context) {
 
     private fun playFromSearch(pkg: String, q: String, label: String, type: MediaRouting.PlayType?): JSONObject = runCatching {
         appContext.startActivity(playFromSearchIntent(pkg, q, type))
-        if (PackageCatalog.SPOTIFY_PKGS.contains(pkg)) {
-            // Spotify's Portal build accepts MEDIA_PLAY_FROM_SEARCH but leaves the
-            // result paused. Give its search activity time to create a session,
-            // then explicitly press play; the media-key fallback covers the brief
-            // window before the notification-backed session is published.
-            Handler(Looper.getMainLooper()).postDelayed({
-                val result = runCatching { control(MediaAction.PLAY) }.getOrNull()
-                if (result?.has("error") != false) runCatching {
-                    val audio = appContext.getSystemService(AudioManager::class.java)
-                    audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PLAY))
-                    audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PLAY))
-                }.onFailure { DebugLog.log("spotify play-key fallback failed: ${it.message}") }
-            }, 2200L)
-        }
         DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
         JSONObject().put("playing", true).put("query", q).put("app", label)
     }.getOrElse {

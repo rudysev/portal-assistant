@@ -111,7 +111,6 @@ class AssistantEngine(
 
     /** Consecutive server-unconfirmed no-speech graces granted this listening window (handler-thread only). */
     private var noSpeechGraces = 0
-    private var inputTextWindow = ""
 
     /** Paced word-reveal bookkeeping for the current model turn (handler-thread only). */
     private val reveal = RevealTracker { player.playedBytes() }
@@ -157,7 +156,6 @@ class AssistantEngine(
         initialText: String? = null,
         showInitialText: Boolean = true,
     ): Boolean {
-        inputTextWindow = ""
         // Sent once the socket is ready. Suggestion chips are visible user turns; the internal wake
         // acknowledgment directive is hidden so the transcript starts with Jarvis's spoken greeting.
         pendingInitialText = initialText?.takeIf { it.isNotBlank() }?.let {
@@ -262,14 +260,6 @@ class AssistantEngine(
         teardown()
     }
 
-    /** Immediate voice cancellation: release the mic/session without another model turn. */
-    fun cancel() {
-        if (ended) return
-        ended = true
-        teardown()
-        onEnded()
-    }
-
     // ---- hot audio path (off the orchestration thread) ---------------------------------------------
 
     /**
@@ -339,12 +329,6 @@ class AssistantEngine(
         }
         override fun onInputTranscript(textDelta: String) {
             handler.post {
-                inputTextWindow = (inputTextWindow + " " + textDelta).takeLast(120)
-                if (CancelPhrase.matches(inputTextWindow)) {
-                    ConversationHub.postNotice("Okay — stopping.")
-                    cancel()
-                    return@post
-                }
                 transcript = transcript.appendUser(textDelta)
                 publishTurns()
                 dispatch(Event.UserSpeaking)
@@ -635,14 +619,5 @@ class AssistantEngine(
 
         // The only two client timers (see ConversationState). Tunable on device.
         const val NO_SPEECH_MS = 5_000L // release the mic if the user says nothing (device-tuned 2.b)
-    }
-}
-
-/** Phrases that end an active voice turn before anything is sent to the model. */
-internal object CancelPhrase {
-    fun matches(text: String): Boolean {
-        val normalized = text.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), " ").trim()
-        return normalized == "cancel" || normalized.endsWith(" cancel") ||
-            normalized.contains("you can stop listening")
     }
 }

@@ -197,6 +197,7 @@ class LiveClient(
         // window if you ever raise that sensitivity. Tune on device.
         const val VAD_PREFIX_PADDING_MS = 300
         const val VAD_SILENCE_DURATION_MS = 600
+        const val ASSISTANT_VOICE = "Charon"
 
         /**
          * One complete text turn as the user. `turnComplete = true` finishes the user's turn so the model
@@ -231,7 +232,21 @@ class LiveClient(
             "setup",
             JSONObject().apply {
                 put("model", if (model.startsWith("models/")) model else "models/$model")
-                put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("AUDIO")))
+                put(
+                    "generationConfig",
+                    JSONObject()
+                        .put("responseModalities", JSONArray().put("AUDIO"))
+                        .put(
+                            "speechConfig",
+                            JSONObject().put(
+                                "voiceConfig",
+                                JSONObject().put(
+                                    "prebuiltVoiceConfig",
+                                    JSONObject().put("voiceName", ASSISTANT_VOICE),
+                                ),
+                            ),
+                        ),
+                )
                 put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
                 val toolsArray = JSONArray().put(JSONObject().put("googleSearch", JSONObject()))
                 if (functionDeclarations.isNotEmpty()) {

@@ -8,8 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioManager
-import android.view.KeyEvent
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -79,10 +77,6 @@ class AssistantService : Service() {
 
     @Volatile private var prewarmed = false
 
-    // Set only when a wake interrupted media that was actually playing. This lets the end of the
-    // conversation restore playback without unexpectedly starting a previously paused session.
-    private var resumeMediaAfterWake = false
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -128,7 +122,6 @@ class AssistantService : Service() {
         // notification update is pointless when the service is going away.
         engine?.stop()
         engine = null
-        resumeMediaAfterWake = false
         running = false
         detector?.close() // tear down the resident wake detector (releases its model)
         detector = null
@@ -182,20 +175,8 @@ class AssistantService : Service() {
 
     /** Silence whatever was playing before Jarvis speaks its wake acknowledgment. */
     private fun pauseExternalMediaForWake() {
-        resumeMediaAfterWake = runCatching {
-            MediaControl(applicationContext).nowPlaying().optBoolean("playing", false)
-        }.getOrDefault(false)
-        val sessionPause = runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
+        runCatching { MediaControl(applicationContext).control(MediaAction.PAUSE) }
             .onFailure { DebugLog.log("wake media pause failed: ${it.message}") }
-            .getOrNull()
-        // Only send a global key when no notification-backed session could be
-        // paused. On the Portal, dispatching a second key after a successful
-        // session pause can steal the wake/microphone handoff from Jarvis.
-        if (sessionPause == null || sessionPause.has("error")) runCatching {
-            val audio = getSystemService(AudioManager::class.java)
-            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
-        }.onFailure { DebugLog.log("wake media-key pause failed: ${it.message}") }
     }
 
     /**
@@ -206,14 +187,6 @@ class AssistantService : Service() {
         engine = null
         running = false
         startForeground(NOTIFICATION_ID, buildNotification(active = false))
-        if (resumeMediaAfterWake) {
-            resumeMediaAfterWake = false
-            // Let the assistant response audio release focus before resuming the interrupted session.
-            mainHandler.postDelayed({
-                runCatching { MediaControl(applicationContext).control(MediaAction.PLAY) }
-                    .onFailure { DebugLog.log("wake media resume failed: ${it.message}") }
-            }, 500L)
-        }
         // Re-arm foreground wake detection after a turn ends, but only if the app is still on screen; if it's
         // backgrounded the mic stays free so portal-wake (gen1) can reclaim it.
         if (UiVisibility.inForeground) enterDetection()
