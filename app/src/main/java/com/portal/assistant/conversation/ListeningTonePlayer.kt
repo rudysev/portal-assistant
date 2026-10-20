@@ -34,22 +34,24 @@ object ListeningTonePlayer {
     fun prewarm() = worker.execute { samples }
 
     /**
-     * Play the tone once, asynchronously. [onStarted] runs on the worker thread with the
-     * [SystemClock.elapsedRealtime] at which playback started — only if it did.
+     * Play the tone once, asynchronously. Exactly one callback runs, on the worker thread: [onStarted] with the
+     * [SystemClock.elapsedRealtime] at which playback started, or [onFailed] (already logged) if it couldn't play.
      */
-    fun play(onStarted: (startedAtMs: Long) -> Unit = {}) {
+    fun play(onStarted: (startedAtMs: Long) -> Unit, onFailed: () -> Unit) {
         worker.execute {
             val track = runCatching { buildTrack(samples) }.getOrElse {
                 DebugLog.log("listening tone: failed to build track: ${it.message}")
+                onFailed()
                 return@execute
             }
-            val started = runCatching {
+            val playResult = runCatching {
                 check(track.write(samples, 0, samples.size) == samples.size) { "short write" }
                 track.play()
             }
-            if (started.isFailure) {
-                DebugLog.log("listening tone: failed to play: ${started.exceptionOrNull()?.message}")
+            if (playResult.isFailure) {
+                DebugLog.log("listening tone: failed to play: ${playResult.exceptionOrNull()?.message}")
                 runCatching { track.release() }
+                onFailed()
                 return@execute
             }
             onStarted(SystemClock.elapsedRealtime())

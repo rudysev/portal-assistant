@@ -95,13 +95,15 @@ class AssistantEngine(
     @Volatile private var connectBuffering = false
 
     /**
-     * [SystemClock.elapsedRealtime] at which this conversation's Listening tone started playing; null when no tone
-     * played (or hasn't started yet). Written once on the tone player's thread, read per frame by the capture
-     * thread in [onFrame] to drop the frames inside the tone's suppression window ([ListeningTone.suppressesFrame]).
+     * This conversation's Listening tone as the mic sees it. Set to Pending in [start] before the capture thread
+     * exists, then to Started (or back to None if it failed to play) once on the tone player's thread; read per
+     * frame by the capture thread in [onFrame] to drop the frames before and inside the tone's suppression window
+     * ([ListeningTone.suppressesFrame]).
      */
-    @Volatile private var toneStartedAtMs: Long? = null
+    @Volatile private var tonePlayback: ListeningTone.Playback = ListeningTone.Playback.None
 
     /** Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log). */
+    private var tonePendingDroppedFrames = 0
     private var toneDroppedFrames = 0
     private var toneDroppedFromMs = 0L
     private var toneDroppedUntilMs = 0L
@@ -220,8 +222,12 @@ class AssistantEngine(
         // before mic.start() spawns the capture thread, so this volatile write is visible to it.
         val voiceQuery = pendingInitialText == null
         connectBuffering = voiceQuery
+        // The Listening tone is the honest "recording starts now" cue, so from the first frame nothing is sent until
+        // it has started. Set before mic.start() spawns the capture thread, like connectBuffering.
+        val playsListeningTone = listeningTonePlaysAtMicOpen(voiceQuery)
+        if (playsListeningTone) tonePlayback = ListeningTone.Playback.Pending
         mic = MicCapture { buf, n -> onFrame(buf, n) }.also { it.start() }
-        playListeningToneAtMicOpen(voiceQuery)
+        if (playsListeningTone) playListeningTone()
         player.start()
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
         player.setOnLevel { lvl ->
@@ -232,23 +238,34 @@ class AssistantEngine(
     }
 
     /**
-     * The Listening tone, played at the conversation's mic open — the honest "recording starts now" cue, since
-     * audio captured from here on is buffered and sent. Called only from [start], after the credential check, so
-     * a conversation that can't start never plays it, and a follow-up re-listen ([Action.StartForwarding]) never
-     * reaches it. The setting is read per conversation, so a change applies from the next one. Async: the mic and
-     * connect are already under way and don't wait on it.
+     * Whether this conversation's mic open plays the Listening tone. Called only from [start], after the credential
+     * check, so a conversation that can't start never plays it, and a follow-up re-listen ([Action.StartForwarding])
+     * never reaches it. The setting is read per conversation, so a change applies from the next one.
      */
-    private fun playListeningToneAtMicOpen(voiceQuery: Boolean) {
+    private fun listeningTonePlaysAtMicOpen(voiceQuery: Boolean): Boolean {
         val toneEnabled = AppPrefs.listeningToneEnabled(appContext)
-        if (!ListeningTone.playsAtMicOpen(toneEnabled, voiceQuery, conversationStart = true)) {
-            DebugLog.log("listening tone: skipped (enabled=$toneEnabled, voiceQuery=$voiceQuery)")
-            return
-        }
+        val playsTone = ListeningTone.playsAtMicOpen(toneEnabled, voiceQuery, conversationStart = true)
+        if (!playsTone) DebugLog.log("listening tone: skipped (enabled=$toneEnabled, voiceQuery=$voiceQuery)")
+        return playsTone
+    }
+
+    /**
+     * Play the Listening tone at the mic open, with [tonePlayback] already Pending. Async: the mic and connect are
+     * already under way and don't wait on it. Its start hands the capture thread the suppression window; a failure
+     * to play ends the wait, so the conversation is sent as if the tone were off.
+     */
+    private fun playListeningTone() {
         val micOpenedAtMs = SystemClock.elapsedRealtime()
-        ListeningTonePlayer.play { startedAtMs ->
-            toneStartedAtMs = startedAtMs // hand-off to the capture thread: from here, onFrame drops the tone's frames
-            DebugLog.log("listening tone: playing (+${startedAtMs - micOpenedAtMs}ms after mic open)")
-        }
+        ListeningTonePlayer.play(
+            onStarted = { startedAtMs ->
+                tonePlayback = ListeningTone.Playback.Started(startedAtMs)
+                DebugLog.log("listening tone: playing (+${startedAtMs - micOpenedAtMs}ms after mic open)")
+            },
+            onFailed = {
+                tonePlayback = ListeningTone.Playback.None
+                DebugLog.log("listening tone: didn't play; mic frames are sent again")
+            },
+        )
     }
 
     /**
@@ -287,10 +304,14 @@ class AssistantEngine(
      * While SPEAKING (half-duplex mute) drop them. On the first LISTENING frame the connect buffer is flushed in
      * capture order *before* the live frame, so the model gets the pre-Ready speech ahead of everything live.
      *
-     * First, a frame that may hold the Listening tone is dropped outright ([droppedForListeningTone]).
+     * First, a frame captured before or during the Listening tone is dropped outright ([droppedForListeningTone]).
+     * While LISTENING it still shows the orange bar (at rest), so the bar appears on time, as without the tone.
      */
     private fun onFrame(buf: ByteArray, n: Int) {
-        if (droppedForListeningTone()) return
+        if (droppedForListeningTone()) {
+            if (forwarding) overlay.setRecording(!UiVisibility.inForeground)
+            return
+        }
         if (forwarding) {
             val gained = outgoingAudio(buf, n)
             if (connectBuffering) { // first LISTENING frame: flush what we captured while connecting, in order
@@ -315,10 +336,11 @@ class AssistantEngine(
     }
 
     /**
-     * Capture-thread only. True when this frame falls in the Listening tone's suppression window, so it is neither
-     * connect-buffered nor forwarded and the voice backend never hears the tone. It also doesn't drive the level,
-     * the orange bar or the no-speech grace's local-speech signal: the tone would read as the user speaking. Those
-     * pick up on the first kept frame, a few hundred ms later.
+     * Capture-thread only. True when this frame was captured while the Listening tone is pending (mic open, tone not
+     * started yet) or falls in its suppression window, so it is neither connect-buffered nor forwarded: nothing from
+     * before the cue is sent, and the voice backend never hears the tone. It also doesn't drive the level, the
+     * orange bar's level or the no-speech grace's local-speech signal: the tone would read as the user speaking.
+     * Those pick up on the first kept frame, a few hundred ms later.
      *
      * A frame's capture span is taken as the [PcmCaptureFormat.FRAME_MS] ending now, at delivery. Delivery lags the
      * real capture by the input latency (plus ≤ one 20 ms poll), a steady offset; [ListeningTone.ECHO_TAIL_MS] was
@@ -326,20 +348,28 @@ class AssistantEngine(
      * Reports once, at the first frame kept after the window, how much was dropped.
      */
     private fun droppedForListeningTone(): Boolean {
-        val toneStartedAt = toneStartedAtMs ?: return false
+        val tone = tonePlayback
+        if (tone == ListeningTone.Playback.None) return false
         val capturedUntilMs = SystemClock.elapsedRealtime()
         val capturedFromMs = capturedUntilMs - PcmCaptureFormat.FRAME_MS
-        if (ListeningTone.suppressesFrame(toneStartedAt, capturedFromMs, capturedUntilMs)) {
-            if (toneDroppedFrames++ == 0) toneDroppedFromMs = capturedFromMs - toneStartedAt
-            toneDroppedUntilMs = capturedUntilMs - toneStartedAt
+        if (ListeningTone.suppressesFrame(tone, capturedFromMs, capturedUntilMs)) {
+            if (tone is ListeningTone.Playback.Started) {
+                if (toneDroppedFrames++ == 0) toneDroppedFromMs = capturedFromMs - tone.atMs
+                toneDroppedUntilMs = capturedUntilMs - tone.atMs
+            } else {
+                tonePendingDroppedFrames++
+            }
             return true
         }
-        if (!toneSuppressionReported && capturedUntilMs > toneStartedAt) {
+        if (!toneSuppressionReported && tone is ListeningTone.Playback.Started && capturedUntilMs > tone.atMs) {
             toneSuppressionReported = true
-            val dropped = if (toneDroppedFrames == 0) "nothing" else
+            val droppedInWindow = if (toneDroppedFrames == 0) "nothing" else
                 "$toneDroppedFrames frame(s) (${toneDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) captured " +
                     "+${toneDroppedFromMs}..+${toneDroppedUntilMs}ms after the tone started"
-            DebugLog.log("listening tone: dropped $dropped (window ${ListeningTone.suppressionWindowMs}ms)")
+            DebugLog.log(
+                "listening tone: dropped $tonePendingDroppedFrames frame(s) before the tone started, then " +
+                    "$droppedInWindow (window ${ListeningTone.suppressionWindowMs}ms)",
+            )
         }
         return false
     }

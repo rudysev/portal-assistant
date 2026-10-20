@@ -420,7 +420,10 @@ private fun SoundsSection(subtle: Color) {
             AppPrefs.setListeningToneEnabled(context, on)
             toneEnabled = on
             if (ListeningTone.previewsOnSwitch(switchedOn = on, conversationLive = conversationLive)) {
-                ListeningTonePlayer.play { DebugLog.log("listening tone: preview playing (Settings)") }
+                ListeningTonePlayer.play(
+                    onStarted = { DebugLog.log("listening tone: preview playing (Settings)") },
+                    onFailed = {}, // the player logs it; a preview has nothing to undo
+                )
             } else if (on) {
                 DebugLog.log("listening tone: preview skipped (conversation live)")
             }

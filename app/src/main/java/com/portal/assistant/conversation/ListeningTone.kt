@@ -65,15 +65,31 @@ object ListeningTone {
     /** How long after the tone starts mic audio is dropped: the whole tone plus its [ECHO_TAIL_MS]. */
     val suppressionWindowMs: Long get() = DURATION_MS + ECHO_TAIL_MS
 
+    /** Where this conversation's tone is, as the mic sees it — decides which frames [suppressesFrame] drops. */
+    sealed interface Playback {
+        /** No tone this conversation (setting off, a chip, or it failed to play): nothing is dropped. */
+        data object None : Playback
+
+        /** The mic is open but the tone hasn't started yet: every frame is dropped — none was captured after the cue. */
+        data object Pending : Playback
+
+        /** The tone started at [atMs]: frames overlapping its suppression window are dropped. */
+        data class Started(val atMs: Long) : Playback
+    }
+
     /**
      * Whether a mic frame captured over [frameCapturedFromMs, frameCapturedUntilMs) must be dropped from the
-     * recording because it may hold the tone: true when that span overlaps the suppression window starting at
-     * [toneStartedAtMs]. A null [toneStartedAtMs] means no tone played, so nothing is dropped.
+     * recording: always while the tone is [Playback.Pending] (the user hasn't heard the cue, so nothing captured
+     * then may be sent); once [Playback.Started], when that span overlaps the suppression window; never for
+     * [Playback.None].
      */
-    fun suppressesFrame(toneStartedAtMs: Long?, frameCapturedFromMs: Long, frameCapturedUntilMs: Long): Boolean =
-        toneStartedAtMs != null &&
-            frameCapturedUntilMs > toneStartedAtMs &&
-            frameCapturedFromMs < toneStartedAtMs + suppressionWindowMs
+    fun suppressesFrame(tone: Playback, frameCapturedFromMs: Long, frameCapturedUntilMs: Long): Boolean =
+        when (tone) {
+            Playback.None -> false
+            Playback.Pending -> true
+            is Playback.Started ->
+                frameCapturedUntilMs > tone.atMs && frameCapturedFromMs < tone.atMs + suppressionWindowMs
+        }
 
     // --- Synthesis: what the tone sounds like ---
 
