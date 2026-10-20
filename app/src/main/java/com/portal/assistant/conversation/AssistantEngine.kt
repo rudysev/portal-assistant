@@ -3,6 +3,7 @@ package com.portal.assistant.conversation
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmGain
 import com.portal.assistant.audio.PcmPlayer
@@ -92,6 +93,19 @@ class AssistantEngine(
 
     /** True only for the initial connect window: [onFrame] buffers frames instead of dropping until the first forward. */
     @Volatile private var connectBuffering = false
+
+    /**
+     * [SystemClock.elapsedRealtime] at which this conversation's Listening tone started playing; null when no tone
+     * played (or hasn't started yet). Written once on the tone player's thread, read per frame by the capture
+     * thread in [onFrame] to drop the frames inside the tone's suppression window ([ListeningTone.suppressesFrame]).
+     */
+    @Volatile private var toneStartedAtMs: Long? = null
+
+    /** Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log). */
+    private var toneDroppedFrames = 0
+    private var toneDroppedFromMs = 0L
+    private var toneDroppedUntilMs = 0L
+    private var toneSuppressionReported = false
 
     private var ended = false
 
@@ -204,8 +218,10 @@ class AssistantEngine(
         // speech, so buffering would just flush connect-window noise alongside it (and the chip path stays
         // identical to pre-buffer behaviour). pendingInitialText (set above) is non-null only for a chip. Set
         // before mic.start() spawns the capture thread, so this volatile write is visible to it.
-        connectBuffering = pendingInitialText == null
+        val voiceQuery = pendingInitialText == null
+        connectBuffering = voiceQuery
         mic = MicCapture { buf, n -> onFrame(buf, n) }.also { it.start() }
+        playListeningToneAtMicOpen(voiceQuery)
         player.start()
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
         player.setOnLevel { lvl ->
@@ -213,6 +229,26 @@ class AssistantEngine(
             if (reveal.recompute(latestModelText())) publishTurns() // pace reveal to audio actually played
         }
         return true
+    }
+
+    /**
+     * The Listening tone, played at the conversation's mic open — the honest "recording starts now" cue, since
+     * audio captured from here on is buffered and sent. Called only from [start], after the credential check, so
+     * a conversation that can't start never plays it, and a follow-up re-listen ([Action.StartForwarding]) never
+     * reaches it. The setting is read per conversation, so a change applies from the next one. Async: the mic and
+     * connect are already under way and don't wait on it.
+     */
+    private fun playListeningToneAtMicOpen(voiceQuery: Boolean) {
+        val toneEnabled = AppPrefs.listeningToneEnabled(appContext)
+        if (!ListeningTone.playsAtMicOpen(toneEnabled, voiceQuery, conversationStart = true)) {
+            DebugLog.log("listening tone: skipped (enabled=$toneEnabled, voiceQuery=$voiceQuery)")
+            return
+        }
+        val micOpenedAtMs = SystemClock.elapsedRealtime()
+        ListeningTonePlayer.play { startedAtMs ->
+            toneStartedAtMs = startedAtMs // hand-off to the capture thread: from here, onFrame drops the tone's frames
+            DebugLog.log("listening tone: playing (+${startedAtMs - micOpenedAtMs}ms after mic open)")
+        }
     }
 
     /**
@@ -250,8 +286,11 @@ class AssistantEngine(
      * connectBuffering is false), buffer frames (so the opening words aren't clipped) instead of dropping them.
      * While SPEAKING (half-duplex mute) drop them. On the first LISTENING frame the connect buffer is flushed in
      * capture order *before* the live frame, so the model gets the pre-Ready speech ahead of everything live.
+     *
+     * First, a frame that may hold the Listening tone is dropped outright ([droppedForListeningTone]).
      */
     private fun onFrame(buf: ByteArray, n: Int) {
+        if (droppedForListeningTone()) return
         if (forwarding) {
             val gained = outgoingAudio(buf, n)
             if (connectBuffering) { // first LISTENING frame: flush what we captured while connecting, in order
@@ -273,6 +312,36 @@ class AssistantEngine(
             bufferConnectFrame(outgoingAudio(buf, n))
         }
         // else: SPEAKING half-duplex mute — drop (buffering here would capture/echo the model's own turn).
+    }
+
+    /**
+     * Capture-thread only. True when this frame falls in the Listening tone's suppression window, so it is neither
+     * connect-buffered nor forwarded and the voice backend never hears the tone. It also doesn't drive the level,
+     * the orange bar or the no-speech grace's local-speech signal: the tone would read as the user speaking. Those
+     * pick up on the first kept frame, a few hundred ms later.
+     *
+     * A frame's capture span is taken as the [PcmCaptureFormat.FRAME_MS] ending now, at delivery. Delivery lags the
+     * real capture by the input latency (plus ≤ one 20 ms poll), a steady offset; [ListeningTone.ECHO_TAIL_MS] was
+     * measured on this same clock and stamping, so the window lines up with where the tone really lands in frames.
+     * Reports once, at the first frame kept after the window, how much was dropped.
+     */
+    private fun droppedForListeningTone(): Boolean {
+        val toneStartedAt = toneStartedAtMs ?: return false
+        val capturedUntilMs = SystemClock.elapsedRealtime()
+        val capturedFromMs = capturedUntilMs - PcmCaptureFormat.FRAME_MS
+        if (ListeningTone.suppressesFrame(toneStartedAt, capturedFromMs, capturedUntilMs)) {
+            if (toneDroppedFrames++ == 0) toneDroppedFromMs = capturedFromMs - toneStartedAt
+            toneDroppedUntilMs = capturedUntilMs - toneStartedAt
+            return true
+        }
+        if (!toneSuppressionReported && capturedUntilMs > toneStartedAt) {
+            toneSuppressionReported = true
+            val dropped = if (toneDroppedFrames == 0) "nothing" else
+                "$toneDroppedFrames frame(s) (${toneDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) captured " +
+                    "+${toneDroppedFromMs}..+${toneDroppedUntilMs}ms after the tone started"
+            DebugLog.log("listening tone: dropped $dropped (window ${ListeningTone.suppressionWindowMs}ms)")
+        }
+        return false
     }
 
     /** Capture-thread only. Append a connect-phase frame; drop the oldest past the cap (keep the most recent). */

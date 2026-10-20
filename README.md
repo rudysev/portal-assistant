@@ -66,6 +66,8 @@ key hide; the host owns the model.
   So on Gen 1 install `portal-wake` for hands-free anywhere; on Gen 2 hands-free works whenever Jarvis is on
   screen, and you tap to talk when it isn't.
 - **Tap to talk** — open the app and tap to start a turn directly, on any setup.
+- **Listening tone** — a soft tone plays the moment Jarvis starts listening (wake word or tap to talk), so you
+  know it heard you without looking. Turn it off in **Settings → Sounds**.
 - **Multi-turn** — after each answer Jarvis keeps listening for a follow-up; the conversation ends on its
   own when you stop talking. No need to repeat the wake word for each question.
 - **Knows where and when it is** — every conversation is pre-loaded with the device's local

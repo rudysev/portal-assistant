@@ -66,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.portal.assistant.conversation.ConversationHub
+import com.portal.assistant.conversation.ListeningTone
+import com.portal.assistant.conversation.ListeningTonePlayer
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
@@ -85,6 +87,7 @@ import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.Radii
 import com.portal.assistant.ui.theme.SecondaryAlpha
 import com.portal.assistant.ui.theme.TextSize
+import com.portal.commons.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -93,8 +96,8 @@ import kotlinx.coroutines.withContext
 /**
  * The app's settings surface: **backend** (Gemini cloud vs a local voice host on the LAN), the **API key**
  * when Gemini is selected (BYOD — paste or type + verify), the **model** picker and the **voice** (Speaker)
- * picker (Gemini only), the **local host address** (Local only), the **location** used for weather / "near me" answers, and the **external
- * tools** allowlist. Changes apply to the **next** conversation (device context, model, and tool
+ * picker (Gemini only), the **local host address** (Local only), the **location** used for weather / "near me" answers, the default music app,
+ * **sounds** (the Listening tone switch), and the **external tools** allowlist. Changes apply to the **next** conversation (device context, model, and tool
  * declarations are fixed at session start).
  *
  * Location is auto-detected once via IP geolocation on first install. The field is pre-filled from the
@@ -267,6 +270,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.size(36.dp))
+            SoundsSection(subtle = subtle)
+
+            Spacer(Modifier.size(36.dp))
             Text("Location", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.size(4.dp))
             Text("Used for weather and other location-aware answers.", color = subtle, fontSize = TextSize.Body)
@@ -368,53 +374,108 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("No tool provider apps installed.", color = subtle, fontSize = TextSize.Body)
             } else {
                 providers.forEach { p ->
-                    // Each provider is one bounded row (surface-tinted) so the label and its switch read as a
-                    // single tappable unit across the wide gap — not a label stranded far from its control.
                     // Under the app name we say what it actually adds, in plain words — the provider's own
                     // required one-sentence summary (ToolContract.META_SUMMARY) — not the reverse-domain tool
                     // ids, which meant nothing to a user.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                            .clip(RoundedCornerShape(Radii.Card))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(p.label, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ToolLabel, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.size(2.dp))
-                            Text(
-                                p.summary,
-                                color = subtle,
-                                fontSize = TextSize.Meta,
-                                lineHeight = TextSize.Body,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        Switch(
-                            checked = p.enabled,
-                            onCheckedChange = { on ->
-                                AppPrefs.setProviderEnabled(context, p.pkg, on)
-                                providers = providers.map { if (it.pkg == p.pkg) it.copy(enabled = on) else it }
-                            },
-                            colors = SwitchDefaults.colors(
-                                // On = warm orange track with a clean white thumb (the conventional, on-brand
-                                // look). Off = muted surface, so the control reads against the near-black bg.
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Accent,
-                                checkedBorderColor = Color.Transparent,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surface,
-                                uncheckedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
-                            ),
-                        )
-                    }
+                    SettingsSwitchRow(
+                        title = p.label,
+                        subtitle = p.summary,
+                        checked = p.enabled,
+                        onCheckedChange = { on ->
+                            AppPrefs.setProviderEnabled(context, p.pkg, on)
+                            providers = providers.map { if (it.pkg == p.pkg) it.copy(enabled = on) else it }
+                        },
+                        subtle = subtle,
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * The **Sounds** section: one switch for the **Listening tone** ([AppPrefs.listeningToneEnabled], default on; the
+ * engine reads it at each conversation's start, so a change applies from the next one). Switching it on plays the
+ * tone once as a preview; off is silent; and no preview plays while a conversation is live
+ * ([ListeningTone.previewsOnSwitch]) — the mic is open, and the preview would be recorded and sent.
+ */
+@Composable
+private fun SoundsSection(subtle: Color) {
+    val context = LocalContext.current
+    var toneEnabled by remember { mutableStateOf(AppPrefs.listeningToneEnabled(context)) }
+    // Plain collectAsState, like the Speaker preview: a conversation that starts while Settings is open (gen2 wake
+    // word) must still suppress the preview.
+    val conversation by ConversationHub.session.collectAsState()
+    val conversationLive = conversation.phase != ConversationHub.UiPhase.IDLE
+
+    Text("Sounds", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.size(4.dp))
+    Text("Cues Jarvis plays, at the same volume as its voice.", color = subtle, fontSize = TextSize.Body)
+    Spacer(Modifier.size(14.dp))
+    SettingsSwitchRow(
+        title = "Listening tone",
+        subtitle = "Play a soft tone when Jarvis starts listening",
+        checked = toneEnabled,
+        onCheckedChange = { on ->
+            AppPrefs.setListeningToneEnabled(context, on)
+            toneEnabled = on
+            if (ListeningTone.previewsOnSwitch(switchedOn = on, conversationLive = conversationLive)) {
+                ListeningTonePlayer.play { DebugLog.log("listening tone: preview playing (Settings)") }
+            } else if (on) {
+                DebugLog.log("listening tone: preview skipped (conversation live)")
+            }
+        },
+        subtle = subtle,
+    )
+}
+
+/**
+ * One labelled switch. A bounded, surface-tinted row so the label and its switch read as a single tappable unit
+ * across the wide gap — not a label stranded far from its control.
+ */
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    subtle: Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(Radii.Card))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ToolLabel, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.size(2.dp))
+            Text(
+                subtitle,
+                color = subtle,
+                fontSize = TextSize.Meta,
+                lineHeight = TextSize.Body,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                // On = warm orange track with a clean white thumb (the conventional, on-brand look). Off = muted
+                // surface, so the control reads against the near-black bg.
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Accent,
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                uncheckedTrackColor = MaterialTheme.colorScheme.surface,
+                uncheckedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+            ),
+        )
     }
 }
 

@@ -47,6 +47,10 @@ object AppPrefs {
     // at the injection site; this stores only the user-entered value.
     const val KEY_API = "gemini_api_key"
 
+    // Listening tone — whether a voice conversation's start plays the Listening tone (Settings → Sounds).
+    // On by default: an absent key means on.
+    const val KEY_LISTENING_TONE = "sounds_listening_tone"
+
     fun prefs(context: Context): SharedPreferences = context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
     /** The selected model id, or [GeminiModel.ID] if unset or no longer offered. Self-heals: a saved id that
@@ -100,6 +104,14 @@ object AppPrefs {
         val edit = prefs(context).edit()
         if (pkg.isNullOrBlank()) edit.remove(KEY_DEFAULT_MUSIC_PKG) else edit.putString(KEY_DEFAULT_MUSIC_PKG, pkg)
         edit.apply()
+    }
+
+    /** Whether the Listening tone plays when a voice conversation starts; true unless the user turned it off. */
+    fun listeningToneEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_LISTENING_TONE, true)
+
+    /** Turn the Listening tone on or off (applies to the next conversation). */
+    fun setListeningToneEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_LISTENING_TONE, enabled).apply()
     }
 
     /** The user's stored Gemini API key, trimmed, or null if unset/blank. The injection site

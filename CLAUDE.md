@@ -67,8 +67,11 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one
   "introduce yourself" text turn, its own `PcmPlayer`; one preview at a time, stopped when the dialog closes,
   paused while a conversation is live — independent of the engine; a preview that played to completion is
-  kept in memory for that dialog open, so re-tapping its row replays it with no session), default-music-app
-  picker, location override, external-tool toggles.
+  kept in memory for that dialog open, so re-tapping its row replays it with no session), a **Sounds** section
+  right after the backend/API-key sections, shown for both backends (the Listening tone switch —
+  `AppPrefs.listeningToneEnabled`, default on; switching it on previews the tone via `ListeningTonePlayer`, off
+  is silent, and no preview plays while a conversation is live — pure `ListeningTone.previewsOnSwitch`), location
+  override, default-music-app picker, external-tool toggles (shared `SettingsSwitchRow`).
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the
   engine publishes `session: StateFlow<ConversationSession>` (id, phase, turns) + a high-frequency
@@ -125,7 +128,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   user-facing `ConversationHub.notice` (`surfaceDisconnect`; message picked by `connectedOk` + `NetworkStatus`).
   Session system instruction is assembled by pure [SessionPrompt] (built-in [SystemPrompt] + enabled external-
   provider bullets from the same [ExternalToolSpec.parse] pass as tool declarations + [SystemContext] +
-  [ResumeContext] on tap-to-talk resume).
+  [ResumeContext] on tap-to-talk resume). The **Listening tone** plays at the conversation's mic open in `start()`
+  (only there — never on a follow-up re-listen), gated by the pure `ListeningTone.playsAtMicOpen` (setting on +
+  voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes;
+  the setting is `AppPrefs.listeningToneEnabled` (default on), read per conversation. Frames overlapping the tone's
+  suppression window (tone start + `DURATION_MS` + device-measured `ECHO_TAIL_MS`, pure `ListeningTone.suppressesFrame`)
+  are dropped at the top of `onFrame` — not connect-buffered, forwarded, or levelled (`droppedForListeningTone`).
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied in `Transcript.appendModel` (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
