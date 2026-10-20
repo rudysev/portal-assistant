@@ -83,9 +83,10 @@ interface VoiceBackend {
 /**
  * Model-neutral inputs for one session, passed to every [VoiceBackendFactory]. Fields are not uniform
  * across backends — each factory reads the slice it needs and ignores the rest:
- *  - **Gemini:** [credential] = API key, [model] required, [gemini] wire options, [local] ignored.
- *  - **Local:** [credential] = canonical `wss://` host URL, [model] ignored, [local] wire options,
- *    [gemini] ignored.
+ *  - **Gemini:** [credential] = API key, [model] required, [speaker] = the Chosen speaker's name (null =
+ *    Server default), [gemini] wire options, [local] ignored.
+ *  - **Local:** [credential] = canonical `wss://` host URL, [model] and [speaker] ignored, [local] wire
+ *    options, [gemini] ignored.
  *
  * Shared: [systemPrompt], [functionDeclarations]. [kind] tags which factory was selected so adapters
  * can assert or branch without guessing from [credential] shape.
@@ -93,6 +94,7 @@ interface VoiceBackend {
 data class BackendConfig(
     val credential: String?,
     val model: String,
+    val speaker: String? = null,
     val systemPrompt: String,
     val functionDeclarations: List<JSONObject> = emptyList(),
     val kind: AppPrefs.VoiceBackendKind = AppPrefs.VoiceBackendKind.GEMINI,

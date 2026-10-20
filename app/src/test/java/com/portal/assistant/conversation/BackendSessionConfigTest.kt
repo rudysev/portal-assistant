@@ -5,6 +5,7 @@ import com.portal.assistant.conversation.backend.LocalWireOptions
 import com.portal.assistant.system.AppPrefs
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BackendSessionConfigTest {
@@ -47,4 +48,35 @@ class BackendSessionConfigTest {
         assertEquals("gemini-2.5-flash-native-audio-latest", config.model)
         assertEquals(AppPrefs.VoiceBackendKind.GEMINI, config.kind)
     }
+
+    @Test
+    fun `build carries the chosen speaker`() {
+        val config = BackendSessionConfig.build(
+            choice = geminiChoice(),
+            model = "m",
+            speaker = "Kore",
+            systemPrompt = "p",
+            functionDeclarations = emptyList(),
+        )
+        assertEquals("Kore", config.speaker)
+    }
+
+    @Test
+    fun `build carries server default as no speaker`() {
+        val config = BackendSessionConfig.build(
+            choice = geminiChoice(),
+            model = "m",
+            speaker = null,
+            systemPrompt = "p",
+            functionDeclarations = emptyList(),
+        )
+        assertNull(config.speaker)
+    }
+
+    private fun geminiChoice() = Backends.resolveChoice(
+        selected = AppPrefs.VoiceBackendKind.GEMINI,
+        storedApiKey = "key",
+        storedLocalWssUrl = null,
+        devApiKey = "",
+    )
 }

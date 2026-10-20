@@ -193,6 +193,7 @@ class AssistantEngine(
             BackendSessionConfig.build(
                 choice = backendChoice,
                 model = AppPrefs.modelId(appContext),
+                speaker = AppPrefs.speakerId(appContext), // Chosen speaker (null = Server default); Local ignores it
                 systemPrompt = systemPrompt,
                 functionDeclarations = toolRegistry.declarations(),
             ),

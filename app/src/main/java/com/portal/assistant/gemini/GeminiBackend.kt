@@ -6,8 +6,8 @@ import com.portal.assistant.conversation.backend.VoiceBackendFactory
 
 /**
  * Adapts the neutral [BackendConfig] onto [LiveClient]'s constructor — the generic
- * [BackendConfig.credential] is Gemini's API key; [BackendConfig.gemini] carries wire options (endpoint
- * override when added). Selected in [Backends][com.portal.assistant.conversation.backend.Backends].
+ * [BackendConfig.credential] is Gemini's API key; [BackendConfig.speaker] is the Chosen speaker (null =
+ * Server default); [BackendConfig.gemini] carries wire options (endpoint override when added). Selected in [Backends][com.portal.assistant.conversation.backend.Backends].
  */
 object GeminiBackend {
 
@@ -27,6 +27,7 @@ object GeminiBackend {
                 model = config.model,
                 systemPrompt = config.systemPrompt,
                 functionDeclarations = config.functionDeclarations,
+                speaker = config.speaker,
                 wsBase = endpoint,
                 listener = listener,
             )

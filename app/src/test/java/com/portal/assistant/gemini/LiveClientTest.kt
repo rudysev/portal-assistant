@@ -143,6 +143,27 @@ class LiveClientTest {
         assertEquals(LiveClient.VAD_SILENCE_DURATION_MS, vad.getInt("silenceDurationMs"))
     }
 
+    @Test fun serverDefaultSetupHasNoSpeechConfig() {
+        // No Speaker chosen → the setup is exactly what it was before Speakers existed: Gemini picks its voice.
+        val withNull = LiveClient.buildSetup("m", "p", emptyList(), speaker = null)
+        assertEquals(LiveClient.buildSetup("m", "p", emptyList()), withNull)
+        val generationConfig = JSONObject(withNull).getJSONObject("setup").getJSONObject("generationConfig")
+        assertFalse(generationConfig.has("speechConfig"))
+        assertEquals(setOf("responseModalities"), generationConfig.keys().asSequence().toSet())
+    }
+
+    @Test fun chosenSpeakerSetsThePrebuiltVoiceName() {
+        val generationConfig = JSONObject(LiveClient.buildSetup("m", "p", emptyList(), speaker = "Charon"))
+            .getJSONObject("setup").getJSONObject("generationConfig")
+        assertEquals(
+            "Charon",
+            generationConfig.getJSONObject("speechConfig").getJSONObject("voiceConfig")
+                .getJSONObject("prebuiltVoiceConfig").getString("voiceName"),
+        )
+        // The Speaker rides alongside the audio modality, not instead of it.
+        assertEquals("AUDIO", generationConfig.getJSONArray("responseModalities").getString(0))
+    }
+
     @Test fun setupKeepsExistingModelsPrefix() {
         val setup = JSONObject(LiveClient.buildSetup("models/foo", "x")).getJSONObject("setup")
         assertEquals("models/foo", setup.getString("model"))

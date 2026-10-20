@@ -36,6 +36,7 @@ class LiveClient(
     private val model: String,
     private val systemPrompt: String,
     private val functionDeclarations: List<JSONObject> = emptyList(),
+    private val speaker: String? = null,
     private val wsBase: String = WS_BASE,
     private val listener: VoiceBackend.Listener,
 ) : VoiceBackend {
@@ -49,6 +50,9 @@ class LiveClient(
     @Volatile private var ws: WebSocket? = null
 
     @Volatile private var setupDone = false
+
+    /** The `setup` frame this session opens with — [buildSetup] over this client's inputs. */
+    internal fun setupMessage(): String = buildSetup(model, systemPrompt, functionDeclarations, speaker)
 
     override fun connect() {
         if (apiKey.isBlank()) {
@@ -109,7 +113,7 @@ class LiveClient(
 
     private val socketListener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            val setup = buildSetup(model, systemPrompt, functionDeclarations)
+            val setup = setupMessage()
             DebugLog.log("live ws open http=${response.code} -> setup ${setup.length}b")
             webSocket.send(setup)
         }
@@ -221,17 +225,30 @@ class LiveClient(
          * instruction, `googleSearch` grounding plus optional [functionDeclarations] (never emits
          * an empty `functionDeclarations` array — the Live API rejects it), input- and output-audio
          * transcription (drives the user-speech signal and the model's word-by-word chat text), and
-         * the server VAD config.
+         * the server VAD config. A chosen [speaker] (a [GeminiSpeaker] name) adds
+         * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`; null = Server default, which leaves
+         * `speechConfig` out entirely so Gemini picks its own voice.
          */
         fun buildSetup(
             model: String,
             systemPrompt: String,
             functionDeclarations: List<JSONObject> = emptyList(),
+            speaker: String? = null,
         ): String = JSONObject().put(
             "setup",
             JSONObject().apply {
                 put("model", if (model.startsWith("models/")) model else "models/$model")
-                put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("AUDIO")))
+                val generationConfig = JSONObject().put("responseModalities", JSONArray().put("AUDIO"))
+                if (speaker != null) {
+                    generationConfig.put(
+                        "speechConfig",
+                        JSONObject().put(
+                            "voiceConfig",
+                            JSONObject().put("prebuiltVoiceConfig", JSONObject().put("voiceName", speaker)),
+                        ),
+                    )
+                }
+                put("generationConfig", generationConfig)
                 put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
                 val toolsArray = JSONArray().put(JSONObject().put("googleSearch", JSONObject()))
                 if (functionDeclarations.isNotEmpty()) {
