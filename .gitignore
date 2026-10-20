@@ -46,6 +46,8 @@ system_services.apk
 docs/*
 # ...but README assets (e.g. the Buy Me a Coffee button) are published.
 !docs/img/
+# ...and the agent-skills config CLAUDE.md points at.
+!docs/agents/
 
 # portal-gemini-chat specifics (kept from the original .gitignore)
 build/

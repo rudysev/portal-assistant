@@ -259,3 +259,17 @@ were adapted from `portal-gemini-chat` (proven on-device), then **simplified**: 
 **per-conversation** Live connection (the reference's persistent socket forced session-recycle/stale-guard
 machinery + ~10 timers + a CAS latch — all dropped). `ConversationState`, `AssistantEngine`, and `PcmGain`
 are new here. `PcmLevel`/`DebugLog` live in `portal-commons`; the wake contract is portal-wake's.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown under `.scratch/<feature>/` (one file per ticket in `issues/`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as a `Status:` line in each ticket. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
