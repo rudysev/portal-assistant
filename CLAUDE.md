@@ -60,7 +60,15 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   process-wide `conversation/tools/TimerStore`; ✕ to cancel). **Failures** (offline / couldn't-connect /
   connection-lost / missing key / mic-permission denied) surface as a dismissible `NoticeBanner` via
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
-  (`ui/SettingsScreen`): model picker, default-music-app picker, location override, external-tool toggles.
+  (`ui/SettingsScreen`): model picker, voice picker (Gemini only — the Chosen speaker from the
+  `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
+  `LiveClient.buildSetup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
+  it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's `LiveClient` setup) driven by the thin
+  `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one
+  "introduce yourself" text turn, its own `PcmPlayer`; one preview at a time, stopped when the dialog closes,
+  paused while a conversation is live — independent of the engine; a preview that played to completion is
+  kept in memory for that dialog open, so re-tapping its row replays it with no session), default-music-app
+  picker, location override, external-tool toggles.
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the
   engine publishes `session: StateFlow<ConversationSession>` (id, phase, turns) + a high-frequency
@@ -75,7 +83,9 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   from the *audio actually played* (`RevealProgress.wordsToShow` = played÷received bytes → words) and stamps
   `Turn.revealedWords`; the UI shows that many words while SPEAKING, then snaps to full text, each new word
   fading in once (`RevealingModelText`, sliced by `RevealProgress.wordRanges`). Looping decorative
-  animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`).
+  animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
+  Voice dialog's loading spinner is information, not decoration, so `ui/Motion.LoadingSpinner` turns on the
+  raw frame clock, which that setting (which freezes Material's indeterminate spinner) doesn't scale.
   **Deferred:** better ASR accuracy; weather glance.
 
 ## Architecture (the conversation — Phase 2.a)

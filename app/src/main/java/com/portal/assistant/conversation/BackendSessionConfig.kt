@@ -10,12 +10,14 @@ object BackendSessionConfig {
     fun build(
         choice: Backends.Choice,
         model: String,
+        speaker: String? = null,
         systemPrompt: String,
         functionDeclarations: List<JSONObject>,
     ): BackendConfig = choice.defaultWire.applyTo(
         BackendConfig(
             credential = choice.credential,
             model = model,
+            speaker = speaker,
             systemPrompt = systemPrompt,
             functionDeclarations = functionDeclarations,
             kind = choice.kind,

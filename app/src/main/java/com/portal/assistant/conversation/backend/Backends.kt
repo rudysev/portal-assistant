@@ -75,6 +75,15 @@ object Backends {
         devApiKey = BuildConfig.GEMINI_API_KEY,
     )
 
+    /** The Gemini API key a Gemini conversation would use (blank = none), whichever backend is selected — the
+     *  same rule as [resolve]. Settings' Speaker previews connect with it. */
+    fun geminiApiKey(context: Context): String = resolveChoice(
+        selected = AppPrefs.VoiceBackendKind.GEMINI,
+        storedApiKey = AppPrefs.apiKey(context),
+        storedLocalWssUrl = null,
+        devApiKey = BuildConfig.GEMINI_API_KEY,
+    ).credential
+
     /**
      * Pure resolution of backend + credential — extracted for unit tests (no Android [Context] needed).
      */

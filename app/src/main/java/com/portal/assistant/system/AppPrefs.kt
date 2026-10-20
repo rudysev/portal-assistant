@@ -3,6 +3,7 @@ package com.portal.assistant.system
 import android.content.Context
 import android.content.SharedPreferences
 import com.portal.assistant.gemini.GeminiModel
+import com.portal.assistant.gemini.GeminiSpeaker
 import com.portal.commons.DebugLog
 import java.io.File
 
@@ -32,6 +33,10 @@ object AppPrefs {
     // Model — the Gemini model the assistant runs (Settings → Model). Defaults to GeminiModel.ID.
     const val KEY_MODEL = "model_id"
 
+    // Speaker — the Chosen speaker the Gemini voice backend talks with (Settings → Voice). Unset = Server
+    // default (Gemini picks its own voice). Holds only GeminiSpeaker catalog names; the Local backend ignores it.
+    const val KEY_SPEAKER = "gemini_speaker"
+
     // Default music app (Settings → Default music app) — the package play_music targets when the user
     // doesn't name an app. Unset → resolved at play time (sole music app, else Spotify). Self-heals if the
     // pick is uninstalled.
@@ -58,6 +63,26 @@ object AppPrefs {
     fun setModelId(context: Context, id: String) {
         if (id !in GeminiModel.AVAILABLE) return
         prefs(context).edit().putString(KEY_MODEL, id).apply()
+    }
+
+    /** The Chosen speaker's name, or null for Server default — also when the saved name is no longer in
+     *  [GeminiSpeaker.AVAILABLE]. Self-heals: an orphaned name is cleared so prefs never retain it. */
+    fun speakerId(context: Context): String? {
+        val saved = prefs(context).getString(KEY_SPEAKER, null) ?: return null
+        GeminiSpeaker.find(saved)?.let { return it.name }
+        prefs(context).edit().remove(KEY_SPEAKER).apply() // orphan from a catalog change — drop it
+        return null
+    }
+
+    /** Persist the Chosen speaker (applies to the next conversation), or return to Server default with null.
+     *  Ignores names outside the catalog so prefs always match the read contract. */
+    fun setSpeakerId(context: Context, name: String?) {
+        if (name == null) {
+            prefs(context).edit().remove(KEY_SPEAKER).apply()
+            return
+        }
+        if (GeminiSpeaker.find(name) == null) return
+        prefs(context).edit().putString(KEY_SPEAKER, name).apply()
     }
 
     /** The user's chosen default music app package, or null if unset — or if the pick is no longer installed

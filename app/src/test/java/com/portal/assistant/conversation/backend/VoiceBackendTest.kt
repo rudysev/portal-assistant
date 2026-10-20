@@ -7,6 +7,7 @@ import com.portal.assistant.gemini.GeminiBackend
 import com.portal.assistant.gemini.LiveClient
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -156,6 +157,28 @@ class VoiceBackendTest {
             RecordingListener(),
         )
         assertTrue("Gemini backend should be a LiveClient", backend is LiveClient)
+    }
+
+    @Test
+    fun `Gemini adapter speaks with the chosen speaker`() {
+        val backend = GeminiBackend.Factory.create(
+            BackendConfig(credential = "key", model = "m", speaker = "Charon", systemPrompt = "p"),
+            RecordingListener(),
+        ) as LiveClient
+        val voiceName = JSONObject(backend.setupMessage()).getJSONObject("setup").getJSONObject("generationConfig")
+            .getJSONObject("speechConfig").getJSONObject("voiceConfig")
+            .getJSONObject("prebuiltVoiceConfig").getString("voiceName")
+        assertEquals("Charon", voiceName)
+    }
+
+    @Test
+    fun `Gemini adapter leaves server default to Gemini`() {
+        val backend = GeminiBackend.Factory.create(
+            BackendConfig(credential = "key", model = "m", speaker = null, systemPrompt = "p"),
+            RecordingListener(),
+        ) as LiveClient
+        val generationConfig = JSONObject(backend.setupMessage()).getJSONObject("setup").getJSONObject("generationConfig")
+        assertFalse(generationConfig.has("speechConfig"))
     }
 
     @Test
