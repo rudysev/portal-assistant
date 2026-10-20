@@ -104,9 +104,9 @@ class AssistantEngine(
 
     /** Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log). */
     private var tonePendingDroppedFrames = 0
-    private var toneDroppedFrames = 0
-    private var toneDroppedFromMs = 0L
-    private var toneDroppedUntilMs = 0L
+    private var toneWindowDroppedFrames = 0
+    private var toneWindowDroppedFromMs = 0L
+    private var toneWindowDroppedUntilMs = 0L
     private var toneSuppressionReported = false
 
     private var ended = false
@@ -337,41 +337,49 @@ class AssistantEngine(
 
     /**
      * Capture-thread only. True when this frame was captured while the Listening tone is pending (mic open, tone not
-     * started yet) or falls in its suppression window, so it is neither connect-buffered nor forwarded: nothing from
-     * before the cue is sent, and the voice backend never hears the tone. It also doesn't drive the level, the
+     * started yet) or before its suppression window ends, so it is neither connect-buffered nor forwarded: nothing
+     * from before the cue is sent, and the voice backend never hears the tone. It also doesn't drive the level, the
      * orange bar's level or the no-speech grace's local-speech signal: the tone would read as the user speaking.
      * Those pick up on the first kept frame, a few hundred ms later.
      *
      * A frame's capture span is taken as the [PcmCaptureFormat.FRAME_MS] ending now, at delivery. Delivery lags the
      * real capture by the input latency (plus ≤ one 20 ms poll), a steady offset; [ListeningTone.ECHO_TAIL_MS] was
      * measured on this same clock and stamping, so the window lines up with where the tone really lands in frames.
-     * Reports once, at the first frame kept after the window, how much was dropped.
+     * Reports once, at the first frame kept after the window (or after a tone that failed to play), how much was
+     * dropped.
      */
     private fun droppedForListeningTone(): Boolean {
-        val tone = tonePlayback
-        if (tone == ListeningTone.Playback.None) return false
+        val tonePlaybackNow = tonePlayback
         val capturedUntilMs = SystemClock.elapsedRealtime()
         val capturedFromMs = capturedUntilMs - PcmCaptureFormat.FRAME_MS
-        if (ListeningTone.suppressesFrame(tone, capturedFromMs, capturedUntilMs)) {
-            if (tone is ListeningTone.Playback.Started) {
-                if (toneDroppedFrames++ == 0) toneDroppedFromMs = capturedFromMs - tone.atMs
-                toneDroppedUntilMs = capturedUntilMs - tone.atMs
-            } else {
-                tonePendingDroppedFrames++
+        val dropped = ListeningTone.suppressesFrame(tonePlaybackNow, capturedFromMs)
+        when (tonePlaybackNow) { // bookkeeping for the log only; the rule is suppressesFrame's
+            ListeningTone.Playback.None ->
+                if (tonePendingDroppedFrames > 0) reportToneSuppressionOnce("then the tone didn't play, so frames are sent again")
+            ListeningTone.Playback.Pending -> tonePendingDroppedFrames++
+            is ListeningTone.Playback.Started -> {
+                val startedAtMs = tonePlaybackNow.startedAtMs
+                if (dropped) {
+                    if (toneWindowDroppedFrames++ == 0) toneWindowDroppedFromMs = capturedFromMs - startedAtMs
+                    toneWindowDroppedUntilMs = capturedUntilMs - startedAtMs
+                } else {
+                    val droppedInWindow = if (toneWindowDroppedFrames == 0) "nothing" else
+                        "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
+                            "captured ${toneWindowDroppedFromMs}..${toneWindowDroppedUntilMs}ms from the tone's start"
+                    reportToneSuppressionOnce(
+                        "then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)",
+                    )
+                }
             }
-            return true
         }
-        if (!toneSuppressionReported && tone is ListeningTone.Playback.Started && capturedUntilMs > tone.atMs) {
-            toneSuppressionReported = true
-            val droppedInWindow = if (toneDroppedFrames == 0) "nothing" else
-                "$toneDroppedFrames frame(s) (${toneDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) captured " +
-                    "+${toneDroppedFromMs}..+${toneDroppedUntilMs}ms after the tone started"
-            DebugLog.log(
-                "listening tone: dropped $tonePendingDroppedFrames frame(s) before the tone started, then " +
-                    "$droppedInWindow (window ${ListeningTone.suppressionWindowMs}ms)",
-            )
-        }
-        return false
+        return dropped
+    }
+
+    /** Capture-thread only. Log once, at the first frame kept after the tone, how much it dropped. */
+    private fun reportToneSuppressionOnce(afterPending: String) {
+        if (toneSuppressionReported) return
+        toneSuppressionReported = true
+        DebugLog.log("listening tone: dropped $tonePendingDroppedFrames frame(s) while pending, $afterPending")
     }
 
     /** Capture-thread only. Append a connect-phase frame; drop the oldest past the cap (keep the most recent). */

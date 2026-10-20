@@ -132,7 +132,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (only there — never on a follow-up re-listen), gated by the pure `ListeningTone.playsAtMicOpen` (setting on +
   voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes;
   the setting is `AppPrefs.listeningToneEnabled` (default on), read per conversation. Frames captured while the tone
-  is pending (mic open → tone start; a failed tone ends the wait) or overlapping its suppression window (tone start +
+  is pending (mic open → tone start; a failed tone ends the wait) or before its suppression window ends (tone start +
   `DURATION_MS` + device-measured `ECHO_TAIL_MS`) are dropped at the top of `onFrame` — not connect-buffered,
   forwarded, or levelled (`droppedForListeningTone`; pure `ListeningTone.suppressesFrame` over
   `ListeningTone.Playback`). A dropped frame while LISTENING still shows the orange bar at rest, so the tone never

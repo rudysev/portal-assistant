@@ -73,22 +73,21 @@ object ListeningTone {
         /** The mic is open but the tone hasn't started yet: every frame is dropped — none was captured after the cue. */
         data object Pending : Playback
 
-        /** The tone started at [atMs]: frames overlapping its suppression window are dropped. */
-        data class Started(val atMs: Long) : Playback
+        /** The tone started at [startedAtMs]: frames captured before its suppression window ends are dropped. */
+        data class Started(val startedAtMs: Long) : Playback
     }
 
     /**
-     * Whether a mic frame captured over [frameCapturedFromMs, frameCapturedUntilMs) must be dropped from the
-     * recording: always while the tone is [Playback.Pending] (the user hasn't heard the cue, so nothing captured
-     * then may be sent); once [Playback.Started], when that span overlaps the suppression window; never for
+     * Whether a mic frame whose capture began at [frameCapturedFromMs] must be dropped from the recording: always
+     * while the tone is [Playback.Pending]; once [Playback.Started], unless the frame began after the suppression
+     * window ended — nothing captured before the cue may be sent, nor the tone and its echo; never for
      * [Playback.None].
      */
-    fun suppressesFrame(tone: Playback, frameCapturedFromMs: Long, frameCapturedUntilMs: Long): Boolean =
-        when (tone) {
+    fun suppressesFrame(tonePlayback: Playback, frameCapturedFromMs: Long): Boolean =
+        when (tonePlayback) {
             Playback.None -> false
             Playback.Pending -> true
-            is Playback.Started ->
-                frameCapturedUntilMs > tone.atMs && frameCapturedFromMs < tone.atMs + suppressionWindowMs
+            is Playback.Started -> frameCapturedFromMs < tonePlayback.startedAtMs + suppressionWindowMs
         }
 
     // --- Synthesis: what the tone sounds like ---
