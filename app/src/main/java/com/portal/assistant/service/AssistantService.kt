@@ -316,7 +316,7 @@ class AssistantService : Service() {
                 com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
                 com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext) // pre-scan installed tool providers off the wake path
                 com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext) // pre-scan installed music apps off the wake path
-                com.portal.assistant.conversation.ListeningTonePlayer.prewarm() // synthesize the Listening tone off the wake path
+                com.portal.assistant.conversation.ListeningTonePlayer.prewarm() // synthesize the Listening tone + build its track off the wake path
                 DebugLog.log("prewarm done (classes + http + dns + tools + music + tone)")
             }.onFailure { DebugLog.log("prewarm failed: ${it.message}") }
         }.apply {

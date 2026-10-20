@@ -130,10 +130,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   provider bullets from the same [ExternalToolSpec.parse] pass as tool declarations + [SystemContext] +
   [ResumeContext] on tap-to-talk resume). The **Listening tone** plays at the conversation's mic open in `start()`
   (only there — never on a follow-up re-listen), gated by the pure `ListeningTone.playsAtMicOpen` (setting on +
-  voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes;
-  the setting is `AppPrefs.listeningToneEnabled` (default on), read per conversation. Frames captured while the tone
-  is pending (mic open → tone start; a failed tone ends the wait) or before its suppression window ends (tone start +
-  `DURATION_MS` + device-measured `ECHO_TAIL_MS`) are dropped at the top of `onFrame` — not connect-buffered,
+  voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
+  track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
+  (default on), read per conversation. Frames captured while the tone is pending (mic open → tone start; a failed
+  tone ends the wait) or before its suppression window ends (tone start + `DURATION_MS` + device-measured
+  `ECHO_TAIL_MS`) are dropped at the top of `onFrame` — not connect-buffered,
   forwarded, or levelled (`droppedForListeningTone`; pure `ListeningTone.suppressesFrame` over
   `ListeningTone.Playback`). A dropped frame while LISTENING still shows the orange bar at rest, so the tone never
   delays it.
@@ -169,6 +170,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   engine runs the queue then. Replaces the old per-controller fixed `Handler` delays (no more guessing 2.5 s
   vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
+  `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
   `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
   the local backend's `wss://` socket).
 
@@ -201,7 +203,7 @@ one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `p
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine`; `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
-`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`) ·
+`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
