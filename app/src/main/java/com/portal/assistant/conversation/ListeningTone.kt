@@ -41,12 +41,12 @@ object ListeningTone {
     /**
      * Whether flipping the Settings switch plays the tone once as a preview: only when it was switched on — off is
      * silent — and no conversation is live ([conversationLive]). A live conversation holds the mic open, and a
-     * preview isn't covered by the engine's suppression window, so it would be recorded and sent to the voice
+     * preview isn't covered by the Mic gate's suppression window, so it would be recorded and sent to the voice
      * backend; like the Speaker preview, a conversation always wins.
      */
     fun previewsOnSwitch(switchedOn: Boolean, conversationLive: Boolean): Boolean = switchedOn && !conversationLive
 
-    // --- Suppression window: keeping the tone out of the recording ---
+    // --- Suppression window: keeping the tone out of the recording (applied by the Mic gate, [MicGate]) ---
 
     /**
      * How long past the tone's own length the mic can still hear it: speaker output latency (the sound leaves the
@@ -64,31 +64,6 @@ object ListeningTone {
 
     /** How long after the tone starts mic audio is dropped: the whole tone plus its [ECHO_TAIL_MS]. */
     val suppressionWindowMs: Long get() = DURATION_MS + ECHO_TAIL_MS
-
-    /** Where this conversation's tone is, as the mic sees it — decides which frames [suppressesFrame] drops. */
-    sealed interface Playback {
-        /** No tone this conversation (setting off, a chip, or it failed to play): nothing is dropped. */
-        data object None : Playback
-
-        /** The mic is open but the tone hasn't started yet: every frame is dropped — none was captured after the cue. */
-        data object Pending : Playback
-
-        /** The tone started at [startedAtMs]: frames captured before its suppression window ends are dropped. */
-        data class Started(val startedAtMs: Long) : Playback
-    }
-
-    /**
-     * Whether a mic frame whose capture began at [frameCapturedFromMs] must be dropped from the recording: always
-     * while the tone is [Playback.Pending]; once [Playback.Started], unless the frame began after the suppression
-     * window ended — nothing captured before the cue may be sent, nor the tone and its echo; never for
-     * [Playback.None].
-     */
-    fun suppressesFrame(tonePlayback: Playback, frameCapturedFromMs: Long): Boolean =
-        when (tonePlayback) {
-            Playback.None -> false
-            Playback.Pending -> true
-            is Playback.Started -> frameCapturedFromMs < tonePlayback.startedAtMs + suppressionWindowMs
-        }
 
     // --- Synthesis: what the tone sounds like ---
 

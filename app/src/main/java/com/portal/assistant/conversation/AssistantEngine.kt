@@ -16,7 +16,6 @@ import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.ui.RecordingOverlay
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
-import com.portal.commons.PcmCaptureFormat
 import org.json.JSONObject
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -32,7 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * [PcmPlayer], the recording bar, and the two timers, and runs the conversation as an ongoing
  * multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens for a
  * follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on
- * error. (Buffer-while-connecting and a "goodbye" fast-exit are deferred to a later milestone.)
+ * error. Every mic frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later
+ * milestone.)
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the main [Handler]: the
  * backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the timer Runnables all
@@ -75,25 +75,12 @@ class AssistantEngine(
     /** Chat transcript, mutated only on [handler] and mirrored to [ConversationHub] for the UI. */
     private var transcript = Transcript()
 
-    @Volatile private var forwarding = false
-
-    /** This conversation's [MicGate], built in [start] before the capture thread exists. */
-    private var micGate: MicGate? = null
-
     /**
-     * This conversation's Listening tone as the mic sees it. Set to Pending in [start] before the capture thread
-     * exists, then to Started (or back to None if it failed to play) once on the tone player's thread; read per
-     * frame by the capture thread in [onFrame] to drop the frames before and inside the tone's suppression window
-     * ([ListeningTone.suppressesFrame]).
+     * This conversation's [MicGate], built in [start] before the capture thread exists; read here only by the
+     * orchestration thread. The capture thread and the tone callbacks are handed the gate itself, so they never read
+     * this field or check it for null.
      */
-    @Volatile private var tonePlayback: ListeningTone.Playback = ListeningTone.Playback.None
-
-    /** Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log). */
-    private var tonePendingDroppedFrames = 0
-    private var toneWindowDroppedFrames = 0
-    private var toneWindowDroppedFromMs = 0L
-    private var toneWindowDroppedUntilMs = 0L
-    private var toneSuppressionReported = false
+    private var micGate: MicGate? = null
 
     private var ended = false
 
@@ -203,14 +190,12 @@ class AssistantEngine(
         ).also { it.connect() }
         // pendingInitialText (set above) is non-null only for a chip, whose query is text, not speech.
         val voiceQuery = pendingInitialText == null
-        // The Listening tone is the honest "recording starts now" cue, so from the first frame nothing is sent until
-        // it has started. Set before mic.start() spawns the capture thread, so this volatile write is visible to it.
         val playsListeningTone = listeningTonePlaysAtMicOpen(voiceQuery)
-        if (playsListeningTone) tonePlayback = ListeningTone.Playback.Pending
-        // Built before mic.start() spawns the capture thread, so its initial state is visible to it.
-        val gate = MicGate(voiceQuery).also { micGate = it }
+        // Built before mic.start() spawns the capture thread, so its initial state is visible to it. With the tone
+        // on, the gate starts with it pending: from the first frame nothing is sent until the tone has started.
+        val gate = MicGate(voiceQuery, playsListeningTone).also { micGate = it }
         mic = MicCapture { buf, n -> onFrame(gate, buf, n) }.also { it.start() }
-        if (playsListeningTone) playListeningTone()
+        if (playsListeningTone) playListeningTone(gate)
         player.start()
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
         player.setOnLevel { lvl ->
@@ -233,19 +218,19 @@ class AssistantEngine(
     }
 
     /**
-     * Play the Listening tone at the mic open, with [tonePlayback] already Pending. Async: the mic and connect are
-     * already under way and don't wait on it. Its start hands the capture thread the suppression window; a failure
-     * to play ends the wait, so the conversation is sent as if the tone were off.
+     * Play the Listening tone at the mic open, with the [gate] already holding it pending. Async: the mic and connect
+     * are already under way and don't wait on it. Its start hands the gate the suppression window; a failure to play
+     * ends the wait, so the conversation is sent as if the tone were off.
      */
-    private fun playListeningTone() {
+    private fun playListeningTone(gate: MicGate) {
         val micOpenedAtMs = SystemClock.elapsedRealtime()
         ListeningTonePlayer.play(
             onStarted = { startedAtMs ->
-                tonePlayback = ListeningTone.Playback.Started(startedAtMs)
+                gate.toneStarted(startedAtMs)
                 DebugLog.log("listening tone: playing (+${startedAtMs - micOpenedAtMs}ms after mic open)")
             },
             onFailed = {
-                tonePlayback = ListeningTone.Playback.None
+                gate.toneFailed()
                 DebugLog.log("listening tone: didn't play; mic frames are sent again")
             },
         )
@@ -280,78 +265,23 @@ class AssistantEngine(
 
     // ---- hot audio path (off the orchestration thread) ---------------------------------------------
 
-    /**
-     * Capture thread. The [MicGate] decides what this frame sends, shows and logs; this only applies its outcome.
-     *
-     * First, a frame captured before or during the Listening tone is dropped outright ([droppedForListeningTone]).
-     * While LISTENING it still shows the orange bar (at rest), so the bar appears on time, as without the tone.
-     */
+    /** Capture thread. The [MicGate] decides what this frame sends, shows and logs; this only applies its outcome. */
     private fun onFrame(gate: MicGate, buf: ByteArray, n: Int) {
-        if (droppedForListeningTone()) {
-            if (forwarding) overlay.setRecording(!UiVisibility.inForeground)
-            return
-        }
         val outcome = gate.onFrame(buf, n, SystemClock.elapsedRealtime())
         outcome.logLines.forEach(DebugLog::log)
         outcome.audioToSend.forEach { audio -> backend?.sendAudio(audio) }
         // Local speech signal for the no-speech grace, on the same wall clock its timer reads.
         if (outcome.speechHeard) lastSpeechAtMs = System.currentTimeMillis()
+        // The orange bar is the *backgrounded* mic indicator; when the app is open the in-UI state replaces it.
+        // (bar add + "overlay shown" log live in RecordingOverlay.show())
         when (val indicator = outcome.indicator) {
             MicGate.Indicator.None -> Unit
+            MicGate.Indicator.BarAtRest -> overlay.setRecording(!UiVisibility.inForeground)
             is MicGate.Indicator.Level -> {
                 ConversationHub.setAudioLevel(indicator.level) // drives the in-app listening visualizer
-                // The orange bar is the *backgrounded* mic indicator; when the app is open the in-UI state
-                // replaces it. (bar add + "overlay shown" log live in RecordingOverlay.show())
                 overlay.setRecording(!UiVisibility.inForeground, indicator.level)
             }
         }
-    }
-
-    /**
-     * Capture-thread only. True when this frame was captured while the Listening tone is pending (mic open, tone not
-     * started yet) or before its suppression window ends, so it is neither connect-buffered nor forwarded: nothing
-     * from before the cue is sent, and the voice backend never hears the tone. It also doesn't drive the level, the
-     * orange bar's level or the no-speech grace's local-speech signal: the tone would read as the user speaking.
-     * Those pick up on the first kept frame, a few hundred ms later.
-     *
-     * A frame's capture span is taken as the [PcmCaptureFormat.FRAME_MS] ending now, at delivery. Delivery lags the
-     * real capture by the input latency (plus ≤ one 20 ms poll), a steady offset; [ListeningTone.ECHO_TAIL_MS] was
-     * measured on this same clock and stamping, so the window lines up with where the tone really lands in frames.
-     * Reports once, at the first frame kept after the window (or after a tone that failed to play), how much was
-     * dropped.
-     */
-    private fun droppedForListeningTone(): Boolean {
-        val tonePlaybackNow = tonePlayback
-        val capturedUntilMs = SystemClock.elapsedRealtime()
-        val capturedFromMs = capturedUntilMs - PcmCaptureFormat.FRAME_MS
-        val dropped = ListeningTone.suppressesFrame(tonePlaybackNow, capturedFromMs)
-        when (tonePlaybackNow) { // bookkeeping for the log only; the rule is suppressesFrame's
-            ListeningTone.Playback.None ->
-                if (tonePendingDroppedFrames > 0) reportToneSuppressionOnce("then the tone didn't play, so frames are sent again")
-            ListeningTone.Playback.Pending -> tonePendingDroppedFrames++
-            is ListeningTone.Playback.Started -> {
-                val startedAtMs = tonePlaybackNow.startedAtMs
-                if (dropped) {
-                    if (toneWindowDroppedFrames++ == 0) toneWindowDroppedFromMs = capturedFromMs - startedAtMs
-                    toneWindowDroppedUntilMs = capturedUntilMs - startedAtMs
-                } else {
-                    val droppedInWindow = if (toneWindowDroppedFrames == 0) "nothing" else
-                        "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
-                            "captured ${toneWindowDroppedFromMs}..${toneWindowDroppedUntilMs}ms from the tone's start"
-                    reportToneSuppressionOnce(
-                        "then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)",
-                    )
-                }
-            }
-        }
-        return dropped
-    }
-
-    /** Capture-thread only. Log once, at the first frame kept after the tone, how much it dropped. */
-    private fun reportToneSuppressionOnce(afterPending: String) {
-        if (toneSuppressionReported) return
-        toneSuppressionReported = true
-        DebugLog.log("listening tone: dropped $tonePendingDroppedFrames frame(s) while pending, $afterPending")
     }
 
     private val backendListener = object : VoiceBackend.Listener {
@@ -533,12 +463,10 @@ class AssistantEngine(
             // audio, whichever the server sends first — opens a fresh bubble instead of extending the prior
             // answer's, which dropped the new answer's opening words when transcription arrived first.
             transcript = transcript.beginUserTurn().beginModelTurn()
-            forwarding = true
             micGate?.listeningStarted()
         }
 
         Action.StopForwarding -> {
-            forwarding = false
             micGate?.listeningStopped() // also ends connect buffering, should a model turn win the race
             overlay.setRecording(false)
         }
@@ -615,7 +543,6 @@ class AssistantEngine(
     }
 
     private fun teardown() {
-        forwarding = false
         micGate?.listeningStopped()
         handler.removeCallbacks(noSpeechTimer)
         handler.removeCallbacks(stallTimer)
