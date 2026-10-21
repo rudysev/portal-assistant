@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
-import com.portal.assistant.audio.PcmGain
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.CredentialMessages
@@ -18,7 +17,6 @@ import com.portal.assistant.ui.RecordingOverlay
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
 import com.portal.commons.PcmCaptureFormat
-import com.portal.commons.PcmLevel
 import org.json.JSONObject
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -79,20 +77,8 @@ class AssistantEngine(
 
     @Volatile private var forwarding = false
 
-    /**
-     * Frames captured during CONNECTING (mic open, socket not ready yet) so speech that lands in the connect
-     * window isn't clipped — the win is the foreground path where "Connecting…" is on screen and the user starts
-     * talking during connect. (A one-breath *wake* "hey jarvis what's the weather" stays gated by portal-wake's
-     * detection upstream — it never triggers a hand-off — so the buffer can't recover that; the value is bounded
-     * to the connect window of conversations that *did* start.) **Capture-thread only** — appended, bounded, and
-     * drained entirely inside [onFrame] (and its helpers, called only from there), so it needs no lock and the
-     * handler thread never touches it. Bounded by [CONNECT_BUFFER_MAX_FRAMES] (drop-oldest) and per-conversation,
-     * so it's freed with the engine — no explicit teardown clear (which would be the one cross-thread access, a race).
-     */
-    private val connectBuffer = ArrayDeque<ByteArray>()
-
-    /** True only for the initial connect window: [onFrame] buffers frames instead of dropping until the first forward. */
-    @Volatile private var connectBuffering = false
+    /** This conversation's [MicGate], built in [start] before the capture thread exists. */
+    private var micGate: MicGate? = null
 
     /**
      * This conversation's Listening tone as the mic sees it. Set to Pending in [start] before the capture thread
@@ -215,18 +201,15 @@ class AssistantEngine(
             ),
             backendListener,
         ).also { it.connect() }
-        // Buffer mic frames from the moment the device opens (CONNECTING) so the opening words survive the
-        // ~440 ms connect — but only for a VOICE query (wake / tap). A tapped chip's query is the text turn, not
-        // speech, so buffering would just flush connect-window noise alongside it (and the chip path stays
-        // identical to pre-buffer behaviour). pendingInitialText (set above) is non-null only for a chip. Set
-        // before mic.start() spawns the capture thread, so this volatile write is visible to it.
+        // pendingInitialText (set above) is non-null only for a chip, whose query is text, not speech.
         val voiceQuery = pendingInitialText == null
-        connectBuffering = voiceQuery
         // The Listening tone is the honest "recording starts now" cue, so from the first frame nothing is sent until
-        // it has started. Set before mic.start() spawns the capture thread, like connectBuffering.
+        // it has started. Set before mic.start() spawns the capture thread, so this volatile write is visible to it.
         val playsListeningTone = listeningTonePlaysAtMicOpen(voiceQuery)
         if (playsListeningTone) tonePlayback = ListeningTone.Playback.Pending
-        mic = MicCapture { buf, n -> onFrame(buf, n) }.also { it.start() }
+        // Built before mic.start() spawns the capture thread, so its initial state is visible to it.
+        val gate = MicGate(voiceQuery).also { micGate = it }
+        mic = MicCapture { buf, n -> onFrame(gate, buf, n) }.also { it.start() }
         if (playsListeningTone) playListeningTone()
         player.start()
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
@@ -298,41 +281,30 @@ class AssistantEngine(
     // ---- hot audio path (off the orchestration thread) ---------------------------------------------
 
     /**
-     * Capture thread. While LISTENING, forward to the model and drive the bar from the live level. During the
-     * initial CONNECTING window of a voice query (wake/tap; a chip's query is text, so it doesn't buffer —
-     * connectBuffering is false), buffer frames (so the opening words aren't clipped) instead of dropping them.
-     * While SPEAKING (half-duplex mute) drop them. On the first LISTENING frame the connect buffer is flushed in
-     * capture order *before* the live frame, so the model gets the pre-Ready speech ahead of everything live.
+     * Capture thread. The [MicGate] decides what this frame sends, shows and logs; this only applies its outcome.
      *
      * First, a frame captured before or during the Listening tone is dropped outright ([droppedForListeningTone]).
      * While LISTENING it still shows the orange bar (at rest), so the bar appears on time, as without the tone.
      */
-    private fun onFrame(buf: ByteArray, n: Int) {
+    private fun onFrame(gate: MicGate, buf: ByteArray, n: Int) {
         if (droppedForListeningTone()) {
             if (forwarding) overlay.setRecording(!UiVisibility.inForeground)
             return
         }
-        if (forwarding) {
-            val gained = outgoingAudio(buf, n)
-            if (connectBuffering) { // first LISTENING frame: flush what we captured while connecting, in order
-                connectBuffering = false
-                drainConnectBuffer()
+        val outcome = gate.onFrame(buf, n, SystemClock.elapsedRealtime())
+        outcome.logLines.forEach(DebugLog::log)
+        outcome.audioToSend.forEach { audio -> backend?.sendAudio(audio) }
+        // Local speech signal for the no-speech grace, on the same wall clock its timer reads.
+        if (outcome.speechHeard) lastSpeechAtMs = System.currentTimeMillis()
+        when (val indicator = outcome.indicator) {
+            MicGate.Indicator.None -> Unit
+            is MicGate.Indicator.Level -> {
+                ConversationHub.setAudioLevel(indicator.level) // drives the in-app listening visualizer
+                // The orange bar is the *backgrounded* mic indicator; when the app is open the in-UI state
+                // replaces it. (bar add + "overlay shown" log live in RecordingOverlay.show())
+                overlay.setRecording(!UiVisibility.inForeground, indicator.level)
             }
-            backend?.sendAudio(gained)
-            // Local speech signal for the no-speech grace: measure the *gained* frame (what the server hears), not
-            // the raw mic, so distant late speech still registers. The bar/visualizer keep the raw level below.
-            if (PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL) lastSpeechAtMs = System.currentTimeMillis()
-            val level = PcmLevel.normalized(buf, n)
-            ConversationHub.setAudioLevel(level) // drives the in-app listening visualizer
-            // The orange bar is the *backgrounded* mic indicator; when the app is open the in-UI state
-            // replaces it. (bar add + "overlay shown" log live in RecordingOverlay.show())
-            overlay.setRecording(!UiVisibility.inForeground, level)
-        } else if (connectBuffering) {
-            // CONNECTING: the socket isn't ready (sendAudio would no-op on !setupDone), so keep these frames —
-            // the user's first words — until the first forward flushes them. Bounded so a slow connect can't grow it.
-            bufferConnectFrame(outgoingAudio(buf, n))
         }
-        // else: SPEAKING half-duplex mute — drop (buffering here would capture/echo the model's own turn).
     }
 
     /**
@@ -381,28 +353,6 @@ class AssistantEngine(
         toneSuppressionReported = true
         DebugLog.log("listening tone: dropped $tonePendingDroppedFrames frame(s) while pending, $afterPending")
     }
-
-    /** Capture-thread only. Append a connect-phase frame; drop the oldest past the cap (keep the most recent). */
-    private fun bufferConnectFrame(frame: ByteArray) {
-        if (connectBuffer.size >= CONNECT_BUFFER_MAX_FRAMES) connectBuffer.removeFirst()
-        connectBuffer.addLast(frame)
-    }
-
-    /** Capture-thread only. Flush the buffered connect-phase frames to the socket in capture order. */
-    private fun drainConnectBuffer() {
-        val frames = connectBuffer.size
-        if (frames > 0) DebugLog.log("connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting")
-        while (connectBuffer.isNotEmpty()) backend?.sendAudio(connectBuffer.removeFirst())
-    }
-
-    /**
-     * The single place outbound mic audio is pre-processed before streaming — a self-contained seam.
-     * Today it applies [MIC_GAIN] (see [PcmGain]). **To tune:** change [MIC_GAIN]. **To disable:** set
-     * [MIC_GAIN] = 1f (pass-through copy). **To remove entirely:** make this `buf.copyOf(n)` and delete
-     * `PcmGain`. Nothing else in the engine/reducer/backend touches the audio, so gain is fully
-     * contained here — removing it changes only this line.
-     */
-    private fun outgoingAudio(buf: ByteArray, n: Int): ByteArray = PcmGain.amplify(buf, n, MIC_GAIN)
 
     private val backendListener = object : VoiceBackend.Listener {
         override fun onReady() {
@@ -584,14 +534,12 @@ class AssistantEngine(
             // answer's, which dropped the new answer's opening words when transcription arrived first.
             transcript = transcript.beginUserTurn().beginModelTurn()
             forwarding = true
+            micGate?.listeningStarted()
         }
 
         Action.StopForwarding -> {
             forwarding = false
-            // Leaving the (first) LISTENING window: stop connect-buffering deterministically, so a turn that
-            // begins before the first mic frame drained the buffer can't leave us buffering SPEAKING-phase audio.
-            // Normally a no-op (the first forward already cleared it); only bites if a model turn wins that race.
-            connectBuffering = false
+            micGate?.listeningStopped() // also ends connect buffering, should a model turn win the race
             overlay.setRecording(false)
         }
 
@@ -668,6 +616,7 @@ class AssistantEngine(
 
     private fun teardown() {
         forwarding = false
+        micGate?.listeningStopped()
         handler.removeCallbacks(noSpeechTimer)
         handler.removeCallbacks(stallTimer)
         toolExecutor.shutdownNow() // interrupt any in-flight tool tasks
@@ -688,16 +637,6 @@ class AssistantEngine(
         // ends it on silence). The mic stays open across turns (frames dropped while SPEAKING), so
         // portal-wake can't reclaim mid-conversation.
         const val MULTI_TURN = true
-
-        // Software gain on the forwarded conversation audio so room-distance speech reaches a level the
-        // backend transcribes (handset mic only — no far-field array). Tunable on device; ~2800 RMS
-        // transcribed at arm's length, ~1400 at 4 m did not, so ~2x lifts 4 m to the working level.
-        const val MIC_GAIN = 2.0f
-
-        // Cap on mic frames (100 ms each, ~3.2 KB) buffered during CONNECTING before the socket is ready. Bounds
-        // memory if connect is slow/hung; drop-oldest keeps the most recent. 50 ≈ 5 s, well over the ~440 ms
-        // connect, so a normal first query is buffered whole. ~160 KB worst case, freed with the engine.
-        const val CONNECT_BUFFER_MAX_FRAMES = 50
 
         // When continuing (foreground mic resume), the size budget (chars ≈ token proxy) of recent history
         // replayed to the model as context — bounds the prompt as a continued chat grows. Device-tunable.

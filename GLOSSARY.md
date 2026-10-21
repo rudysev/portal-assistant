@@ -24,6 +24,14 @@ _Avoid_: Default speaker, default voice, selected voice
 No Speaker chosen — Gemini picks its own voice. Every install starts here, and the user can return to it.
 _Avoid_: Default speaker, Puck (not known to be Gemini's default), none
 
+### Mic
+
+**Connect buffer**:
+The mic audio captured while a voice conversation's connection to the voice backend is still opening, kept so
+the user's opening words aren't lost, and sent ahead of the live audio once Jarvis starts listening. Only for a
+voice query (wake word or mic tap), never for a suggestion chip; holds at most the most recent ~5 s.
+_Avoid_: Pre-roll, connect window (the time, not the audio), buffer-while-connecting
+
 ### Sounds
 
 **Listening tone**:
