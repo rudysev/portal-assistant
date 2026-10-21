@@ -79,12 +79,12 @@ Land it as **two commits**, so there is a tested checkpoint for review and for b
 
 ### Device check (gen2, after commit 2)
 
-- [ ] Tone **off**: on a mic tap with speech during "Connecting…", the opening words are kept (the connect-buffer
+- [x] Tone **off**: on a mic tap with speech during "Connecting…", the opening words are kept (the connect-buffer
   flush line is in the debug log).
-- [ ] Tone **on**:
+- [x] Tone **on**:
   - the model doesn't hear or react to the tone;
   - words spoken right after the tone are heard;
   - the orange bar or Listening state appears on time;
   - the debug log shows the same tone drop report as before.
-- [ ] Wake ("hey jarvis") and mic-tap conversations both behave as before. A follow-up turn plays no tone, and the
+- [x] Wake ("hey jarvis") and mic-tap conversations both behave as before. A follow-up turn plays no tone, and the
   mic is muted while Jarvis speaks.
