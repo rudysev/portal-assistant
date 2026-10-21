@@ -31,7 +31,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
 - **Phase 2.b — multi-turn (ongoing conversation).** ✅ Built (`AssistantEngine.MULTI_TURN = true`): after
   each answer the mic re-opens for a follow-up and the conversation ends only when the user goes silent
   (the no-speech timer). The mic stays open across turns (frames dropped while SPEAKING) so portal-wake
-  can't reclaim mid-conversation. **Buffer-while-connecting** is now built (`AssistantEngine.connectBuffer`):
+  can't reclaim mid-conversation. The **connect buffer** is now built (in the Mic gate, `conversation/MicGate`):
   mic frames captured during CONNECTING are flushed at the LISTENING boundary so the foreground connect
   window's opening words aren't clipped (a one-breath *wake* swoop stays gated by portal-wake's detection
   upstream — see Known limitations). Still **deferred**: a **"goodbye" fast-exit**.
@@ -121,9 +121,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/AssistantEngine.kt` — the impure shell: wires the `VoiceBackend` (via `Backends.Choice` from
   `Backends.resolve`) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
-  → no locks). Half-duplex: the mic is muted while the model speaks. `MIC_GAIN` amplifies the *forwarded*
-  audio so the Live server can transcribe room-distance speech (handset mic only — no far-field array;
-  device-tuned, single seam in `outgoingAudio()`). Also: an optional `initialText` (chip-send) is sent on
+  → no locks). Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
+  outcome. Also: an optional `initialText` (chip-send) is sent on
   `Event.Ready` (`sendInitialText`); an unexpected socket drop (`onError`/`onClosed` while not ended) posts a
   user-facing `ConversationHub.notice` (`surfaceDisconnect`; message picked by `connectedOk` + `NetworkStatus`).
   Session system instruction is assembled by pure [SessionPrompt] (built-in [SystemPrompt] + enabled external-
@@ -132,12 +131,21 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (only there — never on a follow-up re-listen), gated by the pure `ListeningTone.playsAtMicOpen` (setting on +
   voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
-  (default on), read per conversation. Frames captured while the tone is pending (mic open → tone start; a failed
-  tone ends the wait) or before its suppression window ends (tone start + `DURATION_MS` + device-measured
-  `ECHO_TAIL_MS`) are dropped at the top of `onFrame` — not connect-buffered,
-  forwarded, or levelled (`droppedForListeningTone`; pure `ListeningTone.suppressesFrame` over
-  `ListeningTone.Playback`). A dropped frame while LISTENING still shows the orange bar at rest, so the tone never
-  delays it.
+  (default on), read per conversation; the tone's start/failure callbacks feed the Mic gate.
+- `conversation/MicGate.kt` — the **Mic gate**, the whole mic frame path: built once per conversation at mic open
+  (voice query? tone plays?), fed listening started/stopped from the handler and tone started/failed from the tone
+  player, it turns each frame (+ its capture time — it never reads a clock) into a plain `FrameOutcome`: the ordered
+  audio to send, the indicator (none / bar at rest / level → Hub level + orange bar, gated on
+  `UiVisibility.inForeground` by the engine), speech heard (→ the no-speech grace's last-local-speech stamp) and log
+  lines. Inside, in order: **Listening tone suppression** (frames captured while the tone is pending — a failed tone
+  ends the wait — or before its window ends, tone start + `DURATION_MS` + device-measured `ECHO_TAIL_MS`, are
+  dropped: not connect-buffered, sent, or levelled; while listening they show the bar at rest so the tone never
+  delays it; one drop report per conversation); the **half-duplex mute**; the **connect buffer** (voice query only,
+  capped at 50 frames drop-oldest, flushed in capture order before the first listening frame, ended when listening
+  stops); **`MIC_GAIN`** on the sent audio so the Live server can transcribe room-distance speech (handset mic only —
+  no far-field array; device-tuned, the single seam for outbound audio); and **speech heard**, measured on the gained
+  frame. Pure and fully JVM-tested by frame sequences (`MicGateTest`), including the tone × connect-buffer
+  interaction (the tone's window outlasts the ~440 ms connect, so with the tone on the buffer holds little or nothing).
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied in `Transcript.appendModel` (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
@@ -200,7 +208,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 `wake/WakeHandoffReceiver` (trigger entry) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
 one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
-classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine`; `ConversationHub` =
+classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
 `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
@@ -248,7 +256,7 @@ be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a tu
 
 ## Known limitations
 
-- **First-query clip**: the connect-window buffer (`AssistantEngine.connectBuffer`) now recovers speech
+- **First-query clip**: the connect buffer (in `MicGate`) now recovers speech
   spoken while the socket is connecting on a **voice** query (wake or tap), so the foreground tap path
   ("Connecting…" on screen) keeps its opening words. (A tapped chip is a text query, so it doesn't buffer.)
   But a one-breath *wake* "hey jarvis what's the weather" is **not** fixed by it: portal-wake

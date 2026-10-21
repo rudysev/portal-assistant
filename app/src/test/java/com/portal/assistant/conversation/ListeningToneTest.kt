@@ -16,6 +16,10 @@ class ListeningToneTest {
     /** Fraction of full scale for a 16-bit sample. */
     private fun level(sample: Short): Double = abs(sample.toDouble()) / Short.MAX_VALUE
 
+    @Test fun theSuppressionWindowCoversTheWholeTonePlusAnEchoTail() {
+        assertTrue(ListeningTone.suppressionWindowMs > ListeningTone.DURATION_MS)
+    }
+
     @Test fun lastsAboutAQuarterOfASecond() {
         val durationMs = samples.size * 1000.0 / ListeningTone.SAMPLE_RATE
         assertTrue("duration $durationMs ms", durationMs in 200.0..300.0)
