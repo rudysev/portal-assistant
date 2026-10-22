@@ -38,6 +38,9 @@ provisioning/fleet/
 # Internal strategy/planning notes — never publish.
 _planning/
 
+# Local issue tracker (specs + tickets, see docs/agents/issue-tracker.md) — kept on this machine only.
+.scratch/
+
 # Reverse-engineering research — never publish (repo is public). Decompilation
 # working dir, APKs pulled off the device, and internal findings docs.
 apk_work/
