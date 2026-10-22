@@ -2,7 +2,6 @@ package com.portal.assistant.conversation.tools
 
 import android.content.Context
 import android.media.AudioManager
-import com.portal.assistant.conversation.AfterSpeech
 import com.portal.commons.DebugLog
 import org.json.JSONObject
 

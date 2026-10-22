@@ -1,5 +1,6 @@
-package com.portal.assistant.conversation
+package com.portal.assistant.conversation.tools
 
+import com.portal.assistant.conversation.Action
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
