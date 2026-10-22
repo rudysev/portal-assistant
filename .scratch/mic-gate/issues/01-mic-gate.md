@@ -15,7 +15,7 @@ Spec: `.scratch/mic-gate/spec.md`.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 Land it as **two commits**, so there is a tested checkpoint for review and for bisecting:
 1. the listening path and the connect buffer, with the tone drop still in the engine and still run before the gate;
@@ -88,3 +88,11 @@ Land it as **two commits**, so there is a tested checkpoint for review and for b
   - the debug log shows the same tone drop report as before.
 - [x] Wake ("hey jarvis") and mic-tap conversations both behave as before. A follow-up turn plays no tone, and the
   mic is muted while Jarvis speaks.
+
+## Comments
+
+**2026-10-21 — closed.** Landed as the two planned commits (`c7ad781eb` listening path + connect buffer,
+`759a24d6c` tone suppression into the gate); device check recorded in `861b44a22`. Re-verified on `main`:
+`./gradlew testDebugUnitTest assembleDebug` passes (427 tests, 0 failures; 22 in `MicGateTest`, covering every
+case listed above, including the tone × connect-buffer interaction). The engine holds no tone fields; the
+standalone suppression test file is gone; `GLOSSARY.md` has **Connect buffer**; `CLAUDE.md` describes the Mic gate.

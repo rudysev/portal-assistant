@@ -1,6 +1,6 @@
 # Spec: Mic gate
 
-Status: ready-for-agent
+Status: closed (implemented by issue 01)
 
 ## Problem Statement
 
