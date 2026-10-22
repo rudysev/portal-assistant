@@ -188,7 +188,7 @@ class AssistantEngine(
         player.setOnLevel { lvl ->
             ConversationHub.setAudioLevel(lvl) // drives the speaking visualizer
             // The writer thread: hop to the handler, the transcript's only thread, to pace the reveal.
-            handler.post { advanceTranscript(transcript.on(Transcript.Event.AudioPlayed(player.playedBytes()))) }
+            handler.post { advanceTranscript(Transcript.Event.AudioPlayed(player.playedBytes())) }
         }
         return null
     }
@@ -254,13 +254,13 @@ class AssistantEngine(
         }
         override fun onInputTranscript(textDelta: String) {
             handler.post {
-                advanceTranscript(transcript.on(Transcript.Event.UserText(textDelta)))
+                advanceTranscript(Transcript.Event.UserText(textDelta))
                 dispatch(Event.UserSpeaking)
             }
         }
         override fun onOutputTranscript(textDelta: String) {
             handler.post {
-                advanceTranscript(transcript.on(Transcript.Event.JarvisText(textDelta, state.phase)))
+                advanceTranscript(Transcript.Event.JarvisText(textDelta, state.phase))
                 // A belated frame after listening restarted must not enter SPEAKING (and mute the mic) on its own.
                 if (state.phase == Phase.SPEAKING) dispatch(Event.ModelActivity)
             }
@@ -270,14 +270,14 @@ class AssistantEngine(
             player.enqueue(pcm24k) // enqueue synchronously (low latency)
             val size = pcm24k.size
             handler.post {
-                advanceTranscript(transcript.on(Transcript.Event.AudioReceived(size, player.playedBytes())))
+                advanceTranscript(Transcript.Event.AudioReceived(size, player.playedBytes()))
                 dispatch(Event.PlaybackBusy)
             }
         }
         override fun onTurnComplete() = post(Event.TurnComplete)
         override fun onInterrupted() {
             handler.post {
-                advanceTranscript(transcript.on(Transcript.Event.Interrupted(player.playedBytes())))
+                advanceTranscript(Transcript.Event.Interrupted(player.playedBytes()))
                 dispatch(Event.Interrupted)
             }
         }
@@ -336,7 +336,7 @@ class AssistantEngine(
      */
     private fun sendInitialText(text: String) {
         if (state.phase != Phase.LISTENING) return
-        advanceTranscript(transcript.on(Transcript.Event.UserText(text)))
+        advanceTranscript(Transcript.Event.UserText(text))
         backend?.sendText(text)
         DebugLog.log("sent initial text: \"$text\"")
     }
@@ -377,8 +377,9 @@ class AssistantEngine(
         )
     }
 
-    /** Take [next] as the transcript, publishing its turns only when they changed. */
-    private fun advanceTranscript(next: Transcript) {
+    /** Advance the transcript by [event], publishing its turns only when they changed. */
+    private fun advanceTranscript(event: Transcript.Event) {
+        val next = transcript.on(event)
         val changed = next.turns !== transcript.turns
         transcript = next
         // After teardown, a handler message queued just before stop() must not repopulate the hub — e.g. the
@@ -388,7 +389,7 @@ class AssistantEngine(
 
     private fun exec(action: Action) = when (action) {
         Action.StartForwarding -> {
-            advanceTranscript(transcript.on(Transcript.Event.ListeningStarted(player.playedBytes())))
+            advanceTranscript(Transcript.Event.ListeningStarted(player.playedBytes()))
             micGate?.listeningStarted()
         }
 

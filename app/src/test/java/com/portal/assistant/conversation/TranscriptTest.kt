@@ -68,7 +68,7 @@ class TranscriptTest {
     }
 
     @Test fun listeningStartsAFreshUserTurnEvenWithNoJarvisTurnBetween() {
-        // Two separate user utterances with no answer between them (a re-listen) must not merge.
+        // Two separate user turns with no answer between them (a re-listen) must not merge.
         val t = Transcript().after(UserText("first"), ListeningStarted(0), UserText("second"))
         assertEquals(listOf(Role.USER to "first", Role.USER to "second"), t.pairs())
     }
