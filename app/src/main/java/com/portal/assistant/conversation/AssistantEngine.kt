@@ -8,20 +8,16 @@ import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.VoiceBackend
-import com.portal.assistant.conversation.tools.ToolRegistry
+import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.ui.RecordingOverlay
 import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
-import org.json.JSONObject
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.Executor
 
 /**
  * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], [MicCapture],
@@ -53,16 +49,9 @@ class AssistantEngine(
 
     private val stallMs: Long = backendChoice.factory.deadAirStallMs
 
-    // Side effects deferred until the assistant finishes speaking the turn (mute, DND-enable). Fired by
-    // Action.FireAfterSpeech on turn-end; cleared on teardown. Passed to the controllers via ToolRegistry.
-    private val afterSpeech = AfterSpeech()
-    private val toolRegistry = ToolRegistry(appContext, afterSpeech)
-
-    // Tool execution: one thread so calls within a batch run sequentially (per-call timeout is the
-    // tool's own I/O timeout or the Future.cancel on ToolCancelled). Per-id futures tracked for
-    // targeted cancellation; map is also cleared on teardown.
-    private val toolExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "tool-exec") }
-    private val toolFutures = ConcurrentHashMap<String, Future<*>>()
+    // This conversation's tools, their after-speech effects and each batch's bookkeeping; results come back on
+    // the handler. Disposed on teardown.
+    private val toolRunner = ToolRunner.create(appContext, Executor { handler.post(it) })
 
     private var backend: VoiceBackend? = null
     private var mic: MicCapture? = null
@@ -142,8 +131,8 @@ class AssistantEngine(
             locationOverride = LocationProvider.override(appContext),
             deviceLocation = LocationProvider.current(appContext),
             onScreenTurns = ConversationHub.session.value.turns,
-            toolDeclarations = toolRegistry.declarations(),
-            externalPromptLines = toolRegistry.externalPromptLines(),
+            toolDeclarations = toolRunner.declarations(),
+            externalPromptLines = toolRunner.externalPromptLines(),
         )
         val opening = when (val decision = ConversationOpening.decide(trigger, inputs)) {
             is Refusal -> {
@@ -349,7 +338,6 @@ class AssistantEngine(
 
     private fun dispatch(event: Event) {
         if (ended) return
-        val oldInFlight = state.toolsInFlight
         val decision = reduce(state, event, MULTI_TURN)
         // PlaybackBusy fires once per audio chunk (hundreds per answer) without changing phase — logging it
         // floods debug.txt and rolls out the lines that matter. Log every other transition; skip that one.
@@ -358,9 +346,8 @@ class AssistantEngine(
             DebugLog.log("event=${event::class.simpleName} → ${decision.state.phase}")
         }
         state = decision.state
-        // Cancel futures for any IDs the reducer just removed from toolsInFlight (cancelled or interrupted).
-        val removedIds = oldInFlight - decision.state.toolsInFlight
-        removedIds.forEach { id -> toolFutures.remove(id)?.cancel(true) }
+        // Cancel any tool the reducer no longer waits on (cancelled or interrupted).
+        toolRunner.keepOnly(state.toolsInFlight)
         publishPhase(state.phase)
         decision.actions.forEach(::exec)
     }
@@ -418,47 +405,13 @@ class AssistantEngine(
 
         Action.FlushPlayback -> player.flush()
 
-        Action.FireAfterSpeech -> afterSpeech.fire()
+        Action.FireAfterSpeech -> toolRunner.turnEnded()
 
         Action.End -> endNow()
 
-        is Action.ExecuteTools -> submitToolBatch(action.calls)
+        is Action.ExecuteTools -> toolRunner.run(action.calls) { results -> dispatch(Event.ToolResultsReady(results)) }
 
         is Action.SendToolResponse -> backend?.sendToolResponse(action.results)
-    }
-
-    /**
-     * Submit one batch of tool calls to the executor. Calls run sequentially (single-thread executor);
-     * the last to finish posts one [Event.ToolResultsReady] back to the handler. Per-id futures are
-     * tracked in [toolFutures] so [dispatch] can cancel them via [Future.cancel] when
-     * `toolsInFlight` shrinks (ToolCancelled, Interrupted).
-     *
-     * Limitation (known): if a call is cancelled *before* it starts (queued but not running), the
-     * batch counter never reaches zero and [Event.ToolResultsReady] is not posted for the remaining
-     * calls. This is moot for single-call batches (Steps 4–5). Revisit when multi-call batches appear.
-     */
-    private fun submitToolBatch(calls: List<FunctionCall>) {
-        val batch = calls.toList()
-        val pending = AtomicInteger(batch.size)
-        val results = arrayOfNulls<ToolResult>(batch.size)
-
-        batch.forEachIndexed { i, call ->
-            val f = toolExecutor.submit {
-                results[i] = runCatching {
-                    ToolResult(call.id, call.name, toolRegistry.invoke(call.name, call.args))
-                }.getOrElse { e ->
-                    ToolResult(call.id, call.name, JSONObject().put("error", e.message ?: "error"))
-                }
-                toolFutures.remove(call.id)
-                if (pending.decrementAndGet() == 0) {
-                    val ordered = List(batch.size) { j ->
-                        results[j] ?: ToolResult(batch[j].id, batch[j].name, JSONObject().put("error", "cancelled"))
-                    }
-                    handler.post { if (!ended) dispatch(Event.ToolResultsReady(ordered)) }
-                }
-            }
-            toolFutures[call.id] = f
-        }
     }
 
     private fun endNow() {
@@ -473,10 +426,7 @@ class AssistantEngine(
         micGate?.listeningStopped()
         handler.removeCallbacks(noSpeechTimer)
         handler.removeCallbacks(stallTimer)
-        toolExecutor.shutdownNow() // interrupt any in-flight tool tasks
-        toolFutures.clear()
-        afterSpeech.clear() // drop any deferred mute / DND-enable so it can't fire into the next conversation
-        toolRegistry.dispose() // and clear the controllers' pending-effect handles
+        toolRunner.dispose() // interrupt running tools; drop deferred mute / DND-enable; deliver no more results
         runCatching { mic?.stop() }
         mic = null
         runCatching { backend?.close() }

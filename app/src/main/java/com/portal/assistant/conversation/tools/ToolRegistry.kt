@@ -1,21 +1,20 @@
 package com.portal.assistant.conversation.tools
 
 import android.content.Context
-import com.portal.assistant.conversation.AfterSpeech
 import com.portal.commons.DebugLog
 import org.json.JSONObject
 
 /**
- * Routes function calls to registered [Tool]s. The engine holds one instance; built-in tools are
- * registered in [tools]. **External providers** (installed apps via the [ToolContract] plugin API)
- * contribute additional tools through [external] — discovered + allowlist-gated, declared alongside the
+ * The production [ToolSet]: routes function calls to registered [Tool]s. The [ToolRunner] holds one
+ * instance; built-in tools are registered in [tools]. **External providers** (installed apps via the
+ * [ToolContract] plugin API) contribute additional tools through [external] — discovered + allowlist-gated, declared alongside the
  * built-ins, and invoked when a name isn't a built-in. Built-ins always win a name collision.
  *
  * [declarations] is called once at session start to populate the Gemini setup message; [externalPromptLines]
  * uses the same external-provider parse snapshot for the session system instruction.
  * [invoke] is called on the tool-executor thread, may block (HTTP / cross-process call), must not touch UI.
  */
-class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
+class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
     private val appContext = context.applicationContext
     private val timerScheduler = TimerScheduler(appContext)
     private val volume = VolumeController(appContext, afterSpeech)
@@ -49,7 +48,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }
 
     /** Built-in declarations + external ones, with built-ins winning any name collision (external dropped). */
-    fun declarations(): List<JSONObject> {
+    override fun declarations(): List<JSONObject> {
         val externalAll = external.declarations()
         val externalKept = ExternalToolSpec.withoutBuiltinCollisions(externalAll, builtinNames)
         val dropped = externalAll.map { it.optString("name") }.filter { it in builtinNames }
@@ -58,16 +57,16 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) {
     }
 
     /** Enabled external-provider prompt bullets — same session snapshot as [declarations]. */
-    fun externalPromptLines(): List<String> = external.promptLines()
+    override fun externalPromptLines(): List<String> = external.promptLines()
 
-    fun invoke(name: String, args: JSONObject): JSONObject {
+    override fun invoke(name: String, args: JSONObject): JSONObject {
         tools.firstOrNull { it.name == name }?.let { return it.invoke(args) } // built-ins win
         if (external.handles(name)) return external.invoke(name, args)
         return JSONObject().put("error", "unknown tool: $name")
     }
 
     /** Release any tool-held resources on conversation teardown (deferred mute/DND, external invoke executor). */
-    fun dispose() {
+    override fun dispose() {
         volume.dispose()
         dnd.dispose()
         external.dispose()

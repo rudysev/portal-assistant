@@ -1,4 +1,4 @@
-package com.portal.assistant.conversation
+package com.portal.assistant.conversation.tools
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -99,7 +99,10 @@ sealed interface Action {
     /** Drop any audio not yet played (the model was interrupted). */
     data object FlushPlayback : Action
 
-    /** Apply side effects deferred until the assistant finished speaking (mute, DND-enable). See [AfterSpeech]. */
+    /**
+     * Apply side effects deferred until the assistant finished speaking (mute, DND-enable). See
+     * [com.portal.assistant.conversation.tools.AfterSpeech].
+     */
     data object FireAfterSpeech : Action
 
     /** End the conversation: close the socket, release the mic, stop the service. */

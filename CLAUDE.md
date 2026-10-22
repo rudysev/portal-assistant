@@ -144,9 +144,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (factory from `Backends.Choice`, config from the opening) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
   → no locks). Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
-  outcome. Also: the opening's `firstText` (chip-send) is sent on
-  `Event.Ready` (`sendInitialText`); an unexpected socket drop (`onError`/`onClosed` while not ended) posts a
-  user-facing `ConversationHub.notice` (`surfaceDisconnect`; message picked by `connectedOk` + `NetworkStatus`).
+  outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto it.
+  Also: the opening's `firstText` (chip-send) is sent on `Event.Ready` (`sendInitialText`); an unexpected socket
+  drop (`onError`/`onClosed` while not ended) posts a user-facing `ConversationHub.notice` (`surfaceDisconnect`;
+  message picked by `connectedOk` + `NetworkStatus`).
   The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up
   re-listen) when the opening says so, played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
@@ -190,12 +191,23 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`). Inbound parsing is the pure, unit-tested `parseServerMessage`; `buildSetup` is unit-tested
   too. A tapped suggestion chip sends a **text turn** via `sendText`/`buildClientText` (`clientContent` +
   `turnComplete` — the model answers without waiting on VAD), also unit-tested.
-- `conversation/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
+- `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
+  `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
+  one, routing unchanged: built-ins win, then external providers, then `unknown tool`), the `AfterSpeech` queue, the
+  single-thread `tool-exec` executor and each batch's bookkeeping. The engine maps `ExecuteTools` → `run`,
+  `FireAfterSpeech` → `turnEnded`, hands it `state.toolsInFlight` after every event (`keepOnly` cancels whatever
+  the reducer no longer waits on — never run if queued, interrupted if running) and calls `dispose()` once on
+  teardown; the Opening's inputs read declarations + prompt lines from it. **Batch promise:** N calls in, one
+  ordered list of N results out, delivered once on the engine's handler — cancelled → `{"error":"cancelled"}`,
+  thrown → `{"error": message}`, each call settled exactly once (a cancel counts it down, so a partially
+  cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. Built per conversation by
+  `create(context, deliver)`; JVM-tested with a fake tool set and a hand-stepped executor (`ToolRunnerTest`).
+- `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Controllers `post()` the effect; the reducer emits `Action.FireAfterSpeech` at **turn-end**
   (`turnComplete && playbackIdle && no tools in flight`, after `PcmPlayer`'s hardware-tail drain) and the
-  engine runs the queue then. Replaces the old per-controller fixed `Handler` delays (no more guessing 2.5 s
-  vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
+  Tool runner runs the queue then (`turnEnded`). Replaces the old per-controller fixed `Handler` delays (no more
+  guessing 2.5 s vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
   `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
   `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
@@ -241,8 +253,8 @@ one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `p
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
-`ResumeContext`, `RevealProgress`; `tools/` incl. `TimerScheduler` + the observable
-`TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
+`ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech`,
+`TimerScheduler` + the observable `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
