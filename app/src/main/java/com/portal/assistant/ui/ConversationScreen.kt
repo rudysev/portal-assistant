@@ -7,7 +7,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -544,7 +543,7 @@ private fun ListeningOrb(phase: ConversationHub.UiPhase, audioLevel: StateFlow<F
     } else {
         val level by audioLevel.collectAsStateWithLifecycle()
         val clamped = level.coerceIn(0f, 1f)
-        scale = animateFloatAsState(targetValue = 1f + clamped * 0.25f, label = "orbScale").value
+        scale = animateFloatOnFrameClock(1f + clamped * 0.25f).value
         glow = 0.3f + 0.5f * clamped
     }
 

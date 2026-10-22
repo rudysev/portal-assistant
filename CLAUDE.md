@@ -92,7 +92,10 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   `RevealProgress.wordRanges`). At a restart the ending turn keeps its full text if all its audio played, or its
   text is **cut at the words heard** if some never did (an interruption flushed it) — dropped if none were. Looping decorative animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
   Voice dialog's loading spinner is information, not decoration, so `ui/Motion.LoadingSpinner` turns on the
-  raw frame clock, which that setting (which freezes Material's indeterminate spinner) doesn't scale.
+  raw frame clock, which that setting (which freezes Material's indeterminate spinner) doesn't scale. The
+  sound-reactive orbs (`ListeningOrb`, `AudioVisualizer`) are information too: their size eases via
+  `ui/Motion.animateFloatOnFrameClock` (Compose's default spring stepped by hand — pure, JVM-tested
+  `FrameClockSpring`), because that setting would otherwise snap the spring and the orb would jump.
   **Deferred:** better ASR accuracy; weather glance.
 
 ## Architecture (the conversation — Phase 2.a)

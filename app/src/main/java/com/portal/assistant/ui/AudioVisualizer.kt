@@ -1,6 +1,5 @@
 package com.portal.assistant.ui
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -26,7 +25,7 @@ import com.portal.assistant.ui.theme.OrangeLight
 @Composable
 fun AudioVisualizer(level: Float, modifier: Modifier = Modifier, size: Dp = 56.dp) {
     val clamped = level.coerceIn(0f, 1f)
-    val scale by animateFloatAsState(targetValue = 1f + clamped * 0.18f, label = "vizScale")
+    val scale by animateFloatOnFrameClock(1f + clamped * 0.18f)
     Canvas(modifier = modifier.size(size).scale(scale)) {
         // Soft outer glow that swells with the audio level.
         drawCircle(

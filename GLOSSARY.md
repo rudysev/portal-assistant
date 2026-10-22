@@ -110,3 +110,11 @@ _Avoid_: Chime, beep, earcon, wake sound
 **Timer chime**:
 The bell sound played when a timer finishes.
 _Avoid_: Chime (on its own), alarm, tone
+
+### Motion
+
+**Remove animations**:
+Android's system accessibility setting (also the animation scales in Developer options) asking apps to stop
+non-essential motion. Jarvis has no setting of its own. When it's on, looping decoration holds still, while
+anything that shows live information (the sound-reactive orb, a loading spinner) keeps moving.
+_Avoid_: Reduce motion (the code's name for the same thing)
