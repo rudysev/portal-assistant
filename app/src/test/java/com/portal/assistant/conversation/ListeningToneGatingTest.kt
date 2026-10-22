@@ -5,31 +5,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pure JVM tests for when the Listening tone plays: only for a voice query (wake word or mic tap) at the
- * conversation's start, with the setting on; and when the Settings switch previews it (switched on, no
- * conversation live).
+ * Pure JVM tests for when the Settings switch previews the Listening tone (switched on, no conversation live).
+ * Whether a conversation plays it is [ConversationOpeningTest]'s.
  */
 class ListeningToneGatingTest {
-
-    @Test fun playsForAVoiceQueryAtConversationStartWithTheSettingOn() {
-        assertTrue(ListeningTone.playsAtMicOpen(toneEnabled = true, voiceQuery = true, conversationStart = true))
-    }
-
-    @Test fun silentWhenTheSettingIsOff() {
-        assertFalse(ListeningTone.playsAtMicOpen(toneEnabled = false, voiceQuery = true, conversationStart = true))
-    }
-
-    @Test fun silentForASuggestionChip() {
-        // A chip's query is sent as text, so there is nothing to tell the user to say.
-        assertFalse(ListeningTone.playsAtMicOpen(toneEnabled = true, voiceQuery = false, conversationStart = true))
-    }
-
-    @Test fun silentWhenTheMicReopensForAFollowUp() {
-        // A back-and-forth conversation isn't punctuated by a tone before every follow-up.
-        assertFalse(ListeningTone.playsAtMicOpen(toneEnabled = true, voiceQuery = true, conversationStart = false))
-    }
-
-    // --- The Settings switch's preview ---
 
     @Test fun switchingOnPreviewsTheTone() {
         assertTrue(ListeningTone.previewsOnSwitch(switchedOn = true, conversationLive = false))

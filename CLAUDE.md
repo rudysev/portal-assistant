@@ -43,8 +43,8 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
     ("What's the weather?", "Set a 10-minute timer") — a calm, clock-first glance, not a command menu.
     Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
     time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
-    first turn** (not just opening the mic): `LiveClient.sendText` → a `clientContent` text turn, threaded as
-    `initialText` via `SOURCE_CHIP`.
+    first turn** (not just opening the mic): `LiveClient.sendText` → a `clientContent` text turn — the
+    `Trigger.SuggestionChip`'s text becomes the opening's `firstText`.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-
     level scaling while listening). The orb is the sole audio-reactive element here, so the bottom bar shows
@@ -78,9 +78,9 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   `audioLevel` + a transient `notice`; the orange bar is gated by `ui/UiVisibility.inForeground` (a separate
   seam, not on the transcript bus). portal-wake yields to a foreground tap by *detecting* our recording (no
   broadcast). **Session entry model:** the foreground **mic** *continues* the on-screen conversation (resume —
-  replays recent turns via `ResumeContext.withHistory`, bounded by `RESUME_MAX_CHARS`); a tapped **chip** or
-  the top-right **"+"** starts a **new** session; a **"hey jarvis"** wake always starts **fresh**. Resume is
-  gated to the mic tap (`AssistantEngine.start(resume = source == SOURCE_TAP)`). A finished transcript **stays
+  replays recent turns via `ResumeContext.withHistory`, bounded by `ConversationOpening.RESUME_MAX_CHARS`); a
+  tapped **chip** or the top-right **"+"** starts a **new** conversation; a **"hey jarvis"** wake always starts
+  **fresh**. Resume is gated to the mic tap (`Trigger.MicTap`, decided by `ConversationOpening`). A finished transcript **stays
   visible** but the app **reopens fresh** when idle (`MainActivity.onResume` clears when `phase == IDLE` —
   never a *live* conversation). **Paced word reveal:** the engine computes how many words have been "spoken"
   from the *audio actually played* (`RevealProgress.wordsToShow` = played÷received bytes → words) and stamps
@@ -118,20 +118,32 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   factory + credential (API key vs host URL) per `AppPrefs.voiceBackendKind`; `Backends.warmDns()` pre-resolves
   the selected host. The reducer + engine never touch `gemini` or `local` directly. Seam contract is unit-tested
   (`backend/VoiceBackendTest`, `backend/local/LocalBackendTest`).
-- `conversation/AssistantEngine.kt` — the impure shell: wires the `VoiceBackend` (via `Backends.Choice` from
-  `Backends.resolve`) + `MicCapture` + `PcmPlayer`
+- `conversation/Trigger.kt` + `conversation/ConversationOpening.kt` — **how a conversation opens**. A closed
+  `Trigger` (`WakeWord(wakeId)` / `MicTap` / `SuggestionChip(text)`) is typed end to end; the only untyped hop is
+  the Intent into the service (encoded + decoded side by side in `AssistantService`'s companion; an undecodable
+  Intent starts nothing). Pure `ConversationOpening.decide(trigger, OpeningInputs)` returns an `Opening` or a
+  `Refusal`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model, Chosen speaker,
+  Listening tone setting, `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt
+  lines); `Opening` is the transcript seed (fresh / resume with turns shown + replayed, within `RESUME_MAX_CHARS`),
+  the `BackendConfig` with the finished session prompt (assembled here via pure `SessionPrompt`: built-in
+  `SystemPrompt` + enabled external-provider bullets from the same `ExternalToolSpec.parse` pass as the tool
+  declarations + `SystemContext` time/location — override > IP-geo > unknown — + `ResumeContext` on a resume),
+  voice query (false only for a chip), Listening tone plays (setting on ∧ voice query) and first text.
+  `refusalFor(choice)` is the **only** credential rule (blank credential → the backend's "isn't set up yet"
+  notice); `decide` calls it first and the idle home's setup nudge calls it too. No Android, no I/O, no clock
+  reads — fully unit-tested (`ConversationOpeningTest`).
+- `conversation/AssistantEngine.kt` — the impure shell: `start(trigger)` gathers `OpeningInputs`, calls
+  `ConversationOpening.decide`, and returns the `Refusal` (nothing opened) or starts: wires the `VoiceBackend`
+  (factory from `Backends.Choice`, config from the opening) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
   → no locks). Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
-  outcome. Also: an optional `initialText` (chip-send) is sent on
+  outcome. Also: the opening's `firstText` (chip-send) is sent on
   `Event.Ready` (`sendInitialText`); an unexpected socket drop (`onError`/`onClosed` while not ended) posts a
   user-facing `ConversationHub.notice` (`surfaceDisconnect`; message picked by `connectedOk` + `NetworkStatus`).
-  Session system instruction is assembled by pure [SessionPrompt] (built-in [SystemPrompt] + enabled external-
-  provider bullets from the same [ExternalToolSpec.parse] pass as tool declarations + [SystemContext] +
-  [ResumeContext] on tap-to-talk resume). The **Listening tone** plays at the conversation's mic open in `start()`
-  (only there — never on a follow-up re-listen), gated by the pure `ListeningTone.playsAtMicOpen` (setting on +
-  voice query + conversation start) and played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
+  The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up
+  re-listen) when the opening says so, played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
-  (default on), read per conversation; the tone's start/failure callbacks feed the Mic gate.
+  (default on), read once in the snapshot; the tone's start/failure callbacks feed the Mic gate.
 - `conversation/MicGate.kt` — the **Mic gate**, the whole mic frame path: built once per conversation at mic open
   (voice query? tone plays?), fed listening started/stopped from the handler and tone started/failed from the tone
   player, it turns each frame (+ its capture time — it never reads a clock) into a plain `FrameOutcome`: the ordered
@@ -194,8 +206,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   tools), surfaces mid-conversation failures (e.g. a dropped connection), ends itself and tells the service. It never
   touches wake detection, notifications or standby. Settings that shape the opening (backend, model, Chosen
   speaker, Listening tone, location) are read once per conversation; a tool reads its own setting when it runs
-  (e.g. the default music app at `play_music` time). (Today the service still derives resume from the trigger string
-  and re-checks the credential — both move into the engine's opening; see the Conversation opening work.)
+  (e.g. the default music app at `play_music` time).
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
   silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
@@ -220,7 +231,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 `wake/WakeHandoffReceiver` (trigger entry) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
 one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
-classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `ConversationHub` =
+classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
+`ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
 `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·

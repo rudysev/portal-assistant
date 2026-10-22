@@ -7,7 +7,6 @@ import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.Backends
-import com.portal.assistant.conversation.backend.CredentialMessages
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.tools.ToolRegistry
 import com.portal.assistant.system.AppPrefs
@@ -19,8 +18,6 @@ import com.portal.commons.DebugLog
 import org.json.JSONObject
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -131,90 +128,71 @@ class AssistantEngine(
     }
 
     /**
-     * @param resume continue the on-screen conversation (replay its recent turns as context). True only for a
-     * foreground **mic-tap** with a transcript present; a wake trigger and a fresh tap pass false → clean start
-     * (any stale transcript is cleared by [ConversationHub.startFresh]). Multi-turn *within* this conversation
-     * is the live backend session, not replayed context.
-     * @return false when the conversation could not open (missing credential). The service gates before
-     * construction; this path is defense-in-depth only — it posts a notice and bails without calling [onEnded].
+     * Open the conversation for [trigger]: snapshot its inputs, let [ConversationOpening] decide the opening, then
+     * connect and open the mic. Settings are read here once; nothing after the snapshot reads [AppPrefs].
+     * Multi-turn *within* this conversation is the live backend session, not replayed context.
+     *
+     * @return null once started, or the [Refusal] (no credential) — then nothing was opened or published (no
+     * connecting flash), [onEnded] is never called, and the caller posts the notice.
      */
-    fun start(resume: Boolean, initialText: String? = null): Boolean {
-        // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
-        pendingInitialText = initialText?.takeIf { it.isNotBlank() }
-        // No credential → don't open a socket that can only fail. Post the notice and bail BEFORE publishing
-        // CONNECTING, so the user gets a plain message with no connecting flash (the phase stays IDLE, so
-        // the banner sits over the idle home).
-        if (backendChoice.credentialMissing) {
-            DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
-            ConversationHub.postNotice(CredentialMessages.missing(backendChoice.kind))
-            ended = true
-            return false
-        }
-        // Retry a failed/stale IP-geo lookup (prewarm is one-shot); guarded internally, a no-op when fresh.
-        // Result lands for the NEXT conversation — this one uses whatever's already cached.
-        LocationProvider.refreshIfStale(appContext)
-        val prior = ConversationHub.session.value.turns
-        val externalToolLines = toolRegistry.externalPromptLines()
-        val deviceContextLines = deviceContextLines()
-        val resumeTurns: List<Turn>
-        if (resume && prior.isNotEmpty()) {
-            transcript = Transcript(turns = prior)
-            resumeTurns = ResumeContext.recentContext(prior, RESUME_MAX_CHARS) // may be < prior on long chats
-            DebugLog.log("engine start (resume, ${prior.size} turns, ${resumeTurns.size} replayed)")
-            ConversationHub.startResume()
-        } else {
-            DebugLog.log("engine start")
-            transcript = Transcript()
-            resumeTurns = emptyList()
-            ConversationHub.startFresh()
-        }
-        val systemPrompt = SessionPrompt.build(
-            externalToolLines = externalToolLines,
-            deviceContextLines = deviceContextLines,
-            resumeTurns = resumeTurns,
+    fun start(trigger: Trigger): Refusal? {
+        val inputs = OpeningInputs(
+            backendChoice = backendChoice,
+            modelId = AppPrefs.modelId(appContext),
+            speakerId = AppPrefs.speakerId(appContext),
+            listeningToneEnabled = AppPrefs.listeningToneEnabled(appContext),
+            now = ZonedDateTime.now(ZoneId.systemDefault()),
+            locationOverride = LocationProvider.override(appContext),
+            deviceLocation = LocationProvider.current(appContext),
+            onScreenTurns = ConversationHub.session.value.turns,
+            toolDeclarations = toolRegistry.declarations(),
+            externalPromptLines = toolRegistry.externalPromptLines(),
         )
+        val opening = when (val decision = ConversationOpening.decide(trigger, inputs)) {
+            is Refusal -> {
+                DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
+                ended = true
+                return decision
+            }
+
+            is Opening -> decision
+        }
+        // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
+        pendingInitialText = opening.firstText
+        when (val seed = opening.transcriptSeed) {
+            is TranscriptSeed.Resume -> {
+                transcript = Transcript(turns = seed.turnsShown)
+                DebugLog.log("engine start (resume, ${seed.turnsShown.size} turns, ${seed.turnsReplayed.size} replayed)")
+                ConversationHub.startResume()
+            }
+
+            TranscriptSeed.Fresh -> {
+                DebugLog.log("engine start")
+                transcript = Transcript()
+                ConversationHub.startFresh()
+            }
+        }
         // Lead with the two real-latency operations — the WebSocket handshake (the connect long pole) and the
         // AudioRecord open — so the synchronous player setup below (~27 ms of AudioTrack alloc + writer thread)
         // overlaps the network round-trip instead of delaying it. Playback isn't needed until the model speaks
         // (long after Ready), and nothing reads `player` before it's started — onAudio can't fire pre-Ready,
         // onFrame never touches it — so starting it after connect()/mic is safe.
-        backend = backendChoice.factory.create(
-            BackendSessionConfig.build(
-                choice = backendChoice,
-                model = AppPrefs.modelId(appContext),
-                speaker = AppPrefs.speakerId(appContext), // Chosen speaker (null = Server default); Local ignores it
-                systemPrompt = systemPrompt,
-                functionDeclarations = toolRegistry.declarations(),
-            ),
-            backendListener,
-        ).also { it.connect() }
-        // pendingInitialText (set above) is non-null only for a chip, whose query is text, not speech.
-        val voiceQuery = pendingInitialText == null
-        val playsListeningTone = listeningTonePlaysAtMicOpen(voiceQuery)
+        backend = backendChoice.factory.create(opening.backendConfig, backendListener).also { it.connect() }
+        if (!opening.listeningTonePlays) {
+            DebugLog.log("listening tone: skipped (enabled=${inputs.listeningToneEnabled}, voiceQuery=${opening.voiceQuery})")
+        }
         // Built before mic.start() spawns the capture thread, so its initial state is visible to it. With the tone
         // on, the gate starts with it pending: from the first frame nothing is sent until the tone has started.
-        val gate = MicGate(voiceQuery, playsListeningTone).also { micGate = it }
+        val gate = MicGate(opening.voiceQuery, opening.listeningTonePlays).also { micGate = it }
         mic = MicCapture { buf, n -> onFrame(gate, buf, n) }.also { it.start() }
-        if (playsListeningTone) playListeningTone(gate)
+        if (opening.listeningTonePlays) playListeningTone(gate)
         player.start()
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
         player.setOnLevel { lvl ->
             ConversationHub.setAudioLevel(lvl) // drives the speaking visualizer
             if (reveal.recompute(latestModelText())) publishTurns() // pace reveal to audio actually played
         }
-        return true
-    }
-
-    /**
-     * Whether this conversation's mic open plays the Listening tone. Called only from [start], after the credential
-     * check, so a conversation that can't start never plays it, and a follow-up re-listen ([Action.StartForwarding])
-     * never reaches it. The setting is read per conversation, so a change applies from the next one.
-     */
-    private fun listeningTonePlaysAtMicOpen(voiceQuery: Boolean): Boolean {
-        val toneEnabled = AppPrefs.listeningToneEnabled(appContext)
-        val playsTone = ListeningTone.playsAtMicOpen(toneEnabled, voiceQuery, conversationStart = true)
-        if (!playsTone) DebugLog.log("listening tone: skipped (enabled=$toneEnabled, voiceQuery=$voiceQuery)")
-        return playsTone
+        return null
     }
 
     /**
@@ -234,26 +212,6 @@ class AssistantEngine(
                 DebugLog.log("listening tone: didn't play; mic frames are sent again")
             },
         )
-    }
-
-    /**
-     * Device context injected into the system prompt at session start: local clock/zone (snapshot; the
-     * portal.get_time tool provides the live value for time queries) and approximate location (user
-     * override → IP-geo with lat/lon → LOCATION_UNKNOWN). systemInstruction is frozen at session setup,
-     * so the clock snapshot advances only between sessions.
-     */
-    private fun deviceContextLines(): List<String> {
-        val zone = ZoneId.systemDefault()
-        val now = ZonedDateTime.now(zone)
-            .format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy 'at' h:mm a", Locale.getDefault()))
-        val override = LocationProvider.override(appContext)
-        val location = when {
-            override != null -> SystemContext.overrideLine(override)
-
-            else -> LocationProvider.current(appContext)
-                ?.let { SystemContext.locationLine(it) } ?: SystemContext.LOCATION_UNKNOWN
-        }
-        return listOf(SystemContext.timeLine(now, zone.id), location)
     }
 
     /** Tear down without firing [onEnded] (the service is already stopping). Idempotent. */
@@ -564,10 +522,6 @@ class AssistantEngine(
         // ends it on silence). The mic stays open across turns (frames dropped while SPEAKING), so
         // portal-wake can't reclaim mid-conversation.
         const val MULTI_TURN = true
-
-        // When continuing (foreground mic resume), the size budget (chars ≈ token proxy) of recent history
-        // replayed to the model as context — bounds the prompt as a continued chat grows. Device-tunable.
-        const val RESUME_MAX_CHARS = 4_000
 
         // The only two client timers (see ConversationState). Tunable on device.
         const val NO_SPEECH_MS = 5_000L // release the mic if the user says nothing (device-tuned 2.b)

@@ -10,8 +10,8 @@ import java.util.Locale
  * location) and passes plain strings, so this stays Android-free and unit-tested (same pure-logic pattern
  * as [ResumeContext]).
  *
- * Applied to **both** the fresh and resume prompt branches in `AssistantEngine.start`, so a tap-to-talk
- * resume keeps the context. Currently two lines: local time ([timeLine]) and approximate location
+ * Applied to **both** fresh and resumed openings ([ConversationOpening]), so a mic-tap resume keeps the
+ * context. Currently two lines: local time ([timeLine]) and approximate location
  * ([locationLine]/[overrideLine], or [LOCATION_UNKNOWN]).
  */
 object SystemContext {
