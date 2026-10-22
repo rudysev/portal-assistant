@@ -3,6 +3,7 @@ package com.portal.assistant.wake
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.service.AssistantService
 import com.portal.commons.DebugLog
 
@@ -22,7 +23,7 @@ class WakeHandoffReceiver : BroadcastReceiver() {
         if (intent?.action != ACTION_WAKE) return
         val id = intent.getStringExtra(EXTRA_WAKE_ID) ?: "?"
         DebugLog.log("WAKE received (id=$id) → starting AssistantService")
-        AssistantService.start(context, source = "wake:$id")
+        AssistantService.start(context, Trigger.WakeWord(id))
     }
 
     private companion object {
