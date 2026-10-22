@@ -19,19 +19,18 @@ data class VolumeState(val percent: Int, val muted: Boolean) {
  *
  * AudioManager is synchronous and main-thread-safe, so these run directly on the engine's tool-executor
  * thread — no dispatch hop, no lock (volume itself is system state, not app state). The only instance state
- * is the deferred-mute [pendingMute]; the owner must call [dispose] on conversation teardown so a scheduled
- * mute can't fire into the next conversation.
+ * is the [deferredMute]; the owner must call [dispose] on conversation teardown so a scheduled mute can't fire
+ * into the next conversation.
  */
-class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
+class VolumeController(context: Context, afterSpeech: AfterSpeech) {
 
     private val audioManager =
         context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val maxIndex = audioManager.getStreamMaxVolume(STREAM)
 
-    // A mute queued on [afterSpeech] but not yet applied (see [setMuted]) — the handle is the queued Runnable.
-    // Cancelled by unmute or any explicit volume change. @Volatile: scheduled/cancelled on the tool-exec
-    // thread, cleared on the engine handler when AfterSpeech fires it.
-    @Volatile private var pendingMute: Runnable? = null
+    // A mute queued for turn end but not yet applied (see [setMuted]). Cancelled by unmute or any explicit
+    // volume change.
+    private val deferredMute = DeferredToggle(afterSpeech)
 
     /** True device level — reports the curve's round-trip percent (honest), used by get_volume. */
     fun current(): VolumeState {
@@ -45,7 +44,7 @@ class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
      * "50%" is the device's true half-scale.
      */
     fun setPercent(percent: Int): VolumeState {
-        cancelPendingMute() // an explicit level change overrides a pending mute
+        deferredMute.cancel() // an explicit level change overrides a pending mute
         val index = VolumeMath.toIndex(percent, maxIndex)
         if (index > 0) audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_UNMUTE, 0)
         audioManager.setStreamVolume(STREAM, index, 0)
@@ -57,7 +56,7 @@ class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
      * behaviour that respects the device's own volume curve, and unmutes as a side effect when raising.
      */
     fun adjust(raise: Boolean): VolumeState {
-        cancelPendingMute()
+        deferredMute.cancel()
         val dir = if (raise) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
         audioManager.adjustStreamVolume(STREAM, dir, 0)
         return current().also { DebugLog.log("volume ${if (raise) "up" else "down"} → ${it.percent}%") }
@@ -74,7 +73,7 @@ class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
      */
     fun setMuted(muted: Boolean): VolumeState {
         if (!muted) {
-            cancelPendingMute()
+            deferredMute.cancel()
             audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_UNMUTE, 0)
             return current().also { DebugLog.log("volume unmute → ${it.percent}% muted=${it.muted}") }
         }
@@ -82,12 +81,10 @@ class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
             // Already muting, muted, or at zero — don't schedule a redundant deferred apply.
             return current().also { DebugLog.log("volume mute=true (already pending/muted)") }
         }
-        val r = Runnable {
+        deferredMute.schedule {
             audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_MUTE, 0)
-            pendingMute = null
             DebugLog.log("volume mute applied (after speech)")
         }
-        pendingMute = afterSpeech.post(r)
         DebugLog.log("volume mute=true (deferred to turn-end)")
         return VolumeState(current().percent, muted = true) // report intended state; model says "muted"
     }
@@ -101,20 +98,11 @@ class VolumeController(context: Context, private val afterSpeech: AfterSpeech) {
     fun unmuteRing(): Boolean = runCatching { audioManager.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0) }
         .isSuccess
 
-    /**
-     * Cancel any pending deferred mute. Call on conversation teardown so it can't fire into the next one.
-     * Tradeoff (same as DND-enable): on an abnormal/early teardown the model may have confirmed "muted" but
-     * the mute never applies — fine, the user didn't hear the confirmation and the session is gone.
-     */
-    fun dispose() = cancelPendingMute()
+    /** Drop any pending deferred mute. Call on conversation teardown so it can't fire into the next one. */
+    fun dispose() = deferredMute.dispose()
 
-    // pendingMute (mute in-flight, confirmation playing) → report muted so the model stays consistent.
-    private fun isMuted(index: Int): Boolean = pendingMute != null || audioManager.isStreamMute(STREAM) || index == 0
-
-    private fun cancelPendingMute() {
-        pendingMute?.let { afterSpeech.cancel(it) }
-        pendingMute = null
-    }
+    // A pending mute (confirmation playing) → report muted so the model stays consistent.
+    private fun isMuted(index: Int): Boolean = deferredMute.isPending || audioManager.isStreamMute(STREAM) || index == 0
 
     private companion object {
         const val STREAM = AudioManager.STREAM_MUSIC

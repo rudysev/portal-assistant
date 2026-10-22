@@ -13,8 +13,8 @@ data class DndState(val enabled: Boolean) {
 /**
  * The one Android site that touches Do Not Disturb, via [NotificationManager]'s interruption filter — a simple
  * on/off toggle (no timed auto-off; the user turns it back on/off explicitly). Thin shell (same pattern as
- * [VolumeController]); the only instance state is the deferred-enable [pendingEnable], so the owner must call
- * [dispose] on conversation teardown.
+ * [VolumeController]); the only instance state is the [deferredEnable], so the owner must call [dispose] on
+ * conversation teardown.
  *
  * **Enabling is deferred** to turn-end (via [AfterSpeech]) — the exact analog of [VolumeController]'s deferred
  * mute. `INTERRUPTION_FILTER_NONE` silences the assistant's own playback, so applying it immediately would eat
@@ -28,17 +28,15 @@ data class DndState(val enabled: Boolean) {
  */
 class DoNotDisturbController(
     context: Context,
-    private val afterSpeech: AfterSpeech,
+    afterSpeech: AfterSpeech,
     private val volume: VolumeController,
 ) {
 
     private val manager =
         context.applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    // An enable queued on [afterSpeech] but not yet applied (see [setEnabled]) — the handle is the queued
-    // Runnable. Cancelled by disable or teardown. @Volatile: scheduled/cancelled on the tool-exec thread,
-    // cleared on the engine handler when AfterSpeech fires it.
-    @Volatile private var pendingEnable: Runnable? = null
+    // An enable queued for turn end but not yet applied (see [setEnabled]). Cancelled by disable or teardown.
+    private val deferredEnable = DeferredToggle(afterSpeech)
 
     /**
      * Tool-facing read. Guarded like the writes: without policy access `getCurrentInterruptionFilter` returns
@@ -57,7 +55,7 @@ class DoNotDisturbController(
             return JSONObject().put("error", "dnd access not granted")
         }
         if (!enabled) {
-            cancelPendingEnable() // an explicit disable overrides a pending enable
+            deferredEnable.cancel() // an explicit disable overrides a pending enable
             manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
             // Our enable uses INTERRUPTION_FILTER_NONE (total silence), which mutes the ringer-affected
             // streams as a zen side effect — and FILTER_ALL does NOT reliably un-mute them, so after a DnD
@@ -73,31 +71,17 @@ class DoNotDisturbController(
             // Already enabling or on — don't schedule a redundant deferred apply.
             return DndState(true).toJson().also { DebugLog.log("dnd enable=true (already pending/on)") }
         }
-        val r = Runnable {
+        deferredEnable.schedule {
             manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
-            pendingEnable = null
             DebugLog.log("dnd enable applied (after speech)")
         }
-        pendingEnable = afterSpeech.post(r)
         DebugLog.log("dnd enable=true (deferred to turn-end)")
         return DndState(true).toJson() // report intended state; model says "on"
     }
 
-    /**
-     * Cancel any pending deferred enable. Call on conversation teardown so it can't fire into the next one.
-     *
-     * Tradeoff (same class as deferred mute): if a conversation ends before the turn does — only on an
-     * abnormal/early teardown, since normal flow plays the confirmation out — the model may have confirmed
-     * "on" but the filter never applies. Acceptable: the user never heard the confirmation and the session
-     * is gone.
-     */
-    fun dispose() = cancelPendingEnable()
+    /** Drop any pending deferred enable. Call on conversation teardown so it can't fire into the next one. */
+    fun dispose() = deferredEnable.dispose()
 
-    // pendingEnable (enable in-flight, confirmation playing) → report on to stay consistent with what we told the model.
-    private fun isOn(): Boolean = pendingEnable != null || manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
-
-    private fun cancelPendingEnable() {
-        pendingEnable?.let { afterSpeech.cancel(it) }
-        pendingEnable = null
-    }
+    // A pending enable (confirmation playing) → report on to stay consistent with what we told the model.
+    private fun isOn(): Boolean = deferredEnable.isPending || manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
 }

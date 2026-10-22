@@ -204,9 +204,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `create(context, deliver)`; JVM-tested with a fake tool set and a hand-stepped executor (`ToolRunnerTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
-  confirmation). Controllers `post()` the effect; the reducer emits `Action.FireAfterSpeech` at **turn-end**
-  (`turnComplete && playbackIdle && no tools in flight`, after `PcmPlayer`'s hardware-tail drain) and the
-  Tool runner runs the queue then (`turnEnded`). Replaces the old per-controller fixed `Handler` delays (no more
+  confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —
+  a pending effect counts as on — cancel on an explicit change, drop on dispose; JVM-tested); the reducer
+  emits `Action.FireAfterSpeech` at **turn-end** (`turnComplete && playbackIdle && no tools in flight`, after
+  `PcmPlayer`'s hardware-tail drain) and the Tool runner runs the queue then (`turnEnded`). Replaces the old per-controller fixed `Handler` delays (no more
   guessing 2.5 s vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
   `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
@@ -253,7 +254,7 @@ one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `p
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
-`ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech`,
+`ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
 `TimerScheduler` + the observable `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
