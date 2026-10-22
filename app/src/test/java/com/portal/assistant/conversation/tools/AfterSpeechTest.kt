@@ -43,7 +43,7 @@ class AfterSpeechTest {
     }
 
     @Test fun effectThatNullsItsHandleStillRuns() {
-        // Mirrors the controller pattern: the effect clears its own pending ref as it runs.
+        // Mirrors DeferredToggle: the effect clears its own pending ref as it runs.
         val seam = AfterSpeech()
         var applied = false
         seam.post { applied = true }
