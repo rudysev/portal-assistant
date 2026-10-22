@@ -36,6 +36,22 @@ One exchange with Jarvis, from its trigger until the user goes silent or the con
 each answer Jarvis listens again for a follow-up. At most one conversation runs at a time.
 _Avoid_: Session, turn (a turn is one side's part of a conversation)
 
+**Turn**:
+One side's part of a conversation — the user speaking, or Jarvis answering. A conversation is a run of
+alternating turns: Jarvis listens for the user's turn, answers in its own, then listens again.
+_Avoid_: Message, exchange, utterance
+
+**Turn end**:
+The moment Jarvis's turn is over: the voice backend has finished the answer, all of it has been heard, and
+every action it asked for (a timer, a volume change) has been carried out — whichever of those happens last.
+Only then does Jarvis listen again (or the conversation end).
+_Avoid_: Turn complete (that's only the voice backend's part), done
+
+**Transcript**:
+The conversation's turns as shown on screen, in words. While Jarvis is speaking, its turn appears word by word
+in step with the audio actually heard — not every word streamed, only what has been heard so far.
+_Avoid_: Chat, history, log
+
 **Standby**:
 Jarvis is ready between conversations but holds no mic and isn't listening — the next trigger starts a
 conversation without delay.

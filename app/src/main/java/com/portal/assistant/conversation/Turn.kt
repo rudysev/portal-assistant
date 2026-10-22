@@ -16,7 +16,7 @@ data class Turn(
     val id: Long = nextId.incrementAndGet(),
     /**
      * Ephemeral **render hint** (not content): how many leading words to show while this model turn streams,
-     * stamped by the engine on the latest model turn so the UI reveals words in step with the voice.
+     * stamped by [Transcript] on Jarvis's active turn so the UI reveals words in step with the voice.
      * `null` = show the full [text] (every non-active/finished turn). See [RevealProgress].
      */
     val revealedWords: Int? = null,

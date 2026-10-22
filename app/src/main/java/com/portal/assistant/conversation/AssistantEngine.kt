@@ -69,7 +69,7 @@ class AssistantEngine(
 
     private var state = ConversationState()
 
-    /** Chat transcript, mutated only on [handler] and mirrored to [ConversationHub] for the UI. */
+    /** The on-screen transcript + paced reveal; advanced only on [handler] by [advanceTranscript]. */
     private var transcript = Transcript()
 
     /**
@@ -95,9 +95,6 @@ class AssistantEngine(
 
     /** Consecutive server-unconfirmed no-speech graces granted this listening window (handler-thread only). */
     private var noSpeechGraces = 0
-
-    /** Paced word-reveal bookkeeping for the current model turn (handler-thread only). */
-    private val reveal = RevealTracker { player.playedBytes() }
 
     private val noSpeechTimer: Runnable = Runnable {
         // Bounded local-energy grace: if the mic still hears the user at the deadline, defer the end so a
@@ -190,7 +187,8 @@ class AssistantEngine(
         player.setOnDrained { handler.post { dispatch(Event.PlaybackIdle) } }
         player.setOnLevel { lvl ->
             ConversationHub.setAudioLevel(lvl) // drives the speaking visualizer
-            if (reveal.recompute(latestModelText())) publishTurns() // pace reveal to audio actually played
+            // The writer thread: hop to the handler, the transcript's only thread, to pace the reveal.
+            handler.post { advanceTranscript(transcript.on(Transcript.Event.AudioPlayed(player.playedBytes()))) }
         }
         return null
     }
@@ -256,51 +254,35 @@ class AssistantEngine(
         }
         override fun onInputTranscript(textDelta: String) {
             handler.post {
-                transcript = transcript.appendUser(textDelta)
-                publishTurns()
+                advanceTranscript(transcript.on(Transcript.Event.UserText(textDelta)))
                 dispatch(Event.UserSpeaking)
             }
         }
         override fun onOutputTranscript(textDelta: String) {
             handler.post {
-                // SPEAKING only — see [acceptOutputTranscript] (no belated LISTENING append / mute).
-                if (!acceptOutputTranscript(state.phase)) return@post
-                transcript = transcript.appendModel(textDelta)
-                publishTurns()
-                dispatch(Event.ModelActivity)
+                advanceTranscript(transcript.on(Transcript.Event.JarvisText(textDelta, state.phase)))
+                // A belated frame after listening restarted must not enter SPEAKING (and mute the mic) on its own.
+                if (state.phase == Phase.SPEAKING) dispatch(Event.ModelActivity)
             }
         }
         override fun onAudio(pcm24k: ByteArray) {
             lastAudioAtMs = System.currentTimeMillis()
             player.enqueue(pcm24k) // enqueue synchronously (low latency)
-            // Account for the received bytes on the handler — NOT here on the OkHttp thread — so it lands
-            // after startModelTurn()'s reset (also handler-posted, from the same message's ModelGenerating).
-            // Otherwise a turn whose first audio shares the opening message gets those bytes wiped by the
-            // late reset, skewing the paced-reveal fraction and lagging the opening words.
             val size = pcm24k.size
             handler.post {
-                reveal.onAudioReceived(size) // denominator for the paced-reveal fraction
-                if (reveal.recompute(latestModelText())) publishTurns()
+                advanceTranscript(transcript.on(Transcript.Event.AudioReceived(size, player.playedBytes())))
                 dispatch(Event.PlaybackBusy)
             }
         }
         override fun onTurnComplete() = post(Event.TurnComplete)
         override fun onInterrupted() {
             handler.post {
-                // A re-spoken turn mid-SPEAKING gets a fresh bubble explicitly (no StartForwarding precedes it).
-                transcript = transcript.beginModelTurn()
-                reveal.reset()
+                advanceTranscript(transcript.on(Transcript.Event.Interrupted(player.playedBytes())))
                 dispatch(Event.Interrupted)
             }
         }
         override fun onModelGenerating() {
-            handler.post {
-                // The model bubble is armed at the turn boundary (StartForwarding), so DON'T re-arm here —
-                // re-arming mid-turn would split the answer (and dropped its opening words when transcription
-                // arrived before the first modelTurn). Just reset the reveal counters once, on the first one.
-                if (state.phase != Phase.SPEAKING) reveal.reset()
-                dispatch(Event.ModelActivity)
-            }
+            post(Event.ModelActivity)
         }
         override fun onToolCall(calls: List<FunctionCall>) {
             handler.post { dispatch(Event.ToolCallReceived(calls)) }
@@ -354,8 +336,7 @@ class AssistantEngine(
      */
     private fun sendInitialText(text: String) {
         if (state.phase != Phase.LISTENING) return
-        transcript = transcript.appendUser(text)
-        publishTurns()
+        advanceTranscript(transcript.on(Transcript.Event.UserText(text)))
         backend?.sendText(text)
         DebugLog.log("sent initial text: \"$text\"")
     }
@@ -396,31 +377,18 @@ class AssistantEngine(
         )
     }
 
-    /** The latest turn's text iff it's the model's — the reveal target. */
-    private fun latestModelText(): String? = transcript.turns.lastOrNull()?.takeIf { it.role == Role.MODEL }?.text
-
-    private fun publishTurns() {
+    /** Take [next] as the transcript, publishing its turns only when they changed. */
+    private fun advanceTranscript(next: Transcript) {
+        val changed = next.turns !== transcript.turns
+        transcript = next
         // After teardown, a handler message queued just before stop() must not repopulate the hub — e.g. the
         // user tapped "New conversation" (clearHistory) the instant this turn ended.
-        if (ended) return
-        ConversationHub.setTurns(turnsWithReveal())
-    }
-
-    /** The transcript turns with the current reveal count stamped on the latest turn if it's the model's. */
-    private fun turnsWithReveal(): List<Turn> {
-        val turns = transcript.turns
-        val last = turns.lastOrNull() ?: return turns
-        if (last.role != Role.MODEL) return turns
-        return turns.dropLast(1) + last.copy(revealedWords = reveal.revealedWords)
+        if (changed && !ended) ConversationHub.setTurns(next.turns)
     }
 
     private fun exec(action: Action) = when (action) {
         Action.StartForwarding -> {
-            // Arm BOTH a fresh user turn and a fresh model turn at the boundary. Arming the model turn here
-            // (not in onModelGenerating) makes the bubble order-independent: the next model delta — text or
-            // audio, whichever the server sends first — opens a fresh bubble instead of extending the prior
-            // answer's, which dropped the new answer's opening words when transcription arrived first.
-            transcript = transcript.beginUserTurn().beginModelTurn()
+            advanceTranscript(transcript.on(Transcript.Event.ListeningStarted(player.playedBytes())))
             micGate?.listeningStarted()
         }
 

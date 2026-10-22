@@ -1,68 +1,138 @@
 package com.portal.assistant.conversation
 
 /**
- * Pure, immutable accumulator that folds the Live API's streaming input/output transcription deltas
- * into an ordered list of conversation [Turn]s for the chat UI. No Android, no I/O — so it's exhaustively
- * unit-tested (the same pure-logic pattern as [ConversationState] / portal-wake's `WakeMatcher`).
+ * The conversation's turns as shown on screen, and the paced reveal of Jarvis's answer: a pure, immutable value
+ * the engine drives with [Event]s ([on]) and publishes ([turns]). No Android, never reads the player or a clock —
+ * played audio arrives as a value in the events — so every rule is tested by replaying event sequences (the same
+ * pure-logic pattern as [ConversationState] / [MicGate]).
  *
- * The engine drives turn boundaries explicitly from the conversation phase — it knows when the user
- * (re)starts speaking and when the model takes the turn — so this class never has to *infer* them:
- * [beginUserTurn] / [beginModelTurn] arm a fresh turn, and [appendUser] / [appendModel] grow the active
- * turn of that role, creating one lazily on the first non-empty delta (so no empty bubble appears
- * before any words are spoken).
+ * Turn boundaries are explicit, never inferred: [Event.ListeningStarted] arms a fresh user turn and a fresh Jarvis
+ * turn, [Event.Interrupted] a fresh Jarvis turn. Text grows the active turn of its role, creating it lazily on the
+ * first non-empty delta (so no empty bubble appears before any words), whether Jarvis's text or audio comes first.
+ *
+ * **Paced reveal.** Jarvis's transcription arrives ahead of its speech, so its active turn carries
+ * [Turn.revealedWords]: its words scaled by the turn's audio played ÷ received ([RevealProgress.wordsToShow] —
+ * monotonic, capped). The reveal restarts at the two boundaries above, re-based on the played-bytes count then:
+ * a turn ends only once its audio has played (and a stalled turn is flushed before listening restarts), so that
+ * count is exactly where the next turn's audio begins. Only the active Jarvis turn carries a count; a finished
+ * turn shows its full text.
  */
 data class Transcript(
     val turns: List<Turn> = emptyList(),
     private val userTurnId: Long = NONE,
-    private val modelTurnId: Long = NONE,
-    // Raw, un-stripped text of the active model turn. The model streams markdown (**bold**, "1." lists); we
-    // keep the raw accumulation here and store the markdown-stripped form in Turn.text, re-stripping the FULL
-    // raw on each delta so a marker split across deltas (e.g. "*" then "*") still strips correctly.
-    private val modelRaw: String = "",
+    private val jarvisTurnId: Long = NONE,
+    // Raw, un-stripped text of the active Jarvis turn. Jarvis streams markdown (**bold**, "1." lists); we keep the
+    // raw accumulation here and store the markdown-stripped form in Turn.text, re-stripping the FULL raw on each
+    // delta so a marker split across deltas (e.g. "*" then "*") still strips correctly.
+    private val jarvisRaw: String = "",
+    /** Played bytes when the reveal last restarted, so played audio is measured per turn. */
+    private val revealBaseBytes: Long = 0L,
+    /** Audio bytes received for the active Jarvis turn — the denominator of the reveal fraction. */
+    private val receivedBytes: Long = 0L,
+    private val revealedWords: Int = 0,
 ) {
-    /** Arm a fresh USER turn for the next user delta (called when we (re)enter LISTENING). */
-    fun beginUserTurn(): Transcript = copy(userTurnId = NONE)
+    /** What happens to the transcript; [AssistantEngine] sends these. `playedBytes` is the player's running count. */
+    sealed interface Event {
+        /** Listening (re)starts after Jarvis's turn: fresh user and Jarvis turns; the reveal restarts. */
+        data class ListeningStarted(val playedBytes: Long) : Event
 
-    /** Arm a fresh MODEL turn for the next model delta (called when the model takes the turn). */
-    fun beginModelTurn(): Transcript = copy(modelTurnId = NONE, modelRaw = "")
+        /** The voice backend interrupted Jarvis's turn: a fresh Jarvis turn; the reveal restarts. */
+        data class Interrupted(val playedBytes: Long) : Event
 
-    fun appendUser(delta: String): Transcript = append(Role.USER, userTurnId, delta)
+        /** A delta of the user's words (the server's input transcription, or a tapped suggestion's text). */
+        data class UserText(val delta: String) : Event
+
+        /**
+         * A delta of Jarvis's words, applied only while [phase] is SPEAKING — a belated frame after listening
+         * restarted would otherwise open a stray bubble for the previous answer.
+         */
+        data class JarvisText(val delta: String, val phase: Phase) : Event
+
+        /** A chunk of Jarvis's audio arrived ([bytes] of it). */
+        data class AudioReceived(val bytes: Int, val playedBytes: Long) : Event
+
+        /** The player played more audio. */
+        data class AudioPlayed(val playedBytes: Long) : Event
+    }
 
     /**
-     * Append a model-text delta. The turn's display text is the markdown-[Markdown.strip]ped accumulation —
-     * the answer is spoken, so the transcript reads as plain prose, not raw markup. Created lazily on the
-     * first delta that survives stripping (so leading markup alone doesn't open an empty bubble).
+     * The transcript after [event]. Returns `this` when nothing changed; when only the reveal's bookkeeping
+     * changed (audio received, no new word shown), the result shares this one's [turns] list — so the engine
+     * publishes only when `turns` is a new list.
      */
-    fun appendModel(delta: String): Transcript {
-        if (delta.isEmpty()) return this
-        val raw = modelRaw + delta
-        val clean = Markdown.strip(raw)
-        val idx = if (modelTurnId == NONE) -1 else turns.indexOfLast { it.id == modelTurnId }
-        if (idx < 0) {
-            if (clean.isEmpty()) return copy(modelRaw = raw) // only markup so far → keep accumulating
-            val turn = Turn(Role.MODEL, clean)
-            return copy(turns = turns + turn, modelTurnId = turn.id, modelRaw = raw)
+    fun on(event: Event): Transcript = when (event) {
+        is Event.ListeningStarted -> restartReveal(event.playedBytes).copy(userTurnId = NONE)
+        is Event.Interrupted -> restartReveal(event.playedBytes)
+        is Event.UserText -> appendUser(event.delta)
+        is Event.JarvisText -> if (event.phase == Phase.SPEAKING) appendJarvis(event.delta) else this
+        is Event.AudioReceived -> if (event.bytes <= 0) {
+            this
+        } else {
+            copy(receivedBytes = receivedBytes + event.bytes).revealAt(event.playedBytes)
         }
-        val patched = turns.toMutableList()
-        patched[idx] = patched[idx].copy(text = clean) // clean is the full stripped accumulation, not a delta
-        return copy(turns = patched, modelRaw = raw)
+        is Event.AudioPlayed -> revealAt(event.playedBytes)
     }
 
-    private fun append(role: Role, currentId: Long, delta: String): Transcript {
-        if (delta.isEmpty()) return this
-        val idx = if (currentId == NONE) -1 else turns.indexOfLast { it.id == currentId }
-        if (idx < 0) {
-            val turn = Turn(role, delta)
-            return copy(
-                turns = turns + turn,
-                userTurnId = if (role == Role.USER) turn.id else userTurnId,
-                modelTurnId = if (role == Role.MODEL) turn.id else modelTurnId,
-            )
-        }
-        val patched = turns.toMutableList()
-        patched[idx] = patched[idx].copy(text = patched[idx].text + delta)
-        return copy(turns = patched)
+    /** Arm a fresh Jarvis turn and restart the reveal from [playedBytes]; the previous turn shows its full text. */
+    private fun restartReveal(playedBytes: Long): Transcript {
+        val idx = jarvisIndex()
+        return copy(
+            turns = if (idx < 0) turns else turns.patched(idx) { it.copy(revealedWords = null) },
+            jarvisTurnId = NONE,
+            jarvisRaw = "",
+            revealBaseBytes = playedBytes,
+            receivedBytes = 0L,
+            revealedWords = 0,
+        )
     }
+
+    /** Recompute the active Jarvis turn's reveal from [playedBytes]; `this` when no new word shows. */
+    private fun revealAt(playedBytes: Long): Transcript {
+        val idx = jarvisIndex()
+        if (idx < 0) return this
+        val next = RevealProgress.wordsToShow(
+            RevealProgress.wordCount(turns[idx].text),
+            playedBytes - revealBaseBytes,
+            receivedBytes,
+            revealedWords,
+        )
+        if (next == revealedWords) return this
+        return copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
+    }
+
+    private fun appendUser(delta: String): Transcript {
+        if (delta.isEmpty()) return this
+        val idx = if (userTurnId == NONE) -1 else turns.indexOfLast { it.id == userTurnId }
+        if (idx < 0) {
+            val turn = Turn(Role.USER, delta)
+            return copy(turns = turns + turn, userTurnId = turn.id)
+        }
+        return copy(turns = turns.patched(idx) { it.copy(text = it.text + delta) })
+    }
+
+    /**
+     * Append a Jarvis text delta. The turn's display text is the markdown-[Markdown.strip]ped accumulation — the
+     * answer is spoken, so the transcript reads as plain prose, not raw markup. Created lazily on the first delta
+     * that survives stripping (so leading markup alone doesn't open an empty bubble).
+     */
+    private fun appendJarvis(delta: String): Transcript {
+        if (delta.isEmpty()) return this
+        val raw = jarvisRaw + delta
+        val clean = Markdown.strip(raw)
+        val idx = jarvisIndex()
+        if (idx < 0) {
+            if (clean.isEmpty()) return copy(jarvisRaw = raw) // only markup so far → keep accumulating
+            val turn = Turn(Role.MODEL, clean, revealedWords = revealedWords)
+            return copy(turns = turns + turn, jarvisTurnId = turn.id, jarvisRaw = raw)
+        }
+        // clean is the full stripped accumulation, not a delta
+        return copy(turns = turns.patched(idx) { it.copy(text = clean) }, jarvisRaw = raw)
+    }
+
+    private fun jarvisIndex(): Int = if (jarvisTurnId == NONE) -1 else turns.indexOfLast { it.id == jarvisTurnId }
+
+    private fun List<Turn>.patched(idx: Int, change: (Turn) -> Turn): List<Turn> =
+        toMutableList().also { it[idx] = change(it[idx]) }
 
     private companion object {
         const val NONE = -1L

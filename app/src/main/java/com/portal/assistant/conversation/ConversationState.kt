@@ -40,7 +40,7 @@ sealed interface Event {
      * Model-side activity proving the turn is not wedged (generating, tool pass, output transcript
      * while already speaking). LISTENING → enter SPEAKING (and arm the dead-air stall) — the engine
      * posts this enter path from model-generating / tool calls only, never from a standalone
-     * output-transcript frame (see [acceptOutputTranscript]); SPEAKING → re-arm only while
+     * output-transcript frame (it posts one only while already SPEAKING); SPEAKING → re-arm only while
      * playback is idle and no tools are in flight (see [stallDecision]).
      */
     data object ModelActivity : Event
@@ -328,14 +328,6 @@ private fun reduceBody(state: ConversationState, event: Event, multiTurn: Boolea
         else -> unchanged(state)
     }
 }
-
-/**
- * Whether an output-transcript delta should be applied (append + [Event.ModelActivity]).
- * True only while already [Phase.SPEAKING]: must not enter SPEAKING on its own (mic mute + skipped
- * reveal reset), and must not append while LISTENING (belated frame after re-listen would pollute
- * the next turn's pre-armed model bubble). Stall Arm/Cancel policy lives in [stallDecision].
- */
-fun acceptOutputTranscript(phase: Phase): Boolean = phase == Phase.SPEAKING
 
 /**
  * A stalled turn (no audio/completion in time): flush the partial audio, then re-listen or end.
