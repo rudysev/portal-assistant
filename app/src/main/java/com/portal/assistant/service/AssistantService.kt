@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ModelSetup
+import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.NetworkStatus
@@ -95,10 +96,10 @@ class AssistantService : Service() {
 
             ACTION_NEW_CONVERSATION -> newConversation()
 
-            ACTION_START -> startConversation(
-                intent.getStringExtra(EXTRA_SOURCE) ?: "?",
-                intent.getStringExtra(EXTRA_INITIAL_TEXT),
-            )
+            ACTION_START -> when (val trigger = decodeTrigger(intent)) {
+                null -> DebugLog.log("START ignored — the intent carries no trigger")
+                else -> startConversation(trigger)
+            }
 
             // Foreground wake detection (gen2 hands-free): arm while foreground+idle, pause on background.
             ACTION_FOREGROUND -> if (engine == null) enterDetection()
@@ -125,7 +126,7 @@ class AssistantService : Service() {
         DebugLog.log("AssistantService destroyed → mic released")
     }
 
-    private fun startConversation(source: String, initialText: String? = null) {
+    private fun startConversation(trigger: Trigger) {
         // Idempotent: a trigger (tap or wake) while a turn is already live is a no-op — a deliberate product
         // choice. This holds in BOTH phases: during SPEAKING (half-duplex, mic muted, no barge-in) and during
         // LISTENING/multi-turn re-listen (a second wake/tap can't start a parallel conversation or "refresh"
@@ -144,7 +145,7 @@ class AssistantService : Service() {
         }
         running = true
         startForeground(NOTIFICATION_ID, buildNotification(active = true))
-        DebugLog.log("AssistantService START (trigger=$source) → conversation")
+        DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
         // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
         // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
         val newEngine = AssistantEngine(applicationContext, choice) {
@@ -152,7 +153,11 @@ class AssistantService : Service() {
             DebugLog.log("conversation ended → standby")
             returnToStandby()
         }
-        engine = retainIfStarted(newEngine.start(resume = source == SOURCE_TAP, initialText = initialText), newEngine)
+        val started = newEngine.start(
+            resume = trigger == Trigger.MicTap,
+            initialText = (trigger as? Trigger.SuggestionChip)?.text,
+        )
+        engine = retainIfStarted(started, newEngine)
         if (engine == null) {
             // Defense-in-depth: [AssistantEngine.start] can still refuse (shouldn't after the gate above).
             // running + the active notification were already raised — roll back so the next wake/tap isn't wedged.
@@ -176,8 +181,8 @@ class AssistantService : Service() {
     /**
      * Start (or resume) foreground "hey jarvis" detection. Built lazily on first use — the wake model loads
      * once and stays resident (see [exitDetection]). Only meaningful while idle (`engine == null`); the
-     * [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, routes through the exact same
-     * entry point as the portal-wake hand-off ([start]), so a fired wake needs no new plumbing.
+     * [onStartCommand] `ACTION_FOREGROUND` guard enforces that. On a match, starts the conversation directly
+     * ([startConversation]) — the same path the portal-wake hand-off reaches through [start].
      */
     private fun enterDetection() {
         // Gen2 (API 29+) ONLY: A10 silences a background mic, so this foreground detector is the wake path here;
@@ -206,7 +211,7 @@ class AssistantService : Service() {
                 onWake = { event ->
                     mainHandler.post {
                         exitDetection()
-                        start(applicationContext, "wake:${event.wakeId}")
+                        startConversation(Trigger.WakeWord(event.wakeId))
                     }
                 },
                 onError = { DebugLog.log("foreground detector error: $it") },
@@ -366,14 +371,14 @@ class AssistantService : Service() {
         const val ACTION_STANDBY = "com.portal.assistant.action.STANDBY"
         const val ACTION_FOREGROUND = "com.portal.assistant.action.FOREGROUND"
         const val ACTION_BACKGROUND = "com.portal.assistant.action.BACKGROUND"
-        const val EXTRA_SOURCE = "com.portal.assistant.extra.SOURCE"
-        const val EXTRA_INITIAL_TEXT = "com.portal.assistant.extra.INITIAL_TEXT"
 
-        /** Conversation trigger source: a foreground tap (portal-wake yields by detection). */
-        const val SOURCE_TAP = "tap"
-
-        /** Conversation trigger source: a tapped suggestion chip — sends its text as the first turn. */
-        const val SOURCE_CHIP = "chip"
+        // The Trigger's Intent encoding — written by [start], read by [decodeTrigger]; nothing else knows these.
+        private const val EXTRA_TRIGGER = "com.portal.assistant.extra.TRIGGER"
+        private const val EXTRA_WAKE_ID = "com.portal.assistant.extra.WAKE_ID"
+        private const val EXTRA_CHIP_TEXT = "com.portal.assistant.extra.CHIP_TEXT"
+        private const val TRIGGER_WAKE_WORD = "wake"
+        private const val TRIGGER_MIC_TAP = "tap"
+        private const val TRIGGER_SUGGESTION_CHIP = "chip"
 
         /** The foreground detector's wake word — "hey jarvis" at the strict floor, matching portal-wake's
          *  built-in jarvis default so accuracy is identical. Non-null: the phrase is a valid two-word phrase. */
@@ -428,14 +433,26 @@ class AssistantService : Service() {
             )
         }
 
-        fun start(context: Context, source: String, initialText: String? = null) {
+        /** Start a conversation for [trigger] (a no-op while one is live). */
+        fun start(context: Context, trigger: Trigger) {
             ContextCompat.startForegroundService(
                 context,
-                Intent(context, AssistantService::class.java)
-                    .setAction(ACTION_START)
-                    .putExtra(EXTRA_SOURCE, source)
-                    .apply { initialText?.let { putExtra(EXTRA_INITIAL_TEXT, it) } },
+                encodeTrigger(Intent(context, AssistantService::class.java).setAction(ACTION_START), trigger),
             )
+        }
+
+        private fun encodeTrigger(intent: Intent, trigger: Trigger): Intent = when (trigger) {
+            is Trigger.WakeWord -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_WAKE_WORD).putExtra(EXTRA_WAKE_ID, trigger.wakeId)
+            Trigger.MicTap -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_MIC_TAP)
+            is Trigger.SuggestionChip -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_SUGGESTION_CHIP).putExtra(EXTRA_CHIP_TEXT, trigger.text)
+        }
+
+        /** The [Trigger] [encodeTrigger] wrote, or null when the Intent doesn't carry a whole one — then nothing starts. */
+        private fun decodeTrigger(intent: Intent): Trigger? = when (intent.getStringExtra(EXTRA_TRIGGER)) {
+            TRIGGER_WAKE_WORD -> intent.getStringExtra(EXTRA_WAKE_ID)?.let(Trigger::WakeWord)
+            TRIGGER_MIC_TAP -> Trigger.MicTap
+            TRIGGER_SUGGESTION_CHIP -> intent.getStringExtra(EXTRA_CHIP_TEXT)?.takeIf { it.isNotBlank() }?.let(Trigger::SuggestionChip)
+            else -> null
         }
 
         fun stop(context: Context) {

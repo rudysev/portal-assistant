@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.portal.assistant.conversation.ConversationHub
+import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.conversation.tools.TimerStore
 import com.portal.assistant.service.AssistantService
 import com.portal.assistant.system.AppPrefs
@@ -49,11 +50,7 @@ class MainActivity : ComponentActivity() {
             val chip = pendingChipText
             pendingChipText = null
             if (granted) {
-                if (chip != null) {
-                    AssistantService.start(this, source = AssistantService.SOURCE_CHIP, initialText = chip)
-                } else {
-                    AssistantService.start(this, source = AssistantService.SOURCE_TAP)
-                }
+                AssistantService.start(this, if (chip != null) Trigger.SuggestionChip(chip) else Trigger.MicTap)
             } else {
                 ConversationHub.postNotice("Microphone access is needed to talk to Jarvis. Enable it in your device settings.")
             }
@@ -162,7 +159,7 @@ class MainActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         ) {
-            AssistantService.start(this, source = AssistantService.SOURCE_TAP)
+            AssistantService.start(this, Trigger.MicTap)
         } else {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -177,7 +174,7 @@ class MainActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         ) {
-            AssistantService.start(this, source = AssistantService.SOURCE_CHIP, initialText = text)
+            AssistantService.start(this, Trigger.SuggestionChip(text))
         } else {
             pendingChipText = text
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
