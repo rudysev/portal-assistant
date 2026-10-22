@@ -55,12 +55,20 @@ Land it as **two commits**, so there is a tested checkpoint for review and for b
 
 ### Device check (gen2, after commit 2)
 
-- [ ] "hey jarvis" with a transcript on screen starts fresh; the Listening tone plays (setting on).
-- [ ] Mic tap with a transcript on screen resumes (debug log shows the resume line with replayed turns); with
+- [x] "hey jarvis" with a transcript on screen starts fresh; the Listening tone plays (setting on).
+- [x] Mic tap with a transcript on screen resumes (debug log shows the resume line with replayed turns); with
   nothing on screen, starts fresh.
-- [ ] Suggestion chip starts fresh, its text appears as the first turn, no Listening tone.
-- [ ] With no credential (Gemini key cleared, then Local host cleared): the backend's notice shows, no connecting
+- [x] Suggestion chip starts fresh, its text appears as the first turn, no Listening tone.
+- [x] With no credential (Gemini key cleared, then Local host cleared): the backend's notice shows, no connecting
   flash, the idle home shows its nudge, and "hey jarvis" detection still works afterwards.
-- [ ] A location override set in Settings is what Jarvis answers with for "where am I?".
+- [x] A location override set in Settings is what Jarvis answers with for "where am I?".
 
 ## Comments
+
+**Device check, gen2 (2026-10-21), debug build of the second commit.** All passed. Also checked beyond the list: the
+portal-wake hand-off broadcast (decodes to `trigger=wake:jarvis`, starts fresh; backgrounded it shows only the orange
+bar), the Listening tone setting off (`skipped (enabled=false, voiceQuery=true)`), no location override (IP-geo city
+answered), and Local with a host set (not refused; connects to the configured host). An Intent with no trigger can't
+be sent from adb (the service isn't exported), so that rule is covered by review only. Seen but pre-existing and
+self-recovering, not from this change: on the first start after a cold launch the wake detector's capture sometimes
+misses its stop timeout (`pcm stop timeout` → `wake capture wedged — rebuilding`), in portal-commons.
