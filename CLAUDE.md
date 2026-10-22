@@ -184,6 +184,18 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 ## Design rules — don't break these
 
+- **Service = the resident host; engine = one conversation.** `AssistantService` owns everything that outlives a
+  conversation: staying warm (standby, prewarm, the foreground notification), receiving Triggers (portal-wake
+  hand-off, the app, gen2 foreground wake detection), allowing at most one conversation at a time, reacting to a
+  refusal (post the notice, re-arm detection), and returning to standby. It never decides how a conversation opens
+  or runs. `AssistantEngine` is one conversation from Trigger to end: built per Trigger and discarded after, with no
+  state carried between conversations. It gathers the conversation's inputs, decides the opening (or refuses), runs
+  the I/O on one handler thread driven by the reducer (voice backend, mic + Mic gate, player, bar, the two timers,
+  tools), surfaces mid-conversation failures (e.g. a dropped connection), ends itself and tells the service. It never
+  touches wake detection, notifications or standby. Settings that shape the opening (backend, model, Chosen
+  speaker, Listening tone, location) are read once per conversation; a tool reads its own setting when it runs
+  (e.g. the default music app at `play_music` time). (Today the service still derives resume from the trigger string
+  and re-checks the credential — both move into the engine's opening; see the Conversation opening work.)
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
   silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
@@ -294,3 +306,9 @@ Default five roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Grilling (`/grill-with-docs`)
+
+Ask **one question at a time, then STOP** and wait for the user's answer. Don't answer your own questions,
+don't generate the next round ahead of the answer, and don't begin implementation without the user's
+explicit permission.

@@ -11,6 +11,11 @@ Gemini or a local LAN host).
 The engine that powers a conversation — Gemini (cloud) or a local voice host on the LAN.
 _Avoid_: Voice (on its own), provider
 
+**Credential**:
+What the selected voice backend needs before a conversation can open — a Gemini API key, or a local server
+address. With none set, no conversation opens and Jarvis says it isn't set up yet.
+_Avoid_: Key (on its own), config
+
 **Speaker**:
 A named prebuilt voice the Gemini voice backend speaks with (e.g. Charon, Kore), labelled Male or Female.
 Only exists for the Gemini voice backend.
@@ -23,6 +28,52 @@ _Avoid_: Default speaker, default voice, selected voice
 **Server default**:
 No Speaker chosen — Gemini picks its own voice. Every install starts here, and the user can return to it.
 _Avoid_: Default speaker, Puck (not known to be Gemini's default), none
+
+### Conversation
+
+**Conversation**:
+One exchange with Jarvis, from its trigger until the user goes silent or the connection drops. Multi-turn: after
+each answer Jarvis listens again for a follow-up. At most one conversation runs at a time.
+_Avoid_: Session, turn (a turn is one side's part of a conversation)
+
+**Standby**:
+Jarvis is ready between conversations but holds no mic and isn't listening — the next trigger starts a
+conversation without delay.
+_Avoid_: Idle (that's the home screen), sleep
+
+### Starting a conversation
+
+**Trigger**:
+What starts a conversation — exactly one of the wake word, a mic tap, or a suggestion chip. Everything else
+about how the conversation opens (resume or fresh, voice query or not, Listening tone or not) follows from
+which one it was.
+_Avoid_: Source, entry point
+
+**Opening**:
+How one conversation begins, decided from its trigger: resume or fresh, whether the first turn is spoken or a
+suggestion chip's text, whether the Listening tone plays, and what Jarvis is told up front. A conversation
+without a credential gets no opening — it's refused.
+_Avoid_: Plan, setup, start
+
+**Wake word**:
+The trigger of saying "hey jarvis". Always starts a fresh conversation.
+_Avoid_: Hotword, wake (on its own)
+
+**Mic tap**:
+The trigger of tapping the mic in the app. Resumes the on-screen conversation if there is one.
+_Avoid_: Tap-to-talk, tap (on its own)
+
+**Suggestion chip**:
+The trigger of tapping a suggested question on the idle home; its text is sent as the first turn. Always starts
+a fresh conversation.
+_Avoid_: Chip (on its own), suggestion
+
+**Voice query**:
+A conversation whose first turn is spoken — started by the wake word or a mic tap, never a suggestion chip.
+
+**Resume**:
+Continuing the conversation still on screen, so Jarvis keeps its context. Only a mic tap resumes.
+_Avoid_: Continue, restore
 
 ### Mic
 
