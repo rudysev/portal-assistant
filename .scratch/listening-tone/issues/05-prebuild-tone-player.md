@@ -8,11 +8,11 @@ the cue, and of the time the tone is *pending* — during which every mic frame 
 prebuilt track should start the tone within a few ms of mic open: a faster, more deterministic "I heard you", and
 less audio dropped before the cue.
 
-Spec: docs/specs/listening-tone.md.
+Spec: .scratch/listening-tone/spec.md.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Track built once at prewarm (synthesized samples written into it); each play rewinds and replays it rather
       than building a new one (e.g. `stop()` → `reloadStaticData()` / `setPlaybackHeadPosition(0)` → `play()`)
@@ -43,3 +43,5 @@ Spec: docs/specs/listening-tone.md.
   **Known limits:** `play()` returns no status, so a native start that fails silently isn't detected (the framework
   restores a track after an audio-server restart itself). A finished track stays "started" client-side until the
   next play. A play during a still-sounding tone restarts it. gen1 is unverified.
+
+**2026-10-21 — closed.** All boxes ticked; the unit tests and the debug build pass on `main`.

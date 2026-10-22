@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 /**
  * The **Listening tone** — the short, soft, rising two-note tone played when a voice conversation starts, at
  * the moment the mic begins capturing audio that will be sent to the voice backend (spec:
- * `docs/specs/listening-tone.md`).
+ * `.scratch/listening-tone/spec.md`).
  *
  * Heard many times a day, so it is deliberately gentle: two notes a perfect fourth apart (G5 → C6), voiced as a
  * softly struck piano rather than a pure sine. Each note is a few slightly detuned "strings" (gentle beating),

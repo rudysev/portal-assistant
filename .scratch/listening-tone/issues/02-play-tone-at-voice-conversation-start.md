@@ -4,11 +4,11 @@
 plays the Listening tone, at the moment the mic opens (CONNECTING, not socket-ready), on the same audio
 attributes / volume as Jarvis's voice. No tone for a suggestion chip, for a follow-up re-listen, or when the
 conversation can't start (missing credential). Read a persisted "listening tone enabled" preference per
-conversation, default on (no Settings switch yet). Backend-neutral; reducer unchanged. Spec: docs/specs/listening-tone.md.
+conversation, default on (no Settings switch yet). Backend-neutral; reducer unchanged. Spec: .scratch/listening-tone/spec.md.
 
 **Blocked by:** 01 (Audition the Listening tone)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Pure gating rule, unit-tested: plays only for setting on + voice query + conversation start
 - [x] Thin one-shot player shell on the voice's audio attributes; failure logged, never blocks the conversation
@@ -61,3 +61,5 @@ which playback started (the engine only logs it today). On device the tone start
 So the suppression window should key on the tone's start time against each frame's capture time, not on the
 first frame. **For ticket 04:** the Settings switch can bind to `AppPrefs.listeningToneEnabled` /
 `setListeningToneEnabled`, and the on-switch preview can call `ListeningTonePlayer.play()`.
+
+**2026-10-21 — closed.** All boxes ticked; the unit tests and the debug build pass on `main`.

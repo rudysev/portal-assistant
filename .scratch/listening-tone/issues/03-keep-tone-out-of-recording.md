@@ -3,11 +3,11 @@
 **What to build:** Mic audio captured while the Listening tone plays, plus a short echo tail, is dropped — neither
 connect-buffered nor forwarded — so the voice backend never hears or reacts to the tone, while words spoken right
 after it are still heard. The tail is a device-measured, justified constant (like MIC_GAIN), not a client timer.
-Spec: docs/specs/listening-tone.md.
+Spec: .scratch/listening-tone/spec.md.
 
 **Blocked by:** 02 (Play the Listening tone when a voice conversation starts)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Pure suppression-window rule, unit-tested: frames at tone start and just before window end dropped; just after kept; no tone → nothing dropped
 - [x] Capture thread drops suppressed frames; everything after behaves as before
@@ -89,3 +89,5 @@ bursts that broadband RMS couldn't tell apart from the tone.
 - If the tone's `DURATION_MS` is retuned, the window follows automatically. If the tone is made much louder or
   longer-ringing, re-measure `ECHO_TAIL_MS`.
 
+
+**2026-10-21 — closed.** All boxes ticked; the unit tests and the debug build pass on `main`.

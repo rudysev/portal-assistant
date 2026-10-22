@@ -3,11 +3,11 @@
 **What to build:** A new **Sounds** section in Settings with one switch — title "Listening tone", subtitle "Play a
 soft tone when Jarvis starts listening". On by default, persists across restarts, applies from the next
 conversation. Switching on plays the tone once as a preview; switching off is silent. Update CLAUDE.md/README.md
-Settings notes. Spec: docs/specs/listening-tone.md.
+Settings notes. Spec: .scratch/listening-tone/spec.md.
 
 **Blocked by:** 02 (Play the Listening tone when a voice conversation starts)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Sounds section + switch, styled like existing switch rows
 - [x] Default on; toggling persists; next conversation honours it
@@ -69,3 +69,5 @@ serializes the track start behind the `AudioRecord` open. The suppression window
 
 - 2026-10-19 (user request): Sounds moved up to sit right after the backend / API-key sections and just above
   Location (still shown for both backends).
+
+**2026-10-21 — closed.** All boxes ticked; the unit tests and the debug build pass on `main`.
