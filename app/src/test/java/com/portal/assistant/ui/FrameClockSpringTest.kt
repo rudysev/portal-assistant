@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.sqrt
 
-/** Pure JVM tests for the frame-clock spring that eases the sound-reactive orb. */
+/** Pure JVM tests for the frame-clock spring that eases the audio-reactive orb. */
 class FrameClockSpringTest {
 
     // Compose's default spring: critically damped, StiffnessMedium → natural frequency ω = √stiffness rad/s.

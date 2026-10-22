@@ -93,7 +93,7 @@ fun LoadingSpinner(color: Color, modifier: Modifier = Modifier, strokeWidth: Dp 
 
 /**
  * Like [androidx.compose.animation.core.animateFloatAsState] with its default spring, but stepped on the raw
- * frame clock — so the sound-reactive orb keeps easing under "remove animations", where animator duration
+ * frame clock — so the audio-reactive orb keeps easing under "remove animations", where animator duration
  * scale 0 would make that spring finish instantly and the orb jump between level readings. Asks for frames only
  * while moving; at rest it waits for the next target (no idle redraws on the always-on display).
  */

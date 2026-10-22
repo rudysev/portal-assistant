@@ -52,6 +52,12 @@ The conversation's turns as shown on screen, in words. While Jarvis is speaking,
 in step with the audio actually heard — not every word streamed, only what has been heard so far.
 _Avoid_: Chat, history, log
 
+**Orb**:
+The glowing circle that grows and brightens with the sound of the conversation: the user's voice while Jarvis
+listens, Jarvis's voice while Jarvis answers. It's large and centred until something has been said, then small and
+beside the End button once there's a transcript.
+_Avoid_: Visualizer, waveform, bubble
+
 **Standby**:
 Jarvis is ready between conversations but holds no mic and isn't listening — the next trigger starts a
 conversation without delay.
@@ -114,7 +120,7 @@ _Avoid_: Chime (on its own), alarm, tone
 ### Motion
 
 **Remove animations**:
-Android's system accessibility setting (also the animation scales in Developer options) asking apps to stop
-non-essential motion. Jarvis has no setting of its own. When it's on, looping decoration holds still, while
-anything that shows live information (the sound-reactive orb, a loading spinner) keeps moving.
-_Avoid_: Reduce motion (the code's name for the same thing)
+Android's system-wide setting asking apps to stop non-essential motion. Jarvis has no setting of its own. When
+it's on, looping decoration holds still, while anything that shows live information (the **Orb**, a loading
+spinner) keeps moving.
+_Avoid_: Reduce motion, animations off
