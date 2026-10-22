@@ -133,7 +133,7 @@ private const val OLDER_TURN_ALPHA = 0.62f
 // How far from the newest content the user can be scrolled and still count as "following".
 private const val BOTTOM_SLOP_PX = 160
 
-// Paced reveal: the model's transcription text arrives faster than its 24 kHz speech plays. The engine
+// Paced reveal: the model's transcription text arrives faster than its 24 kHz speech plays. The Transcript
 // stamps how many words have been "spoken" on the latest model turn (Turn.revealedWords, computed by
 // RevealProgress from audio played ÷ received); this screen just shows that many words while SPEAKING and
 // snaps to full text when it ends. Each freshly revealed word fades in over WORD_FADE_MS (device-tunable).
@@ -833,8 +833,8 @@ private fun Transcript(turns: List<Turn>, phase: ConversationHub.UiPhase, audioL
                 item(key = "thinking") { ThinkingDots() }
             }
             items(items, key = { it.id }) { turn ->
-                // The engine stamps revealedWords on the latest model turn while it speaks; reveal it word-by-
-                // word only then. Every finished/older turn (and any turn once speaking ends) shows full text.
+                // The Transcript stamps revealedWords on Jarvis's active turn while it speaks; reveal it word-
+                // by-word only then. Every finished/older turn (and any turn once speaking ends) shows full text.
                 val revealing = turn.id == latestId && phase == ConversationHub.UiPhase.SPEAKING
                 TurnItem(
                     turn = turn,

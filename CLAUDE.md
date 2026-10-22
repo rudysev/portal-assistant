@@ -53,7 +53,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
     `outputAudioTranscription`), dimmed older turns, runtime-responsive width (`BoxWithConstraints`),
     auto-scroll with pause-on-scroll-up + a scroll-to-bottom FAB, and a **"thinking" dots** indicator that
     fills the model's pre-output gap (Search/tool latency). Model markdown is stripped to plain prose
-    (`conversation/Markdown.strip`, applied in `Transcript.appendModel`) so the spoken-answer transcript
+    (`conversation/Markdown.strip`, applied by `Transcript` to each Jarvis delta) so the spoken-answer transcript
     reads cleanly.
 
   **Active timers** render as live countdown cards above the content in any state (`TimerCards`, fed by the
@@ -82,11 +82,14 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   tapped **chip** or the top-right **"+"** starts a **new** conversation; a **"hey jarvis"** wake always starts
   **fresh**. Resume is gated to the mic tap (`Trigger.MicTap`, decided by `ConversationOpening`). A finished transcript **stays
   visible** but the app **reopens fresh** when idle (`MainActivity.onResume` clears when `phase == IDLE` —
-  never a *live* conversation). **Paced word reveal:** the engine computes how many words have been "spoken"
-  from the *audio actually played* (`RevealProgress.wordsToShow` = played÷received bytes → words) and stamps
-  `Turn.revealedWords`; the UI shows that many words while SPEAKING, then snaps to full text, each new word
-  fading in once (`RevealingModelText`, sliced by `RevealProgress.wordRanges`). Looping decorative
-  animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
+  never a *live* conversation). **Paced word reveal:** the pure `conversation/Transcript` owns the turns and the
+  reveal, driven by six events (`on(event)`: listening started, interrupted, user/Jarvis text, audio received/played
+  — the engine fills in `PcmPlayer`'s played bytes and publishes `turns` only when they change). It computes how
+  many words have been "spoken" from the *audio actually played* (`RevealProgress.wordsToShow` = played÷received
+  bytes → words), restarting at listening start and on an interruption (so a tool-call answer reveals from its
+  first word too), and stamps `Turn.revealedWords` on the active Jarvis turn; the UI shows that many words while
+  SPEAKING, then snaps to full text, each new word fading in once (`RevealingModelText`, sliced by
+  `RevealProgress.wordRanges`). Looping decorative animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
   Voice dialog's loading spinner is information, not decoration, so `ui/Motion.LoadingSpinner` turns on the
   raw frame clock, which that setting (which freezes Material's indeterminate spinner) doesn't scale.
   **Deferred:** better ASR accuracy; weather glance.
@@ -159,7 +162,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   frame. Pure and fully JVM-tested by frame sequences (`MicGateTest`), including the tone × connect-buffer
   interaction (the tone's window outlasts the ~440 ms connect, so with the tone on the buffer holds little or nothing).
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
-  list markers, inline code, links), applied in `Transcript.appendModel` (raw kept internally, full
+  list markers, inline code, links), applied by `Transcript` to Jarvis's text (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
 - `gemini/LiveClient.kt` — Gemini Live WebSocket (OkHttp). `googleSearch` on, **plus function-calling**: the
   `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `buildSetup`, and `toolCall`/
@@ -234,7 +237,7 @@ one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `p
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
-`ResumeContext`, `RevealProgress`/`RevealTracker`; `tools/` incl. `TimerScheduler` + the observable
+`ResumeContext`, `RevealProgress`; `tools/` incl. `TimerScheduler` + the observable
 `TimerStore`) · `gemini/LiveClient` · `conversation/backend/local/LocalBackend` · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,

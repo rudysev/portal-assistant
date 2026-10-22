@@ -4,9 +4,8 @@ import kotlin.math.roundToInt
 
 /**
  * Pure paced-reveal helpers. The model's transcription text arrives ahead of its 24 kHz speech, so the UI
- * reveals only the words whose audio has actually *played*. [RevealTracker] owns the stateful played/received
- * byte counts and calls these helpers; the engine orchestrates and stamps the result on the latest model
- * [Turn]; the UI renders it.
+ * reveals only the words whose audio has actually *played*. [Transcript] owns the played/received byte counts,
+ * calls these helpers and stamps the result on Jarvis's active [Turn]; the UI renders it.
  *
  * No Android/Compose — fully unit-tested (the same pure-logic pattern as [ConversationState] / [Transcript]).
  */

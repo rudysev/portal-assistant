@@ -2,7 +2,6 @@ package com.portal.assistant.conversation
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -277,15 +276,6 @@ class ConversationStateTest {
         )
         assertEquals(Phase.SPEAKING, d.state.phase)
         assertEquals(emptyList<Action>(), d.actions)
-    }
-
-    @Test fun outputTranscriptAcceptedOnlyWhileSpeaking() {
-        // Engine coupling: transcript ticks must not append or post ModelActivity outside SPEAKING
-        // (belated frame after re-listen would pollute the next bubble / mute the mic).
-        assertFalse(acceptOutputTranscript(Phase.CONNECTING))
-        assertFalse(acceptOutputTranscript(Phase.LISTENING))
-        assertFalse(acceptOutputTranscript(Phase.ENDED))
-        assertTrue(acceptOutputTranscript(Phase.SPEAKING))
     }
 
     // ---- MULTI-TURN (Phase 2.b) --------------------------------------------------------------------
