@@ -7,11 +7,11 @@ package com.portal.assistant.conversation
  * 1. [SystemPrompt] — role + built-in tool usage rules
  * 2. [ExternalToolPrompt] — enabled external-provider guidance (when any)
  * 3. [SystemContext] — device clock/location snapshot
- * 4. [ResumeContext] — prior transcript on tap-to-talk resume (when any)
+ * 4. [ResumeContext] — prior transcript on a mic-tap resume (when any)
  *
- * Android-free so the layering is unit-tested; [com.portal.assistant.conversation.AssistantEngine]
- * supplies [externalToolLines] from [com.portal.assistant.conversation.tools.ToolRegistry.externalPromptLines]
- * (same session parse as tool declarations) and [deviceContextLines] from the device clock/location.
+ * Android-free so the layering is unit-tested; [ConversationOpening] calls it with [externalToolLines] from
+ * [com.portal.assistant.conversation.tools.ToolRegistry.externalPromptLines] (same session parse as tool
+ * declarations) and [deviceContextLines] built from the opening's clock/location snapshot.
  */
 object SessionPrompt {
 

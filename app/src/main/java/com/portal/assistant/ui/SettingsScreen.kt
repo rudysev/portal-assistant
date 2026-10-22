@@ -163,11 +163,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ScreenTitle, fontWeight = FontWeight.SemiBold)
             }
 
-            // Said once, here — every setting on this screen takes effect at the next conversation (the model,
-            // device context, and tool declarations are all frozen when a session starts), so the per-section
-            // repeats are gone.
+            // Said once, here — the settings that shape a conversation's opening (backend, key, model, voice, sound,
+            // location, tools) are read once when it starts, so they apply from the next one. The default music app
+            // is read when Jarvis plays music, so it applies right away.
             Spacer(Modifier.size(6.dp))
-            Text("Changes take effect on your next conversation.", color = subtle, fontSize = TextSize.Body)
+            Text(
+                "Changes take effect on your next conversation; the default music app applies right away.",
+                color = subtle,
+                fontSize = TextSize.Body,
+            )
 
             Spacer(Modifier.size(28.dp))
             Text("Backend", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)

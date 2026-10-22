@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.portal.assistant.R
 import com.portal.assistant.conversation.ConversationHub
+import com.portal.assistant.conversation.ConversationOpening
 import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.RevealProgress
 import com.portal.assistant.conversation.Role
@@ -367,10 +368,10 @@ private val WIDE_HOME_MIN = 720.dp
 @Composable
 private fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    // Not configured → Jarvis can't answer. Use the same credential rule as [Backends.resolve] / the service
-    // start gate so the idle home never shows chips that would fail at connect.
+    // Not configured → Jarvis can't answer. The nudge shows exactly when a conversation would be refused (the one
+    // credential rule, [ConversationOpening.refusalFor]), so the idle home never shows chips that would fail.
     val backendChoice = Backends.resolve(context)
-    val needsSetup = backendChoice.credentialMissing
+    val needsSetup = ConversationOpening.refusalFor(backendChoice) != null
     val setupMessage = when (backendChoice.kind) {
         AppPrefs.VoiceBackendKind.LOCAL -> "Add your local server address to get started"
         AppPrefs.VoiceBackendKind.GEMINI -> "Add your Gemini API key to get started"

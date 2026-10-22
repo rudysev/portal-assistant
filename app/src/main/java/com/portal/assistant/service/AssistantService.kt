@@ -20,6 +20,7 @@ import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.system.AppPrefs
+import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.system.WakeModelInstaller
 import com.portal.assistant.ui.UiVisibility
@@ -86,7 +87,7 @@ class AssistantService : Service() {
         // Warm the IP-geo cache on every service creation, regardless of which action started it — so a
         // "hey jarvis what's the weather" as the FIRST trigger after install (which arrives via ACTION_START,
         // not the standby branch that runs prewarm) still has a location to inject. Async + self-guarding.
-        com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext)
+        LocationProvider.refreshIfStale(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -135,34 +136,28 @@ class AssistantService : Service() {
         exitDetection() // stop the foreground detector's capture before the conversation opens its mic (single slot)
         // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
         // conversation so a change in Settings → Backend applies on the next turn with no restart.
-        val choice = Backends.resolve(applicationContext)
-        if (!canOpenConversation(choice.credentialMissing)) {
-            DebugLog.log("no credential → cannot start (kind=${choice.kind})")
-            ConversationHub.postNotice(Backends.missingCredentialMessage(choice.kind))
-            // exitDetection already ran — re-arm if still on screen so gen2 wake keeps working.
-            if (UiVisibility.inForeground) enterDetection()
-            return
-        }
-        running = true
-        startForeground(NOTIFICATION_ID, buildNotification(active = true))
+        val backendChoice = Backends.resolve(applicationContext)
+        // Retry a failed/stale IP-geo lookup (prewarm is one-shot); guarded internally, a no-op when fresh.
+        // Result lands for the NEXT conversation — this one opens with whatever's already cached.
+        LocationProvider.refreshIfStale(applicationContext)
         DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
         // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
         // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
-        val newEngine = AssistantEngine(applicationContext, choice) {
+        val newEngine = AssistantEngine(applicationContext, backendChoice) {
             // The engine has already torn down (mic released, bar hidden) before this fires.
             DebugLog.log("conversation ended → standby")
             returnToStandby()
         }
-        val started = newEngine.start(
-            resume = trigger == Trigger.MicTap,
-            initialText = (trigger as? Trigger.SuggestionChip)?.text,
-        )
-        engine = retainIfStarted(started, newEngine)
-        if (engine == null) {
-            // Defense-in-depth: [AssistantEngine.start] can still refuse (shouldn't after the gate above).
-            // running + the active notification were already raised — roll back so the next wake/tap isn't wedged.
-            returnToStandby()
+        val refusal = newEngine.start(trigger)
+        if (refusal != null) {
+            ConversationHub.postNotice(refusal.notice)
+            // exitDetection already ran — re-arm if still on screen so gen2 wake keeps working.
+            if (UiVisibility.inForeground) enterDetection()
+            return
         }
+        engine = newEngine
+        running = true
+        startForeground(NOTIFICATION_ID, buildNotification(active = true))
     }
 
     /**
@@ -318,7 +313,7 @@ class AssistantService : Service() {
                 Class.forName("com.portal.assistant.audio.MicCapture")
                 Class.forName("com.portal.assistant.audio.PcmPlayer")
                 Backends.warmDns(applicationContext)
-                com.portal.assistant.system.LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
+                LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
                 com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext) // pre-scan installed tool providers off the wake path
                 com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext) // pre-scan installed music apps off the wake path
                 com.portal.assistant.conversation.ListeningTonePlayer.prewarm() // synthesize the Listening tone + build its track off the wake path
@@ -396,15 +391,6 @@ class AssistantService : Service() {
         @Volatile
         var running = false
             private set
-
-        /** Gate for [startConversation] — false when the selected backend has no credential yet. */
-        internal fun canOpenConversation(credentialMissing: Boolean): Boolean = !credentialMissing
-
-        /**
-         * Assign [candidate] to the live engine slot only when [start] opened a session — never retain a
-         * start-aborted instance (see [AssistantEngine.start]).
-         */
-        internal fun <T> retainIfStarted(started: Boolean, candidate: T): T? = candidate.takeIf { started }
 
         /** Bring the resident service up (or no-op if already up) without starting a conversation. */
         fun standby(context: Context) {

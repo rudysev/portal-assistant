@@ -26,41 +26,19 @@ object Backends {
         Thread(runnable, "backend-dns-warm").apply { isDaemon = true }
     }
 
-    /** User-facing notice when [resolve] yields a blank credential — see [CredentialMessages]. */
-    fun missingCredentialMessage(kind: AppPrefs.VoiceBackendKind): String = CredentialMessages.missing(kind)
-
     /** The shipping default factory — Gemini. Used by tests and any code that needs a concrete backend. */
     val default: VoiceBackendFactory = gemini
 
     /**
-     * Result of [resolve]: which backend, its factory, and the credential string that backend expects.
-     * Wire/session options are **not** set here — the engine merges [defaultWire] into [BackendConfig]
-     * alongside the system prompt and tool declarations.
+     * Result of [resolve]: which backend, its factory, and the credential string that backend expects (blank =
+     * none — whether that refuses a conversation is [ConversationOpening.refusalFor][com.portal.assistant.conversation.ConversationOpening.refusalFor]'s
+     * call). Session options are **not** set here — [BackendConfig] is assembled at the conversation's opening.
      */
     data class Choice(
         val kind: AppPrefs.VoiceBackendKind,
         val factory: VoiceBackendFactory,
         val credential: String,
-        val defaultWire: BackendWireDefaults = BackendWireDefaults.forKind(kind),
-    ) {
-        val credentialMissing: Boolean get() = credential.isBlank()
-    }
-
-    /** Default wire-option slices per backend — factories may override via [BackendConfig] at create time. */
-    data class BackendWireDefaults(
-        val gemini: GeminiWireOptions = GeminiWireOptions(),
-        val local: LocalWireOptions = LocalWireOptions(),
-    ) {
-        companion object {
-            fun forKind(kind: AppPrefs.VoiceBackendKind): BackendWireDefaults = when (kind) {
-                AppPrefs.VoiceBackendKind.GEMINI -> BackendWireDefaults()
-                AppPrefs.VoiceBackendKind.LOCAL -> BackendWireDefaults(local = LocalWireOptions())
-            }
-        }
-
-        /** Fold into a [BackendConfig] builder alongside shared session fields. */
-        fun applyTo(config: BackendConfig): BackendConfig = config.copy(gemini = gemini, local = local)
-    }
+    )
 
     /**
      * Resolve the user's backend pref into a [Choice], reading the matching credential per call so a change

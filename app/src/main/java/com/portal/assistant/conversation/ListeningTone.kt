@@ -28,15 +28,8 @@ import kotlin.math.sqrt
  */
 object ListeningTone {
 
-    // --- Gating: when the tone plays ---
-
-    /**
-     * Whether the mic opening now plays the tone: only when the user has it on ([toneEnabled]), the query is
-     * spoken ([voiceQuery] — wake word or mic tap; a suggestion chip is sent as text, so there's nothing to cue),
-     * and this is the conversation's start ([conversationStart] — never when the mic reopens for a follow-up).
-     */
-    fun playsAtMicOpen(toneEnabled: Boolean, voiceQuery: Boolean, conversationStart: Boolean): Boolean =
-        toneEnabled && voiceQuery && conversationStart
+    // --- Previewing: when the Settings switch plays the tone (whether a conversation plays it is the opening's
+    // call — [ConversationOpening]) ---
 
     /**
      * Whether flipping the Settings switch plays the tone once as a preview: only when it was switched on — off is
