@@ -1,6 +1,6 @@
 # Spec: Conversation opening
 
-Status: ready-for-agent
+Status: closed
 
 ## Problem Statement
 

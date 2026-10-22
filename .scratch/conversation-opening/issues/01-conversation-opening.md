@@ -9,7 +9,7 @@ Spec: `.scratch/conversation-opening/spec.md`.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 Land it as **two commits**, so there is a tested checkpoint for review and for bisecting:
 1. the typed Trigger, end to end;
@@ -72,3 +72,8 @@ answered), and Local with a host set (not refused; connects to the configured ho
 be sent from adb (the service isn't exported), so that rule is covered by review only. Seen but pre-existing and
 self-recovering, not from this change: on the first start after a cold launch the wake detector's capture sometimes
 misses its stop timeout (`pcm stop timeout` → `wake capture wedged — rebuilding`), in portal-commons.
+
+**2026-10-21 — closed.** Merged via PR #5 (rebased: `92ed53172` typed Trigger, `35fcd2e3e` `ConversationOpening` +
+rewiring; device check recorded in `7c619278c`). Re-verified on `main`: `./gradlew testDebugUnitTest assembleDebug`
+passes (435 tests, 0 failures; 23 in `ConversationOpeningTest`). Open question carried forward: the user perceived
+"hey jarvis" as possibly slower (tone + screen update) after this change — to be measured, not assumed.
