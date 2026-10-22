@@ -223,9 +223,52 @@ class TranscriptTest {
             JarvisText("Sure, here's another.", SPEAKING),
             AudioReceived(100, playedBytes = 80),
         )
-        assertEquals(listOf(Role.MODEL to tenWords, Role.MODEL to "Sure, here's another."), t.pairs())
+        assertEquals(Role.MODEL to "Sure, here's another.", t.pairs().last())
         assertEquals(0, t.latestRevealed())
         assertEquals(2, t.on(AudioPlayed(130)).latestRevealed()) // half of 3 words → round(1.5)
+    }
+
+    // ---- a turn that ended early ---------------------------------------------------------------------
+
+    @Test fun anInterruptedAnswerIsCutAtTheWordsHeard() {
+        val t = answering.after(AudioReceived(100, playedBytes = 0), AudioPlayed(80), Interrupted(playedBytes = 80))
+        assertEquals(listOf(Role.MODEL to "one two three four five six seven eight"), t.pairs())
+        assertEquals(null, t.latestRevealed())
+    }
+
+    @Test fun anAnswerFlushedBeforeListeningRestartsIsCutAtTheWordsHeard() {
+        // A stalled turn flushes its unplayed audio, then listening restarts.
+        val t = answering.after(AudioReceived(100, playedBytes = 0), AudioPlayed(50), ListeningStarted(50))
+        assertEquals(listOf(Role.MODEL to "one two three four five"), t.pairs())
+    }
+
+    @Test fun theCutCountsWordsThatArrivedAfterTheLastAudio() {
+        val t = Transcript().after(
+            ListeningStarted(0),
+            JarvisText("one two", SPEAKING),
+            AudioReceived(100, playedBytes = 0),
+            AudioPlayed(50), // 1 of 2 words
+            JarvisText(" three four five six seven eight nine ten", SPEAKING),
+            Interrupted(playedBytes = 50),
+        )
+        assertEquals(listOf(Role.MODEL to "one two three four five"), t.pairs())
+    }
+
+    @Test fun anAnswerHeardInFullKeepsItsFullTextWhenInterrupted() {
+        val t = answering.after(AudioReceived(100, playedBytes = 0), AudioPlayed(100), Interrupted(playedBytes = 100))
+        assertEquals(listOf(Role.MODEL to tenWords), t.pairs())
+        assertEquals(null, t.latestRevealed())
+    }
+
+    @Test fun anAnswerCutBeforeAnyWordWasHeardIsRemoved() {
+        val t = Transcript().after(
+            ListeningStarted(0),
+            UserText("tell me a story"),
+            JarvisText(tenWords, SPEAKING),
+            AudioReceived(100, playedBytes = 0),
+            Interrupted(playedBytes = 0),
+        )
+        assertEquals(listOf(Role.USER to "tell me a story"), t.pairs())
     }
 
     @Test fun onlyTheActiveJarvisTurnCarriesARevealCount() {

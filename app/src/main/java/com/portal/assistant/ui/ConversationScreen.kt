@@ -136,7 +136,8 @@ private const val BOTTOM_SLOP_PX = 160
 // Paced reveal: the model's transcription text arrives faster than its 24 kHz speech plays. The Transcript
 // stamps how many words have been "spoken" on the latest model turn (Turn.revealedWords, computed by
 // RevealProgress from audio played ÷ received); this screen just shows that many words while SPEAKING and
-// snaps to full text when it ends. Each freshly revealed word fades in over WORD_FADE_MS (device-tunable).
+// snaps to the turn's text when it ends (cut to the words heard if it ended early — see Transcript). Each
+// freshly revealed word fades in over WORD_FADE_MS (device-tunable).
 private const val WORD_FADE_MS = 140
 
 // Below this playback level the model is "thinking" (no audible output yet); at/above it, audio is flowing
@@ -834,14 +835,14 @@ private fun Transcript(turns: List<Turn>, phase: ConversationHub.UiPhase, audioL
             }
             items(items, key = { it.id }) { turn ->
                 // The Transcript stamps revealedWords on Jarvis's active turn while it speaks; reveal it word-
-                // by-word only then. Every finished/older turn (and any turn once speaking ends) shows full text.
+                // by-word only then. Every finished/older turn (and any turn once speaking ends) shows its text —
+                // the full answer, or the words heard if it was cut short (the Transcript trims a cut turn's text
+                // and clears its count, so an interrupted answer still latest while SPEAKING shows what was heard).
                 val revealing = turn.id == latestId && phase == ConversationHub.UiPhase.SPEAKING
                 TurnItem(
                     turn = turn,
                     dimmed = turn.id != latestId,
-                    // `?: 0` is defensive: a SPEAKING turn reveals progressively, never dumps full text even
-                    // if the engine hadn't stamped a count yet (it always does for the latest model turn).
-                    revealedWords = if (revealing) (turn.revealedWords ?: 0) else null,
+                    revealedWords = if (revealing) turn.revealedWords else null,
                 )
             }
         }

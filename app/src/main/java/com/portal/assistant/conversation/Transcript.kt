@@ -15,7 +15,7 @@ package com.portal.assistant.conversation
  * monotonic, capped). The reveal restarts at the two boundaries above, re-based on the played-bytes count then:
  * a turn ends only once its audio has played (and a stalled turn is flushed before listening restarts), so that
  * count is exactly where the next turn's audio begins. Only the active Jarvis turn carries a count; a finished
- * turn shows its full text.
+ * turn shows its full text, or — when it ended early with audio unplayed — only the words heard.
  */
 data class Transcript(
     val turns: List<Turn> = emptyList(),
@@ -73,11 +73,20 @@ data class Transcript(
         is Event.AudioPlayed -> revealAt(event.playedBytes)
     }
 
-    /** Arm a fresh Jarvis turn and restart the reveal from [playedBytes]; the previous turn shows its full text. */
+    /**
+     * Arm a fresh Jarvis turn and restart the reveal from [playedBytes]. The ending turn shows its full text if
+     * all of its audio played, or is cut at the words heard if some never did (an interruption flushes it) —
+     * dropped if none were.
+     */
     private fun restartReveal(playedBytes: Long): Transcript {
         val idx = jarvisIndex()
+        val endingTurn = if (idx < 0) null else endedAsHeard(turns[idx], playedBytes)
         return copy(
-            turns = if (idx < 0) turns else turns.patched(idx) { it.copy(revealedWords = null) },
+            turns = when {
+                idx < 0 -> turns
+                endingTurn == null -> turns.filterIndexed { i, _ -> i != idx }
+                else -> turns.patched(idx) { endingTurn }
+            },
             jarvisTurnId = NONE,
             jarvisRaw = "",
             revealBaseBytes = playedBytes,
@@ -90,15 +99,30 @@ data class Transcript(
     private fun revealAt(playedBytes: Long): Transcript {
         val idx = jarvisIndex()
         if (idx < 0) return this
-        val next = RevealProgress.wordsToShow(
-            RevealProgress.wordCount(turns[idx].text),
-            playedBytes - revealBaseBytes,
-            receivedBytes,
-            revealedWords,
-        )
+        val next = wordsHeard(turns[idx].text, playedBytes)
         if (next == revealedWords) return this
         return copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
     }
+
+    /**
+     * The active Jarvis [turn] as it ends at [playedBytes]: its full text, or only the words heard if cut short
+     * (`null` when no word was). A turn with no audio keeps its text — there's nothing to measure it against.
+     */
+    private fun endedAsHeard(turn: Turn, playedBytes: Long): Turn? {
+        if (playedBytes - revealBaseBytes >= receivedBytes) return turn.copy(revealedWords = null)
+        val heard = wordsHeard(turn.text, playedBytes)
+        if (heard == 0) return null
+        val words = RevealProgress.wordRanges(turn.text)
+        return turn.copy(text = turn.text.substring(0, words[heard - 1].last + 1), revealedWords = null)
+    }
+
+    /** How many of [text]'s words the active turn's audio played by [playedBytes] covers (monotonic, capped). */
+    private fun wordsHeard(text: String, playedBytes: Long): Int = RevealProgress.wordsToShow(
+        RevealProgress.wordCount(text),
+        playedBytes - revealBaseBytes,
+        receivedBytes,
+        revealedWords,
+    )
 
     private fun appendUser(delta: String): Transcript {
         if (delta.isEmpty()) return this
