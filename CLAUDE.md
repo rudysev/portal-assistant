@@ -88,8 +88,9 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   many words have been "spoken" from the *audio actually played* (`RevealProgress.wordsToShow` = played÷received
   bytes → words), restarting at listening start and on an interruption (so a tool-call answer reveals from its
   first word too), and stamps `Turn.revealedWords` on the active Jarvis turn; the UI shows that many words while
-  SPEAKING, then snaps to full text, each new word fading in once (`RevealingModelText`, sliced by
-  `RevealProgress.wordRanges`). Looping decorative animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
+  SPEAKING, then snaps to the turn's text, each new word fading in once (`RevealingModelText`, sliced by
+  `RevealProgress.wordRanges`). At a restart the ending turn keeps its full text if all its audio played, or its
+  text is **cut at the words heard** if some never did (an interruption flushed it) — dropped if none were. Looping decorative animations hold still under the system "remove animations" setting (`ui/Motion.rememberReduceMotion`); the
   Voice dialog's loading spinner is information, not decoration, so `ui/Motion.LoadingSpinner` turns on the
   raw frame clock, which that setting (which freezes Material's indeterminate spinner) doesn't scale.
   **Deferred:** better ASR accuracy; weather glance.
