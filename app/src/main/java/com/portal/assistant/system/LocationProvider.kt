@@ -1,6 +1,7 @@
 package com.portal.assistant.system
 
 import android.content.Context
+import androidx.core.content.edit
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
 import okhttp3.Request
@@ -29,7 +30,7 @@ object LocationProvider {
     fun override(context: Context): String? = AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_OVERRIDE, null)?.ifBlank { null }
 
     fun setOverride(context: Context, place: String) {
-        AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_LOC_OVERRIDE, place.trim()).apply()
+        AppPrefs.prefs(context).edit { putString(AppPrefs.KEY_LOC_OVERRIDE, place.trim()) }
     }
 
     /** Human label for the Settings pre-fill: "City, Region" from the IP-geo cache, or null. */
@@ -54,7 +55,7 @@ object LocationProvider {
                 for (url in PROVIDERS) {
                     val body = runCatching { httpGet(url) }.getOrNull().orEmpty()
                     val loc = body.takeIf { it.isNotEmpty() }?.let { Geolocation.parse(it) } ?: continue
-                    p.edit().putString(AppPrefs.KEY_LOC_JSON, body).apply()
+                    p.edit { putString(AppPrefs.KEY_LOC_JSON, body) }
                     DebugLog.log("location fetched: ${loc.city}, ${loc.region} ($url)")
                     return@runCatching
                 }

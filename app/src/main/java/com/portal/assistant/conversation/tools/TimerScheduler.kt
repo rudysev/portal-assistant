@@ -9,6 +9,7 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 
@@ -109,12 +110,12 @@ class TimerScheduler(context: Context) {
     private fun load(): List<TimerEntry> = Timers.parse(prefs.getString(AppPrefs.KEY_TIMERS, null))
 
     private fun persist(list: List<TimerEntry>) {
-        prefs.edit().putString(AppPrefs.KEY_TIMERS, Timers.serialize(list)).apply()
+        prefs.edit { putString(AppPrefs.KEY_TIMERS, Timers.serialize(list)) }
     }
 
     private fun nextId(): Int = synchronized(LOCK) {
         val id = prefs.getInt(AppPrefs.KEY_TIMER_NEXT_ID, 1)
-        prefs.edit().putInt(AppPrefs.KEY_TIMER_NEXT_ID, id + 1).apply()
+        prefs.edit { putInt(AppPrefs.KEY_TIMER_NEXT_ID, id + 1) }
         id
     }
 

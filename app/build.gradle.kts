@@ -66,8 +66,10 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.text)
   implementation(libs.androidx.compose.ui.unit)
-  // NotificationCompat/ContextCompat; the app uses none of core-ktx's Kotlin extensions.
+  // NotificationCompat/ContextCompat.
   implementation(libs.androidx.core)
+  // SharedPreferences.edit {} and String.toUri() (Android Lint's UseKtx).
+  implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.common)
   implementation(libs.androidx.lifecycle.viewmodel)
   implementation(libs.androidx.lifecycle.runtime.compose)

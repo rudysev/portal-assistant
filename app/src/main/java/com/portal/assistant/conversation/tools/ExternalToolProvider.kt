@@ -2,8 +2,8 @@ package com.portal.assistant.conversation.tools
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
+import androidx.core.net.toUri
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 import org.json.JSONObject
@@ -72,7 +72,7 @@ class ExternalToolProvider(context: Context) {
 
     private fun callWithTimeout(authority: String, name: String, args: JSONObject): JSONObject {
         val future = callExecutor.submit<JSONObject> {
-            val uri = Uri.parse("content://$authority")
+            val uri = "content://$authority".toUri()
             val extras = Bundle().apply { putString(ToolContract.EXTRA_ARGS_JSON, args.toString()) }
             val out = appContext.contentResolver.call(uri, ToolContract.METHOD_INVOKE, name, extras)
             val resultJson = out?.getString(ToolContract.EXTRA_RESULT_JSON)

@@ -1,7 +1,9 @@
 package com.portal.assistant.system
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.gemini.GeminiSpeaker
 import com.portal.assistant.local.LocalVoiceHost
@@ -59,7 +61,7 @@ object AppPrefs {
     fun modelId(context: Context): String {
         val saved = prefs(context).getString(KEY_MODEL, null) ?: return GeminiModel.ID
         if (saved in GeminiModel.AVAILABLE) return saved
-        prefs(context).edit().remove(KEY_MODEL).apply() // orphan from a catalog change — drop it
+        prefs(context).edit { remove(KEY_MODEL) } // orphan from a catalog change — drop it
         return GeminiModel.ID
     }
 
@@ -67,7 +69,7 @@ object AppPrefs {
      *  always match the read contract. */
     fun setModelId(context: Context, id: String) {
         if (id !in GeminiModel.AVAILABLE) return
-        prefs(context).edit().putString(KEY_MODEL, id).apply()
+        prefs(context).edit { putString(KEY_MODEL, id) }
     }
 
     /** The Chosen speaker's name, or null for Server default — also when the saved name is no longer in
@@ -75,7 +77,7 @@ object AppPrefs {
     fun speakerId(context: Context): String? {
         val saved = prefs(context).getString(KEY_SPEAKER, null) ?: return null
         GeminiSpeaker.find(saved)?.let { return it.name }
-        prefs(context).edit().remove(KEY_SPEAKER).apply() // orphan from a catalog change — drop it
+        prefs(context).edit { remove(KEY_SPEAKER) } // orphan from a catalog change — drop it
         return null
     }
 
@@ -83,11 +85,11 @@ object AppPrefs {
      *  Ignores names outside the catalog so prefs always match the read contract. */
     fun setSpeakerId(context: Context, name: String?) {
         if (name == null) {
-            prefs(context).edit().remove(KEY_SPEAKER).apply()
+            prefs(context).edit { remove(KEY_SPEAKER) }
             return
         }
         if (GeminiSpeaker.find(name) == null) return
-        prefs(context).edit().putString(KEY_SPEAKER, name).apply()
+        prefs(context).edit { putString(KEY_SPEAKER, name) }
     }
 
     /** The user's chosen default music app package, or null if unset — or if the pick is no longer installed
@@ -96,15 +98,13 @@ object AppPrefs {
     fun defaultMusicPkg(context: Context): String? {
         val saved = prefs(context).getString(KEY_DEFAULT_MUSIC_PKG, null)?.trim()?.ifBlank { null } ?: return null
         if (context.packageManager.getLaunchIntentForPackage(saved) != null) return saved
-        prefs(context).edit().remove(KEY_DEFAULT_MUSIC_PKG).apply() // uninstalled pick — drop it
+        prefs(context).edit { remove(KEY_DEFAULT_MUSIC_PKG) } // uninstalled pick — drop it
         return null
     }
 
     /** Set the default music app package, or clear it with a null/blank value (applies to the next play). */
     fun setDefaultMusicPkg(context: Context, pkg: String?) {
-        val edit = prefs(context).edit()
-        if (pkg.isNullOrBlank()) edit.remove(KEY_DEFAULT_MUSIC_PKG) else edit.putString(KEY_DEFAULT_MUSIC_PKG, pkg)
-        edit.apply()
+        prefs(context).edit { if (pkg.isNullOrBlank()) remove(KEY_DEFAULT_MUSIC_PKG) else putString(KEY_DEFAULT_MUSIC_PKG, pkg) }
     }
 
     /** Whether the Listening tone plays when a voice conversation starts; true unless the user turned it off. */
@@ -112,7 +112,7 @@ object AppPrefs {
 
     /** Turn the Listening tone on or off (applies to the next conversation). */
     fun setListeningToneEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_LISTENING_TONE, enabled).apply()
+        prefs(context).edit { putBoolean(KEY_LISTENING_TONE, enabled) }
     }
 
     /** The user's stored Gemini API key, trimmed, or null if unset/blank. The injection site
@@ -125,13 +125,13 @@ object AppPrefs {
         if (trimmed.isEmpty()) {
             clearApiKey(context)
         } else {
-            prefs(context).edit().putString(KEY_API, trimmed).apply()
+            prefs(context).edit { putString(KEY_API, trimmed) }
         }
     }
 
     /** Forget the user's stored key (reverts to the baked dev key, if any). */
     fun clearApiKey(context: Context) {
-        prefs(context).edit().remove(KEY_API).apply()
+        prefs(context).edit { remove(KEY_API) }
     }
 
     // Voice backend — which model powers a conversation (Settings → Backend). Ships defaulting to GEMINI
@@ -152,7 +152,7 @@ object AppPrefs {
 
     /** Persist the chosen backend (applies to the next conversation). */
     fun setVoiceBackendKind(context: Context, kind: VoiceBackendKind) {
-        prefs(context).edit().putString(KEY_VOICE_BACKEND, kind.name).apply()
+        prefs(context).edit { putString(KEY_VOICE_BACKEND, kind.name) }
     }
 
     /** Canonical `wss://host:port` for the local voice host, or null if unset/invalid. Self-heals corrupt prefs. */
@@ -162,7 +162,7 @@ object AppPrefs {
             is LocalVoiceHost.ParseResult.Ok -> parsed.wssUrl
 
             is LocalVoiceHost.ParseResult.Invalid -> {
-                prefs(context).edit().remove(KEY_LOCAL_VOICE_HOST).apply()
+                prefs(context).edit { remove(KEY_LOCAL_VOICE_HOST) }
                 null
             }
         }
@@ -170,16 +170,15 @@ object AppPrefs {
 
     /** Set the local voice host (`host:port` or `wss://host:port`); invalid input is ignored. Null/blank clears. */
     fun setLocalVoiceHost(context: Context, host: String?) {
-        val edit = prefs(context).edit()
-        when {
-            host.isNullOrBlank() -> edit.remove(KEY_LOCAL_VOICE_HOST)
-
-            else -> when (val parsed = LocalVoiceHost.parse(host)) {
-                is LocalVoiceHost.ParseResult.Ok -> edit.putString(KEY_LOCAL_VOICE_HOST, parsed.wssUrl)
+        val wssUrl = if (host.isNullOrBlank()) {
+            null
+        } else {
+            when (val parsed = LocalVoiceHost.parse(host)) {
+                is LocalVoiceHost.ParseResult.Ok -> parsed.wssUrl
                 is LocalVoiceHost.ParseResult.Invalid -> return // same contract as setModelId — reject silently
             }
         }
-        edit.apply()
+        prefs(context).edit { if (wssUrl == null) remove(KEY_LOCAL_VOICE_HOST) else putString(KEY_LOCAL_VOICE_HOST, wssUrl) }
     }
 
     /** Name of the one-shot provisioning file the install script drops in the app's external files dir. */
@@ -192,6 +191,8 @@ object AppPrefs {
      * value is never logged. Called from [AssistantService] and [MainActivity] onCreate (idempotent — a
      * no-op once the file is gone). An existing user key is not overwritten by an empty provisioning file.
      */
+    // UseKtx: the core-ktx edit {} returns Unit, and this needs commit()'s result to know the key is on disk.
+    @SuppressLint("UseKtx")
     fun importProvisionedKey(context: Context) {
         val f = File(context.getExternalFilesDir(null), PROVISION_FILE)
         if (!f.exists()) return
@@ -217,6 +218,6 @@ object AppPrefs {
     /** Add/remove [pkg] from the external-tool allowlist (applies to the next conversation). */
     fun setProviderEnabled(context: Context, pkg: String, enabled: Boolean) {
         val updated = enabledProviders(context).toMutableSet().apply { if (enabled) add(pkg) else remove(pkg) }
-        prefs(context).edit().putStringSet(KEY_TOOLS_ENABLED, updated).apply()
+        prefs(context).edit { putStringSet(KEY_TOOLS_ENABLED, updated) }
     }
 }

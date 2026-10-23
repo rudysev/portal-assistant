@@ -13,6 +13,7 @@ import android.provider.MediaStore
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.net.toUri
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 import org.json.JSONObject
@@ -123,7 +124,7 @@ class MediaControl(context: Context) {
     // broad search via the app's own VIEW intent is what actually starts playback (device-verified).
     private fun playSpotify(pkg: String, q: String, label: String): JSONObject = runCatching {
         appContext.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:" + Uri.encode(q))).apply {
+            Intent(Intent.ACTION_VIEW, ("spotify:search:" + Uri.encode(q)).toUri()).apply {
                 setPackage(pkg)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
