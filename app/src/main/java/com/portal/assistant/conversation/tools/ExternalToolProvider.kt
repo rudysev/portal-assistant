@@ -139,13 +139,8 @@ class ExternalToolProvider(context: Context) {
                 val json = prov.metaData?.getString(ToolContract.META_DECLARATIONS)
                 val authority = prov.authority
                 val summary = prov.metaData?.getString(ToolContract.META_SUMMARY)?.trim()?.takeIf { it.isNotEmpty() }
-                if (json == null ||
-                    authority == null
-                ) {
-                    null
-                } else {
-                    DiscoveredProvider(prov.packageName, authority, json, summary)
-                }
+                if (json == null || authority == null) return@mapNotNull null
+                DiscoveredProvider(prov.packageName, authority, json, summary)
             }
         }.getOrElse {
             DebugLog.log("ext-tool discovery failed: ${it.message}")

@@ -7,8 +7,8 @@ import com.portal.assistant.conversation.backend.BackendConfig
  * selected model and that Speaker (null = Server default), asks Jarvis to introduce itself in one sentence, and
  * plays the answer. A preview that plays to the end is kept for the rest of the dialog, so re-tapping that row
  * replays it with no session (see [State.cached]). This is the pure core — [reduce] decides every transition and
- * [SpeakerPreviewPlayer] is the
- * thin I/O shell that carries out its [Action]s (same pure-core + thin-shell split as the conversation reducer).
+ * [SpeakerPreviewPlayer] is the thin I/O shell that carries out its [Action]s (same pure-core + thin-shell split as
+ * the conversation reducer).
  */
 object SpeakerPreview {
 
@@ -145,17 +145,7 @@ object SpeakerPreview {
     fun reduce(state: State, event: Event): Decision = when (event) {
         is Event.Tap -> onTap(state, event.speaker)
 
-        is Event.Ready -> when (val s = state.status) {
-            is Status.Loading -> if (s.id ==
-                event.id
-            ) {
-                Decision(state, listOf(Action.SendIntro(s.id)))
-            } else {
-                Decision(state)
-            }
-
-            else -> Decision(state)
-        }
+        is Event.Ready -> onReady(state, event.id)
 
         is Event.Audio -> onAudio(state, event.id)
 
@@ -191,6 +181,11 @@ object SpeakerPreview {
                 stopRunning(state) + Action.Connect(id, speaker),
             )
         }
+    }
+
+    private fun onReady(state: State, id: Long): Decision = when (val s = state.status) {
+        is Status.Loading -> if (s.id == id) Decision(state, listOf(Action.SendIntro(s.id))) else Decision(state)
+        else -> Decision(state)
     }
 
     private fun onAudio(state: State, id: Long): Decision = when (val s = state.status) {

@@ -156,12 +156,9 @@ object AppPrefs {
     enum class VoiceBackendKind { GEMINI, LOCAL }
 
     /** The selected backend, defaulting to [VoiceBackendKind.GEMINI] if unset/unknown. */
-    fun voiceBackendKind(context: Context): VoiceBackendKind = if (prefs(context).getString(KEY_VOICE_BACKEND, null) ==
-        VoiceBackendKind.LOCAL.name
-    ) {
-        VoiceBackendKind.LOCAL
-    } else {
-        VoiceBackendKind.GEMINI
+    fun voiceBackendKind(context: Context): VoiceBackendKind {
+        val saved = prefs(context).getString(KEY_VOICE_BACKEND, null)
+        return if (saved == VoiceBackendKind.LOCAL.name) VoiceBackendKind.LOCAL else VoiceBackendKind.GEMINI
     }
 
     /** Persist the chosen backend (applies to the next conversation). */
@@ -193,13 +190,7 @@ object AppPrefs {
             }
         }
         prefs(context).edit {
-            if (wssUrl ==
-                null
-            ) {
-                remove(KEY_LOCAL_VOICE_HOST)
-            } else {
-                putString(KEY_LOCAL_VOICE_HOST, wssUrl)
-            }
+            if (wssUrl == null) remove(KEY_LOCAL_VOICE_HOST) else putString(KEY_LOCAL_VOICE_HOST, wssUrl)
         }
     }
 
