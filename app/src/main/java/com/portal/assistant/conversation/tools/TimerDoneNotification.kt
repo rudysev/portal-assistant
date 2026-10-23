@@ -8,7 +8,7 @@ import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 
 /** The best-effort "timer done" notification [TimerScheduler] posts alongside its chime (see its fireAlert). */
-internal object TimerAlarmNotification {
+internal object TimerDoneNotification {
 
     fun post(context: Context, id: Int, label: String) {
         val appContext = context.applicationContext
@@ -27,7 +27,7 @@ internal object TimerAlarmNotification {
 
     private fun ensureChannel(mgr: NotificationManager) {
         val channel = NotificationChannel(CHANNEL_ID, "Timers", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Timer alarms"
+            description = "Finished timers"
             // Channel sound is dead config on this Portal (the launcher doesn't surface the notification, so it
             // never plays) — kept for correctness on standard-Android surfaces; the audible alert is ChimeSound.
             setSound(
