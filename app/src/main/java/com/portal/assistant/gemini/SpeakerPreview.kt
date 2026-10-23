@@ -142,71 +142,20 @@ object SpeakerPreview {
     data class Decision(val state: State, val actions: List<Action> = emptyList())
 
     fun reduce(state: State, event: Event): Decision = when (event) {
-        // One preview at a time: a tap stops whatever is running, then starts the tapped row's — replaying its
-        // kept clip when there is one, else connecting.
-        is Event.Tap -> if (state.hint != null) {
-            Decision(state.copy(status = Status.Idle), stopRunning(state)) // selection only — no connection
-        } else {
-            val id = state.lastId + 1
-            if (event.speaker in state.cached) {
-                Decision(
-                    state.copy(status = Status.Playing(id, event.speaker, turnDone = true), lastId = id),
-                    stopRunning(state) + Action.Replay(id, event.speaker),
-                )
-            } else {
-                Decision(
-                    state.copy(status = Status.Loading(id, event.speaker), lastId = id),
-                    stopRunning(state) + Action.Connect(id, event.speaker),
-                )
-            }
-        }
+        is Event.Tap -> onTap(state, event.speaker)
 
         is Event.Ready -> when (val s = state.status) {
             is Status.Loading -> if (s.id == event.id) Decision(state, listOf(Action.SendIntro(s.id))) else Decision(state)
             else -> Decision(state)
         }
 
-        is Event.Audio -> when (val s = state.status) {
-            is Status.Loading ->
-                if (s.id == event.id) Decision(state.copy(status = Status.Playing(s.id, s.speaker))) else Decision(state)
+        is Event.Audio -> onAudio(state, event.id)
 
-            is Status.Playing ->
-                if (s.id == event.id) Decision(state.copy(status = s.copy(playbackIdle = false))) else Decision(state)
+        is Event.TurnComplete -> onTurnComplete(state, event.id)
 
-            else -> Decision(state)
-        }
+        is Event.PlaybackDrained -> onPlaybackDrained(state, event.id)
 
-        is Event.TurnComplete -> when (val s = state.status) {
-            // The model answered without a single audio chunk — nothing to hear.
-            is Status.Loading -> if (s.id == event.id) fail(state, s.id, s.speaker) else Decision(state)
-
-            is Status.Playing -> when {
-                s.id != event.id -> Decision(state)
-                s.playbackIdle -> finish(state, s)
-                else -> Decision(state.copy(status = s.copy(turnDone = true)), listOf(Action.CloseSession(s.id)))
-            }
-
-            else -> Decision(state)
-        }
-
-        is Event.PlaybackDrained -> when (val s = state.status) {
-            is Status.Playing -> when {
-                s.id != event.id -> Decision(state)
-                s.turnDone -> finish(state, s)
-                else -> Decision(state.copy(status = s.copy(playbackIdle = true)))
-            }
-
-            else -> Decision(state)
-        }
-
-        is Event.Disconnected -> when (val s = state.status) {
-            is Status.Loading -> if (s.id == event.id) fail(state, s.id, s.speaker) else Decision(state)
-
-            // After turnComplete the close is our own CloseSession — the audio is already in hand.
-            is Status.Playing -> if (s.id == event.id && !s.turnDone) fail(state, s.id, s.speaker) else Decision(state)
-
-            else -> Decision(state)
-        }
+        is Event.Disconnected -> onDisconnected(state, event.id)
 
         // A conversation always wins: going live stops any preview on the spot and pauses taps until it ends.
         is Event.ConversationLive -> when {
@@ -215,6 +164,67 @@ object SpeakerPreview {
         }
 
         is Event.Dismissed -> Decision(state.copy(status = Status.Idle), stopRunning(state))
+    }
+
+    // One preview at a time: a tap stops whatever is running, then starts the tapped row's — replaying its
+    // kept clip when there is one, else connecting.
+    private fun onTap(state: State, speaker: GeminiSpeaker.Speaker?): Decision = if (state.hint != null) {
+        Decision(state.copy(status = Status.Idle), stopRunning(state)) // selection only — no connection
+    } else {
+        val id = state.lastId + 1
+        if (speaker in state.cached) {
+            Decision(
+                state.copy(status = Status.Playing(id, speaker, turnDone = true), lastId = id),
+                stopRunning(state) + Action.Replay(id, speaker),
+            )
+        } else {
+            Decision(
+                state.copy(status = Status.Loading(id, speaker), lastId = id),
+                stopRunning(state) + Action.Connect(id, speaker),
+            )
+        }
+    }
+
+    private fun onAudio(state: State, id: Long): Decision = when (val s = state.status) {
+        is Status.Loading ->
+            if (s.id == id) Decision(state.copy(status = Status.Playing(s.id, s.speaker))) else Decision(state)
+
+        is Status.Playing ->
+            if (s.id == id) Decision(state.copy(status = s.copy(playbackIdle = false))) else Decision(state)
+
+        else -> Decision(state)
+    }
+
+    private fun onTurnComplete(state: State, id: Long): Decision = when (val s = state.status) {
+        // The model answered without a single audio chunk — nothing to hear.
+        is Status.Loading -> if (s.id == id) fail(state, s.id, s.speaker) else Decision(state)
+
+        is Status.Playing -> when {
+            s.id != id -> Decision(state)
+            s.playbackIdle -> finish(state, s)
+            else -> Decision(state.copy(status = s.copy(turnDone = true)), listOf(Action.CloseSession(s.id)))
+        }
+
+        else -> Decision(state)
+    }
+
+    private fun onPlaybackDrained(state: State, id: Long): Decision = when (val s = state.status) {
+        is Status.Playing -> when {
+            s.id != id -> Decision(state)
+            s.turnDone -> finish(state, s)
+            else -> Decision(state.copy(status = s.copy(playbackIdle = true)))
+        }
+
+        else -> Decision(state)
+    }
+
+    private fun onDisconnected(state: State, id: Long): Decision = when (val s = state.status) {
+        is Status.Loading -> if (s.id == id) fail(state, s.id, s.speaker) else Decision(state)
+
+        // After turnComplete the close is our own CloseSession — the audio is already in hand.
+        is Status.Playing -> if (s.id == id && !s.turnDone) fail(state, s.id, s.speaker) else Decision(state)
+
+        else -> Decision(state)
     }
 
     /** [Action.Stop] for the preview in flight, if any. */

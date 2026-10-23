@@ -130,94 +130,6 @@ data class ConversationState(
 /** The result of [reduce]: the next state and the side effects to run. */
 data class Decision(val state: ConversationState, val actions: List<Action>)
 
-/** What the dead-air stall watchdog should do for a (state, event) pair. See [stallDecision]. */
-enum class StallDecision { Arm, Cancel, None }
-
-/**
- * Dead-air stall policy for the **pre-transition** [state] and [event]. Single source of truth —
- * [reduce] appends the matching [Action]; no branch hardcodes Arm/Cancel.
- *
- * Invariant: Arm only when we could wedge in SPEAKING with nothing playing; Cancel when audio flows,
- * tools take the turn mid-SPEAKING, or the turn ends. Never arm while audio is queued (mid-sentence
- * cut-off).
- *
- * | Phase | Event | Decision |
- * |---|---|---|
- * | CONNECTING / ENDED | any | None |
- * | LISTENING | ModelActivity | Arm (enter SPEAKING, pre-audio) |
- * | LISTENING | ToolCallReceived | Arm (enter SPEAKING; StallTimeout is ignored while tools run, so this is mostly a no-op until ToolResultsReady re-arms — preserved) |
- * | SPEAKING | PlaybackBusy | Cancel |
- * | SPEAKING | ModelActivity | Arm iff dead air (idle + no tools) |
- * | SPEAKING | PlaybackIdle | Cancel if turn ends; else Arm iff no tools |
- * | SPEAKING | TurnComplete | Cancel iff turn ends (idle + no tools) |
- * | SPEAKING | Interrupted | Arm (clears to idle + no tools) |
- * | SPEAKING | StallTimeout | Cancel iff no tools (else ignored) |
- * | SPEAKING | ToolCallReceived | Cancel (tools own the turn) |
- * | SPEAKING | ToolResultsReady / ToolCancelled | Cancel if drain ends the turn; else Arm iff emptied and idle |
- * | SPEAKING | Disconnected | None (engine teardown clears the timer) |
- */
-fun stallDecision(state: ConversationState, event: Event): StallDecision = when (state.phase) {
-    Phase.ENDED, Phase.CONNECTING -> StallDecision.None
-
-    Phase.LISTENING -> when (event) {
-        Event.ModelActivity -> StallDecision.Arm
-        is Event.ToolCallReceived -> StallDecision.Arm
-        else -> StallDecision.None
-    }
-
-    Phase.SPEAKING -> when (event) {
-        Event.PlaybackBusy -> StallDecision.Cancel
-
-        Event.ModelActivity ->
-            if (isDeadAir(state)) StallDecision.Arm else StallDecision.None
-
-        Event.PlaybackIdle -> when {
-            // This event sets playbackIdle=true; turn ends when turnComplete && no tools.
-            state.turnComplete && state.toolsInFlight.isEmpty() -> StallDecision.Cancel
-
-            state.toolsInFlight.isEmpty() -> StallDecision.Arm
-
-            else -> StallDecision.None
-        }
-
-        Event.TurnComplete ->
-            if (state.playbackIdle && state.toolsInFlight.isEmpty()) {
-                StallDecision.Cancel
-            } else {
-                StallDecision.None
-            }
-
-        Event.Interrupted -> StallDecision.Arm
-
-        Event.StallTimeout ->
-            if (state.toolsInFlight.isEmpty()) StallDecision.Cancel else StallDecision.None
-
-        is Event.ToolCallReceived -> StallDecision.Cancel
-
-        is Event.ToolResultsReady -> toolDrainStall(state, state.toolsInFlight - event.results.map { it.id }.toSet())
-
-        is Event.ToolCancelled -> toolDrainStall(state, state.toolsInFlight - event.ids.toSet())
-
-        else -> StallDecision.None
-    }
-}
-
-/** Stall after a tool drain: end-of-turn → Cancel; still waiting on the model → Arm; else None. */
-private fun toolDrainStall(state: ConversationState, remaining: Set<String>): StallDecision = when {
-    remaining.isNotEmpty() || state.toolsInFlight.isEmpty() || !state.playbackIdle -> StallDecision.None
-    state.turnComplete -> StallDecision.Cancel
-    else -> StallDecision.Arm
-}
-
-private fun stallActions(d: StallDecision): List<Action> = when (d) {
-    StallDecision.Arm -> listOf(Action.ArmStallTimer)
-    StallDecision.Cancel -> listOf(Action.CancelStallTimer)
-    StallDecision.None -> emptyList()
-}
-
-/** Nothing playing and no tools running — the only SPEAKING condition that may (re)arm the stall. */
-private fun isDeadAir(state: ConversationState): Boolean = state.playbackIdle && state.toolsInFlight.isEmpty()
-
 /**
  * The transition function. [multiTurn] = false ends after the first answer (Phase 2.a); true re-opens
  * the mic for a follow-up (Phase 2.b). Unknown/out-of-phase events are ignored (no change).
@@ -235,104 +147,109 @@ fun reduce(state: ConversationState, event: Event, multiTurn: Boolean): Decision
 /** Phase transitions and non-stall side effects. Stall actions are appended by [reduce]. */
 private fun reduceBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (state.phase) {
     Phase.ENDED -> Decision(state, emptyList())
+    Phase.CONNECTING -> connectingBody(state, event)
+    Phase.LISTENING -> listeningBody(state, event)
+    Phase.SPEAKING -> speakingBody(state, event, multiTurn)
+}
 
-    Phase.CONNECTING -> when (event) {
-        Event.Ready -> Decision(
-            ConversationState(phase = Phase.LISTENING),
-            listOf(Action.StartForwarding, Action.ArmNoSpeechTimer),
+private fun connectingBody(state: ConversationState, event: Event): Decision = when (event) {
+    Event.Ready -> Decision(
+        ConversationState(phase = Phase.LISTENING),
+        listOf(Action.StartForwarding, Action.ArmNoSpeechTimer),
+    )
+
+    Event.Disconnected -> ended()
+
+    else -> unchanged(state)
+}
+
+private fun listeningBody(state: ConversationState, event: Event): Decision = when (event) {
+    Event.UserSpeaking -> Decision(state, listOf(Action.ArmNoSpeechTimer))
+
+    Event.ModelActivity -> Decision(
+        ConversationState(phase = Phase.SPEAKING),
+        listOf(Action.StopForwarding, Action.CancelNoSpeechTimer),
+    )
+
+    is Event.ToolCallReceived -> {
+        // Model took the turn via a tool call (no audio yet). Same mic mute as ModelActivity.
+        // Stall arm is [stallDecision]'s LISTENING ToolCallReceived row.
+        val newIds = state.toolsInFlight + event.calls.map { it.id }
+        Decision(
+            ConversationState(phase = Phase.SPEAKING, toolsInFlight = newIds),
+            listOf(Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ExecuteTools(event.calls)),
         )
-
-        Event.Disconnected -> ended()
-
-        else -> unchanged(state)
     }
 
-    Phase.LISTENING -> when (event) {
-        Event.UserSpeaking -> Decision(state, listOf(Action.ArmNoSpeechTimer))
+    // NoSpeechTimeout ends the conversation. NOTE: this is NOT purely server-driven — before dispatching
+    // it, AssistantEngine applies a bounded local-energy *grace* (NoSpeechGrace) that defers the timeout
+    // while the mic still hears the user, so a follow-up started late in the window isn't dropped before
+    // its transcript arrives. Don't "simplify" on the assumption that only a server transcript keeps the
+    // mic open — that grace is deliberate (and capped so noise can't pin the mic).
+    Event.NoSpeechTimeout, Event.Disconnected -> ended()
 
-        Event.ModelActivity -> Decision(
-            ConversationState(phase = Phase.SPEAKING),
-            listOf(Action.StopForwarding, Action.CancelNoSpeechTimer),
+    else -> unchanged(state)
+}
+
+private fun speakingBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (event) {
+    Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false), emptyList())
+
+    Event.ModelActivity -> Decision(state, emptyList())
+
+    Event.PlaybackIdle -> {
+        val drained = state.copy(playbackIdle = true)
+        // Both conditions met → end/re-listen. Otherwise stay SPEAKING; stall arm/cancel from
+        // [stallDecision].
+        if (drained.turnComplete) endOfTurn(drained, multiTurn) else Decision(drained, emptyList())
+    }
+
+    Event.TurnComplete -> endOfTurn(state.copy(turnComplete = true), multiTurn)
+
+    Event.Interrupted -> {
+        // Flush leaves us idle with no tools — always dead air until the model resumes.
+        val cleared = state.copy(turnComplete = false, playbackIdle = true, toolsInFlight = emptySet())
+        Decision(cleared, listOf(Action.FlushPlayback))
+    }
+
+    // Stall is gated: ignore while tools are in flight (the model is waiting for results, not dead).
+    Event.StallTimeout -> if (state.toolsInFlight.isNotEmpty()) unchanged(state) else stalledTurnEnd(multiTurn)
+
+    Event.Disconnected -> ended()
+
+    is Event.ToolCallReceived -> {
+        // Additional tool calls mid-turn (chained rounds or parallel calls).
+        val newIds = state.toolsInFlight + event.calls.map { it.id }
+        Decision(
+            state.copy(toolsInFlight = newIds),
+            listOf(Action.ExecuteTools(event.calls)),
         )
-
-        is Event.ToolCallReceived -> {
-            // Model took the turn via a tool call (no audio yet). Same mic mute as ModelActivity.
-            // Stall arm is [stallDecision]'s LISTENING ToolCallReceived row.
-            val newIds = state.toolsInFlight + event.calls.map { it.id }
-            Decision(
-                ConversationState(phase = Phase.SPEAKING, toolsInFlight = newIds),
-                listOf(Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ExecuteTools(event.calls)),
-            )
-        }
-
-        // NoSpeechTimeout ends the conversation. NOTE: this is NOT purely server-driven — before dispatching
-        // it, AssistantEngine applies a bounded local-energy *grace* (NoSpeechGrace) that defers the timeout
-        // while the mic still hears the user, so a follow-up started late in the window isn't dropped before
-        // its transcript arrives. Don't "simplify" on the assumption that only a server transcript keeps the
-        // mic open — that grace is deliberate (and capped so noise can't pin the mic).
-        Event.NoSpeechTimeout, Event.Disconnected -> ended()
-
-        else -> unchanged(state)
     }
 
-    Phase.SPEAKING -> when (event) {
-        Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false), emptyList())
+    is Event.ToolResultsReady -> toolResultsBody(state, event, multiTurn)
 
-        Event.ModelActivity -> Decision(state, emptyList())
-
-        Event.PlaybackIdle -> {
-            val drained = state.copy(playbackIdle = true)
-            // Both conditions met → end/re-listen. Otherwise stay SPEAKING; stall arm/cancel from
-            // [stallDecision].
-            if (drained.turnComplete) endOfTurn(drained, multiTurn) else Decision(drained, emptyList())
-        }
-
-        Event.TurnComplete -> endOfTurn(state.copy(turnComplete = true), multiTurn)
-
-        Event.Interrupted -> {
-            // Flush leaves us idle with no tools — always dead air until the model resumes.
-            val cleared = state.copy(turnComplete = false, playbackIdle = true, toolsInFlight = emptySet())
-            Decision(cleared, listOf(Action.FlushPlayback))
-        }
-
-        // Stall is gated: ignore while tools are in flight (the model is waiting for results, not dead).
-        Event.StallTimeout -> if (state.toolsInFlight.isNotEmpty()) unchanged(state) else stalledTurnEnd(multiTurn)
-
-        Event.Disconnected -> ended()
-
-        is Event.ToolCallReceived -> {
-            // Additional tool calls mid-turn (chained rounds or parallel calls).
-            val newIds = state.toolsInFlight + event.calls.map { it.id }
-            Decision(
-                state.copy(toolsInFlight = newIds),
-                listOf(Action.ExecuteTools(event.calls)),
-            )
-        }
-
-        is Event.ToolResultsReady -> {
-            val inFlight = state.toolsInFlight
-            // Only send results still in flight — drop any whose IDs were already removed by an
-            // Interrupted or ToolCancelled (e.g. a future that finished just after cancel(true)).
-            val validResults = event.results.filter { it.id in inFlight }
-            val remaining = inFlight - event.results.map { it.id }.toSet()
-            val next = state.copy(toolsInFlight = remaining)
-            val send = if (validResults.isNotEmpty()) {
-                listOf(Action.SendToolResponse(validResults))
-            } else {
-                emptyList()
-            }
-            // If turnComplete + idle were already true, tools were the only blocker — end now.
-            val ended = endOfTurn(next, multiTurn)
-            Decision(ended.state, send + ended.actions)
-        }
-
-        is Event.ToolCancelled -> {
-            val remaining = state.toolsInFlight - event.ids.toSet()
-            endOfTurn(state.copy(toolsInFlight = remaining), multiTurn)
-        }
-
-        else -> unchanged(state)
+    is Event.ToolCancelled -> {
+        val remaining = state.toolsInFlight - event.ids.toSet()
+        endOfTurn(state.copy(toolsInFlight = remaining), multiTurn)
     }
+
+    else -> unchanged(state)
+}
+
+private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsReady, multiTurn: Boolean): Decision {
+    val inFlight = state.toolsInFlight
+    // Only send results still in flight — drop any whose IDs were already removed by an
+    // Interrupted or ToolCancelled (e.g. a future that finished just after cancel(true)).
+    val validResults = event.results.filter { it.id in inFlight }
+    val remaining = inFlight - event.results.map { it.id }.toSet()
+    val next = state.copy(toolsInFlight = remaining)
+    val send = if (validResults.isNotEmpty()) {
+        listOf(Action.SendToolResponse(validResults))
+    } else {
+        emptyList()
+    }
+    // If turnComplete + idle were already true, tools were the only blocker — end now.
+    val ended = endOfTurn(next, multiTurn)
+    return Decision(ended.state, send + ended.actions)
 }
 
 /**
