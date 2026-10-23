@@ -1,9 +1,9 @@
 package com.portal.assistant.conversation.tools
 
 /**
- * Pure play-routing logic for [MediaControl.play] — Android-free so it's unit-tested (same split as
+ * Pure play-routing logic for [MusicLauncher.play] — Android-free so it's unit-tested (same split as
  * [MediaSelection] / [VolumeMath]). Decides **which app** a play targets and **how** to start it, given the
- * installed apps and the user's default. The shell ([MediaControl]) enumerates apps + fires the intent.
+ * installed apps and the user's default. The shell ([MusicLauncher]) enumerates apps + fires the intent.
  *
  * Two independent decisions:
  * - [resolveTarget] — the package to play on: an app the user *named* (honoured over the default), else the

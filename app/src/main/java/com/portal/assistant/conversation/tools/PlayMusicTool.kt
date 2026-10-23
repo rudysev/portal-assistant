@@ -4,11 +4,11 @@ import org.json.JSONObject
 
 /**
  * Starts playing music by name (song, artist, album, or playlist). Plays on the user's default music app
- * unless they name one ("play … on TIDAL"); [MediaControl.play] resolves the target and picks the start
+ * unless they name one ("play … on TIDAL"); [MusicLauncher.play] resolves the target and picks the start
  * mechanism (Spotify deep link, generic `MEDIA_PLAY_FROM_SEARCH`, or a launch-only fallback). When the
- * target is Spotify Free, an artist-level query is what actually starts playback (see [MediaControl.play]).
+ * target is Spotify Free, an artist-level query is what actually starts playback (see [MusicLauncher.play]).
  */
-class PlayMusicTool(private val media: MediaControl) : Tool {
+class PlayMusicTool(private val music: MusicLauncher) : Tool {
 
     override val name = "portal.play_music"
 
@@ -23,7 +23,7 @@ class PlayMusicTool(private val media: MediaControl) : Tool {
              "required":["query"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = media.play(
+    override fun invoke(args: JSONObject): JSONObject = music.play(
         args.optString("query"),
         args.optString("app").ifBlank { null },
         args.optString("type").ifBlank { null },

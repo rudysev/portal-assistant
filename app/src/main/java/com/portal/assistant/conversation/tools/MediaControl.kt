@@ -16,7 +16,7 @@ import org.json.JSONObject
  * The one Android site that touches the media-session APIs. Reads the device's active sessions via
  * [MediaSessionManager] (gated on [PortalNotificationListener] being an enabled notification listener) and
  * drives transport on the right one. Pure selection lives in [MediaSelection]; this is the thin shell (same
- * split as [VolumeMath] / [VolumeController]).
+ * split as [VolumeMath] / [VolumeController]). Starting music by name needs no session: that's [MusicLauncher].
  *
  * **Why sessions, not media keys:** on this Portal `dispatchMediaKeyEvent` is intercepted by Alexa; talking
  * to the music app's [MediaController] directly bypasses that.
@@ -32,7 +32,6 @@ class MediaControl(context: Context) {
     private val component = ComponentName(appContext, PortalNotificationListener::class.java)
     private val manager =
         appContext.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
-    private val launcher = MusicLauncher(appContext)
 
     /** Run [action] on the best matching session. */
     fun control(action: MediaAction): JSONObject = withSession(
@@ -47,7 +46,7 @@ class MediaControl(context: Context) {
             MediaAction.NEXT -> controller.transportControls.skipToNext()
             MediaAction.PREVIOUS -> controller.transportControls.skipToPrevious()
         }
-        val app = appLabel(controller.packageName)
+        val app = PackageCatalog.labelFor(appContext, controller.packageName)
         DebugLog.log("media ${action.name.lowercase()} → $app")
         JSONObject().put("action", action.name.lowercase()).put("app", app)
     }
@@ -70,7 +69,7 @@ class MediaControl(context: Context) {
                 )
             },
         ) { controller ->
-            val app = appLabel(controller.packageName)
+            val app = PackageCatalog.labelFor(appContext, controller.packageName)
             runCatching {
                 // setRepeatMode is a media-compat transport control; bridge the framework session token into a
                 // MediaControllerCompat to reach the app's onSetRepeatMode (the Android Auto / Assistant path).
@@ -91,14 +90,6 @@ class MediaControl(context: Context) {
         RepeatMode.OFF -> PlaybackStateCompat.REPEAT_MODE_NONE
     }
 
-    /**
-     * Start playing a song/artist/album/playlist by name — see [MusicLauncher.play]. Launching playback in an app
-     * needs no session, so it lives there.
-     */
-    fun play(query: String, app: String?, type: String? = null): JSONObject = launcher.play(query, app, type)
-
-    private fun appLabel(pkg: String): String = PackageCatalog.labelFor(appContext, pkg)
-
     /** Report what's currently playing (or paused with known metadata). */
     fun nowPlaying(): JSONObject = withSession(
         pick = { MediaSelection.pickForStatus(it, ownPkg) },
@@ -108,7 +99,7 @@ class MediaControl(context: Context) {
         val md = controller.metadata
         val out = JSONObject()
             .put("playing", playing)
-            .put("app", appLabel(controller.packageName))
+            .put("app", PackageCatalog.labelFor(appContext, controller.packageName))
         title(md)?.let { out.put("title", it) } // omit when unknown rather than send blank
         artist(md)?.let { out.put("artist", it) }
         DebugLog.log("media now_playing → ${controller.packageName} playing=$playing")

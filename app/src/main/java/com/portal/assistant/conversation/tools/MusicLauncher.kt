@@ -38,7 +38,7 @@ class MusicLauncher(context: Context) {
             { PackageCatalog.searchPlayableApps(appContext) },
             PackageCatalog.SPOTIFY_PKGS,
         )
-        return target.pkg?.let { pkg -> playOn(pkg, target.label ?: appLabel(pkg), q, type) }
+        return target.pkg?.let { pkg -> playOn(pkg, target.label ?: PackageCatalog.labelFor(appContext, pkg), q, type) }
             ?: JSONObject().put("error", target.reason ?: "couldn't find a music app to play on")
     }
 
@@ -121,8 +121,6 @@ class MusicLauncher(context: Context) {
         MediaRouting.PlayType.PLAYLIST -> PLAYLIST_FOCUS
         null -> MediaStore.Audio.Media.CONTENT_TYPE // generic "any audio" focus
     }
-
-    private fun appLabel(pkg: String): String = PackageCatalog.labelFor(appContext, pkg)
 
     private companion object {
         /**
