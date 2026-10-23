@@ -159,6 +159,9 @@ install_app() {
         ok "Downloaded $name"
       fi
     else
+      # APK_GLOB (config.env, apks/*.apk) must stay unquoted so it expands, and ls -t is the portable way to pick
+      # the newest APK in apks/. Only the first line of output is used, and APK file names have no newlines.
+      # shellcheck disable=SC2012,SC2086
       apk="$(ls -t $APK_GLOB 2>/dev/null | head -1)"
       [ -n "$apk" ] || die "No cached APK in apks/ and couldn't reach GitHub to download one. Connect to the internet, drop a Jarvis APK in apks/, or use --local."
       warn "Couldn't reach GitHub — installing the cached APK ($(basename "$apk")); it may not be the latest."
