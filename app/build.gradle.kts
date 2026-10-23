@@ -1,5 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlinter)
   alias(libs.plugins.kotlin.compose)
 }
 

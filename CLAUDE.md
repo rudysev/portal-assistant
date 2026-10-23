@@ -293,8 +293,9 @@ git submodule update --init --recursive   # from the portal-apps workspace: pull
 # The gen2 "hey jarvis" Vosk model is NOT bundled — the app downloads it at runtime on first gen2 use
 #   (wake/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
 #   place at build time. gen1 is unaffected (it uses portal-wake, which bundles its own model).
-./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
-./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
+./gradlew check            # verify: unit tests + Android Lint + ktlint (kotlinter); formatKotlin fixes style
+./gradlew assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
+./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state); also enables .githooks
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"
 ```
 
@@ -316,9 +317,17 @@ address nudge instead. (Note: clipboard "Paste" was dropped — Android clipboar
 key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
 be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a turn directly (foreground).
 
+## Hooks
+
+`git config core.hooksPath .githooks` (done by `./setup.sh`). `pre-commit` runs the `ktlint` CLI on staged
+`.kt`/`.kts` files and rejects on findings (never auto-fixes); it refuses a CLI other than ktlint 1.8.0, the
+version kotlinter 5.7.0 bundles (`gradle/libs.versions.toml`), so bump both together. `pre-push` runs
+`./gradlew check`. `--no-verify` is the deliberate escape hatch. ktlint config is `.editorconfig` only (including
+the `@Composable` function-naming exemption).
+
 ## CI
 
-`.github/workflows/ci.yml` runs `./gradlew test assembleDebug` on every push to `main`, on `workflow_dispatch`, and
+`.github/workflows/ci.yml` runs `./gradlew check assembleDebug` on every push to `main`, on `workflow_dispatch`, and
 when a green `portal-commons` run dispatches `portal-commons-green`. It checks out `portal-assistant` and
 `portal-commons@main` side by side so that `includeBuild("../portal-commons")` resolves.
 

@@ -1,0 +1,12 @@
+#!/bin/sh
+# pre-push: the full verification gate. Enable with `git config core.hooksPath .githooks`.
+# Skip deliberately with `git push --no-verify`.
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! ./gradlew check; then
+  echo >&2
+  echo "pre-push: ./gradlew check failed (push rejected)." >&2
+  exit 1
+fi
