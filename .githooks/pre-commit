@@ -1,11 +1,17 @@
 #!/bin/sh
-# pre-commit: fast checks on staged files only (ktlint, shellcheck). Rejects the commit on findings; never
+# pre-commit: fast checks on staged files only (ktlint, detekt, shellcheck). Rejects the commit on findings; never
 # auto-fixes. Enable with `git config core.hooksPath .githooks`. Skip deliberately with `git commit --no-verify`.
 set -eu
 
 # Must match the ktlint that kotlinter bundles (org.jmailen.kotlinter 5.7.0 -> ktlint 1.8.0), so the hook and
 # `./gradlew lintKotlin` agree. Bump both together.
 KTLINT_VERSION=1.8.0
+
+# Must match the detekt Gradle plugin (dev.detekt) that `./gradlew check` runs. Bump both together. Homebrew only
+# ships detekt 1.x, so the CLI comes from the GitHub release zip.
+DETEKT_VERSION=2.0.0-alpha.6
+DETEKT_ZIP="https://github.com/detekt/detekt/releases/download/v$DETEKT_VERSION/detekt-cli-$DETEKT_VERSION.zip"
+DETEKT_ARGS="--build-upon-default-config --config config/detekt/detekt.yml"
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -48,6 +54,38 @@ lint_kotlin() {
   fi
 }
 
+# detekt without type resolution (fast), on the staged Kotlin only. `./gradlew check` (pre-push, CI) runs the
+# type-resolved tasks, plus compose-rules in portal-assistant.
+lint_detekt() {
+  [ -n "$(staged_kotlin | tr -d '\0')" ] || return 0
+
+  if ! command -v detekt-cli >/dev/null 2>&1; then
+    echo "pre-commit: detekt-cli not found. Install detekt $DETEKT_VERSION: unzip" >&2
+    echo "  $DETEKT_ZIP" >&2
+    echo "and put its bin/ directory on your PATH (Homebrew's detekt is the incompatible 1.x line)." >&2
+    return 1
+  fi
+
+  found=$(detekt-cli --version)
+  if [ "$found" != "$DETEKT_VERSION" ]; then
+    echo "pre-commit: detekt-cli $found is installed, but this repo pins $DETEKT_VERSION (the Gradle plugin)." >&2
+    echo "Install detekt $DETEKT_VERSION from $DETEKT_ZIP so the hook matches ./gradlew check." >&2
+    return 1
+  fi
+
+  # detekt-cli takes one --input with the paths ':'-separated.
+  inputs=$(staged_kotlin | tr '\0' ':')
+  inputs=${inputs%:}
+  # shellcheck disable=SC2086 # DETEKT_ARGS is a fixed list of flags, split on purpose.
+  if ! detekt-cli $DETEKT_ARGS --input "$inputs"; then
+    echo >&2
+    echo "pre-commit: detekt found problems (commit rejected). Fix them by hand (detekt doesn't auto-fix), re-stage" >&2
+    echo "the files and commit again. Re-check with:" >&2
+    echo "  detekt-cli $DETEKT_ARGS --input '$inputs'" >&2
+    return 1
+  fi
+}
+
 lint_shell() {
   [ -n "$(staged_shell | tr -d '\0')" ] || return 0
 
@@ -66,8 +104,9 @@ lint_shell() {
   fi
 }
 
-# Run both so one commit reports every finding.
+# Run them all so one commit reports every finding.
 status=0
 lint_kotlin || status=1
+lint_detekt || status=1
 lint_shell || status=1
 exit "$status"
