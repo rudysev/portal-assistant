@@ -17,6 +17,9 @@ import java.io.File
  *
  * Key naming convention: `<feature>_<field>` (e.g. `loc_override`, future `tools_enabled_pkgs`).
  */
+// One getter/setter pair per persisted preference, deliberately in one object so every key and its read contract
+// sit together (see above); splitting it by feature would scatter that single view.
+@Suppress("TooManyFunctions")
 object AppPrefs {
 
     private const val NAME = "assistant"

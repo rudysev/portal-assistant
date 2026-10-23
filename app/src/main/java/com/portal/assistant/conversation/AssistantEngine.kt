@@ -38,6 +38,9 @@ import java.util.concurrent.Executor
  * an error) via the [Action.End] action, which tears everything down and calls [onEnded] so the
  * service can return to standby (mic released, so portal-wake reclaims by detection).
  */
+// The one impure shell: a function per lifecycle step, Action and hot-path callback. The decisions already live in
+// the pure reducer, MicGate, Transcript and ToolRunner; what is left here is the wiring between them.
+@Suppress("TooManyFunctions")
 class AssistantEngine(
     context: Context,
     private val backendChoice: Backends.Choice,
@@ -232,6 +235,8 @@ class AssistantEngine(
         }
     }
 
+    // Implements every VoiceBackend.Listener callback (see the reason on that interface).
+    @Suppress("TooManyFunctions")
     private val backendListener = object : VoiceBackend.Listener {
         override fun onReady() {
             handler.post {

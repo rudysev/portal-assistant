@@ -1,14 +1,9 @@
 package com.portal.assistant.conversation.tools
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
-import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
@@ -140,39 +135,9 @@ class TimerScheduler(context: Context) {
      * user's volume) and post the notification only as a best-effort extra for standard-Android surfaces.
      */
     private fun fireAlert(id: Int, label: String, onAlertDone: () -> Unit) {
-        postAlarmNotification(id, label)
+        TimerAlarmNotification.post(appContext, id, label)
         DebugLog.log("timer fired id=$id label='$label' → chime + notification")
         ChimeSound.play(onAlertDone) // onAlertDone runs after the chime finishes (receiver releases its wake-lock)
-    }
-
-    private fun postAlarmNotification(id: Int, label: String) {
-        val mgr = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        ensureChannel(mgr)
-        val notif = NotificationCompat.Builder(appContext, CHANNEL_ID)
-            .setContentTitle("Timer")
-            .setContentText("$label is done")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
-            .build()
-        mgr.notify(NOTIFICATION_ID_BASE + id, notif)
-    }
-
-    private fun ensureChannel(mgr: NotificationManager) {
-        val channel = NotificationChannel(CHANNEL_ID, "Timers", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Timer alarms"
-            // Channel sound is dead config on this Portal (the launcher doesn't surface the notification, so it
-            // never plays) — kept for correctness on standard-Android surfaces; the audible alert is ChimeSound.
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
-        }
-        mgr.createNotificationChannel(channel) // idempotent
     }
 
     companion object {
@@ -181,9 +146,6 @@ class TimerScheduler(context: Context) {
 
         const val MAX_DURATION_SEC = 86_400 // 24h — guards a mis-parsed "timer for 10 years"
         private const val DEFAULT_LABEL = "timer"
-
-        private const val CHANNEL_ID = "timers"
-        private const val NOTIFICATION_ID_BASE = 2000 // distinct from the resident service's 1001
 
         // Process-wide: the store is shared across every TimerScheduler instance (one per conversation) and
         // the receiver, so the lock must be too — guards load→mutate→persist against the tool-exec/main race.

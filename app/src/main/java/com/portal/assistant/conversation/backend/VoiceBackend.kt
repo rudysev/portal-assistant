@@ -40,6 +40,9 @@ interface VoiceBackend {
     fun close()
 
     /** Callbacks the backend raises as the session progresses. Neutral across models. */
+    // One callback per kind of backend event (as in BackendEvent): every backend raises them all on one stream,
+    // so splitting the interface would only make each backend implement several.
+    @Suppress("TooManyFunctions")
     interface Listener {
         /** The session is set up and ready — the engine moves CONNECTING → LISTENING. */
         fun onReady()
