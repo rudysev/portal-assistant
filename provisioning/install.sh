@@ -166,16 +166,16 @@ install_app() {
   fi
   step "Installing Jarvis ($(basename "$apk"))"
   # -r keep data on update, -d allow downgrade/same-version reinstall, -g pre-grant runtime perms.
-  a install -r -d -g "$apk" >/dev/null 2>&1 && ok "Installed $PKG" || die "Install failed."
+  if a install -r -d -g "$apk" >/dev/null 2>&1; then ok "Installed $PKG"; else die "Install failed."; fi
 }
 
 # ----- permissions -----------------------------------------------------------
 grant_permissions() {
   step "Granting permissions"
-  a shell pm grant "$PKG" android.permission.RECORD_AUDIO >/dev/null 2>&1 && ok "Microphone" || warn "Couldn't grant the microphone — Jarvis can't hear you until you grant it (Settings > Apps > Jarvis > Permissions)."
-  a shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1 && ok "Draw-over-apps (the orange recording bar)" || warn "Couldn't grant draw-over-apps — the orange listening bar won't show."
+  if a shell pm grant "$PKG" android.permission.RECORD_AUDIO >/dev/null 2>&1; then ok "Microphone"; else warn "Couldn't grant the microphone — Jarvis can't hear you until you grant it (Settings > Apps > Jarvis > Permissions)."; fi
+  if a shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; then ok "Draw-over-apps (the orange recording bar)"; else warn "Couldn't grant draw-over-apps — the orange listening bar won't show."; fi
   # Optional power-user grants — Jarvis runs without them; they just unlock a few tools.
-  a shell cmd notification allow_listener "$NOTIF_LISTENER" >/dev/null 2>&1 && ok "Notification access (media controls)" || warn "Media-control tool unavailable until you grant notification access on-device."
+  if a shell cmd notification allow_listener "$NOTIF_LISTENER" >/dev/null 2>&1; then ok "Notification access (media controls)"; else warn "Media-control tool unavailable until you grant notification access on-device."; fi
   a shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1 && ok "Write settings (screen brightness)" || true
   a shell cmd notification allow_dnd "$PKG" >/dev/null 2>&1 && ok "Do Not Disturb access" || true
 }
@@ -192,7 +192,7 @@ launch_app() {
   # Launch once so onCreate imports the staged key and Android clears the "stopped"
   # state (so BOOT_COMPLETED is delivered after a reboot).
   step "Opening Jarvis once (imports your key, enables auto-start on reboot)"
-  a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1 && ok "Launched" || warn "Couldn't launch — open Jarvis from the app grid once."
+  if a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1; then ok "Launched"; else warn "Couldn't launch — open Jarvis from the app grid once."; fi
 }
 
 start_standby() {
@@ -241,7 +241,7 @@ do_uninstall() {
   wait_for_device
   step "Stopping and removing Jarvis"
   a shell am force-stop "$PKG" >/dev/null 2>&1
-  a uninstall "$PKG" >/dev/null 2>&1 && ok "Uninstalled $PKG" || warn "Jarvis was not installed."
+  if a uninstall "$PKG" >/dev/null 2>&1; then ok "Uninstalled $PKG"; else warn "Jarvis was not installed."; fi
   printf "\n%s✓ Done. Jarvis removed.%s\n" "$G$B" "$N"
 }
 
