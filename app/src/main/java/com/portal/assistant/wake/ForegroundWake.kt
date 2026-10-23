@@ -1,6 +1,7 @@
 package com.portal.assistant.wake
 
 import com.portal.commons.DebugLog
+import com.portal.commons.audio.CaptureLoss
 import java.io.File
 import java.util.concurrent.Executor
 
@@ -16,20 +17,33 @@ import java.util.concurrent.Executor
  * [MAX_MODEL_DOWNLOAD_ATTEMPTS] failed downloads, or a model that still won't load after one fresh copy — lasts for
  * the process, so a doomed setup doesn't re-fetch or grab the mic on every foreground.
  *
- * Every call and both callbacks run on the main thread: the download runs on [io], and its progress and result, like
- * the detector's callbacks, come back through [main].
+ * A capture loss while armed is logged loudly. "Dropped" (the mic died under us, e.g. a transient device fault)
+ * retries [Detector.start] once after [CAPTURE_DROP_RETRY_MS], so wake detection doesn't stay off while on screen;
+ * "not granted" (another app holds the single mic slot) waits for the next arm — [foregrounded] or
+ * [conversationEnded] — rather than fight for it. Each arm earns one fresh retry.
+ *
+ * Every call and callback runs on the main thread: the download runs on [io], and its progress and result, like
+ * the detector's callbacks, come back through [main]; the drop retry runs through [later] (main, after a delay).
  */
 // Every collaborator is an injected seam (platform checks, model, detector factory, executors, callbacks), so the
 // unit tests drive it without Android; both call sites pass them by name.
-@Suppress("LongParameterList")
+// TooManyFunctions: the one owner of the foreground detector's lifecycle — the five host calls plus the private steps
+// of arming, download, model-load recovery and capture-loss recovery, all sharing its main-thread state.
+@Suppress("LongParameterList", "TooManyFunctions")
 class ForegroundWake(
     private val supported: Boolean,
     private val micPermitted: () -> Boolean,
     private val online: () -> Boolean,
     private val model: WakeModel,
-    private val detectors: (modelDir: File, onWake: (wakeId: String) -> Unit, onUnavailable: () -> Unit) -> Detector,
+    private val detectors: (
+        modelDir: File,
+        onWake: (wakeId: String) -> Unit,
+        onUnavailable: () -> Unit,
+        onCaptureLost: (CaptureLoss) -> Unit,
+    ) -> Detector,
     private val io: Executor,
     private val main: Executor,
+    private val later: (delayMs: Long, task: Runnable) -> Unit,
     private val onWake: (wakeId: String) -> Unit,
     private val onSetup: (ModelSetup) -> Unit,
 ) {
@@ -41,6 +55,8 @@ class ForegroundWake(
     private var failedDownloads = 0
     private var reloadTried = false // the delete + re-download recovery runs once per process
     private var gaveUp = false
+    private var armId = 0 // bumped by every start and pause, so a retry due after either one is stale
+    private var dropRetried = false // the one drop retry this arm has
 
     private val mayArm get() = supported && !closed && !gaveUp && onScreen && !inConversation
 
@@ -52,13 +68,13 @@ class ForegroundWake(
     /** Releases the mic (so portal-wake can reclaim it) but keeps the model loaded. */
     fun backgrounded() {
         onScreen = false
-        detector?.pause()
+        pauseDetector()
     }
 
     /** The conversation is about to open its mic — the single slot — so stop listening first. */
     fun conversationStarting() {
         inConversation = true
-        detector?.pause()
+        pauseDetector()
     }
 
     /** A conversation ended, or a Trigger was refused before one opened: re-arm if still on screen. */
@@ -87,19 +103,48 @@ class ForegroundWake(
     }
 
     private fun arm() {
+        dropRetried = false
+        startDetector()
+    }
+
+    private fun startDetector() {
         val armed = detector ?: detectors(
             model.dir,
             { wakeId -> main.execute { heard(wakeId) } },
             { main.execute { modelFailedToLoad() } },
+            { loss -> main.execute { captureLost(loss) } },
         ).also { detector = it }
-        // False only when a prior capture thread is wedged and the rebuild-retry was also refused — rare, but
-        // logged so a silently-off detector is diagnosable from debug.txt.
-        if (!armed.start()) DebugLog.log("foreground detector start refused (capture wedged)")
+        armId++
+        armed.start()
+    }
+
+    private fun pauseDetector() {
+        armId++
+        detector?.pause()
+    }
+
+    private fun captureLost(loss: CaptureLoss) {
+        if (closed) return
+        when (loss) {
+            is CaptureLoss.NotGranted ->
+                DebugLog.log("FOREGROUND WAKE OFF — capture not granted (${loss.reason}); waiting for the next arm")
+
+            is CaptureLoss.Dropped -> if (dropRetried) {
+                DebugLog.log("FOREGROUND WAKE OFF — capture dropped again (${loss.reason}); waiting for the next arm")
+            } else {
+                dropRetried = true
+                DebugLog.log(
+                    "FOREGROUND WAKE OFF — capture dropped (${loss.reason}); retrying in ${CAPTURE_DROP_RETRY_MS}ms",
+                )
+                val lostArm = armId
+                later(CAPTURE_DROP_RETRY_MS) { if (lostArm == armId && mayArm) startDetector() }
+            }
+        }
     }
 
     private fun heard(wakeId: String) {
         if (closed) return
-        detector?.pause()
+        pauseDetector()
         onWake(wakeId)
     }
 
@@ -159,5 +204,9 @@ class ForegroundWake(
         // Failed downloads tolerated per process: a transient network blip gets a few foreground retries, a
         // permanently failing install (bad layout, silently truncated response) stops re-fetching.
         const val MAX_MODEL_DOWNLOAD_ATTEMPTS = 3
+
+        // Long enough for a transient device fault (the HAL re-routing, a rebuild racing the release) to clear,
+        // short enough that a user on screen doesn't notice wake was briefly off.
+        const val CAPTURE_DROP_RETRY_MS = 1_000L
     }
 }

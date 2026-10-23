@@ -72,8 +72,8 @@ class AssistantService : Service() {
             },
             online = { NetworkStatus.isOnline(this) },
             model = WakeModelInstaller(filesDir),
-            detectors = { modelDir, onWake, onUnavailable ->
-                VoskDetector(applicationContext, modelDir, onWake, onUnavailable)
+            detectors = { modelDir, onWake, onUnavailable, onCaptureLost ->
+                VoskDetector(applicationContext, modelDir, onWake, onUnavailable, onCaptureLost)
             },
             io = { task ->
                 Thread(task).apply {
@@ -82,6 +82,7 @@ class AssistantService : Service() {
                 }.start()
             },
             main = { task -> mainHandler.post(task) },
+            later = { delayMs, task -> mainHandler.postDelayed(task, delayMs) },
             onWake = { wakeId -> startConversation(Trigger.WakeWord(wakeId)) },
             onSetup = WakeSetupStatus::set,
         )
