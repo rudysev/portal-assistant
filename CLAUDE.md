@@ -360,8 +360,11 @@ on your `PATH`. `pre-push` runs `./gradlew check`. `--no-verify` is the delibera
 
 ## CI
 
-`.github/workflows/ci.yml` runs `./gradlew check assembleDebug` on every push to `main`, on `workflow_dispatch`, and
-when a green `portal-commons` run dispatches `portal-commons-green`. It checks out `portal-assistant` and
+`.github/workflows/ci.yml` runs every check on a pull request to `main`: the `build` job runs `./gradlew check
+assembleDebug`, plus the `shellcheck` and `build-health` jobs below. A push to `main` (a merge), `workflow_dispatch`,
+and a green `portal-commons` run (which dispatches `portal-commons-green`) run only the `build` job, as
+`./gradlew assembleDebug test`. Branch protection on `main` requires a pull request with `shellcheck`,
+`build-health` and `build` passing, so keep those job names. It checks out `portal-assistant` and
 `portal-commons@main` side by side so that `includeBuild("../portal-commons")` resolves.
 
 A `shellcheck` job lints every tracked shell script (the `provisioning/` installer that ships to end users,

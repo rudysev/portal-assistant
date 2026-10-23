@@ -1,16 +1,22 @@
 name: CI
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
   repository_dispatch:
     types: [portal-commons-green]
 
+# A pull request runs every check: shellcheck, build-health, and `check` (unit tests, Android Lint, detekt, ktlint).
+# A push to main, a dispatch or a manual run only builds and runs the unit tests. Branch protection on main
+# requires the shellcheck, build-health and build jobs, so their names must stay stable.
 jobs:
   # Lints every shell script (*.sh, *.command, .githooks/*) with the runner's preinstalled shellcheck and the
   # repo's .shellcheckrc, the same check .githooks/pre-commit runs on staged files.
   shellcheck:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,6 +26,7 @@ jobs:
   # Dependency advice (unused, undeclared-but-used and wrongly-configured dependencies). Kept out of `check` and the
   # hooks because the advice changes rarely and the analysis is slow, so this separate job is the alarm.
   build-health:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,4 +67,9 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew check assembleDebug
+      - name: Check (unit tests, Android Lint, detekt, ktlint) and build
+        if: github.event_name == 'pull_request'
+        run: ./gradlew check assembleDebug
+      - name: Build and run unit tests
+        if: github.event_name != 'pull_request'
+        run: ./gradlew assembleDebug test
