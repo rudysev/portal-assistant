@@ -320,7 +320,8 @@ be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a tu
 ## Hooks
 
 `git config core.hooksPath .githooks` (done by `./setup.sh`). `pre-commit` runs the `ktlint` CLI on staged
-`.kt`/`.kts` files and rejects on findings (never auto-fixes); it refuses a CLI other than ktlint 1.8.0, the
+`.kt`/`.kts` files and `shellcheck` on staged shell scripts (`*.sh`, `*.command`, `.githooks/*`), and rejects on
+findings (never auto-fixes; `brew install ktlint shellcheck`). For ktlint it refuses a CLI other than ktlint 1.8.0, the
 version kotlinter 5.7.0 bundles (`gradle/libs.versions.toml`), so bump both together. `pre-push` runs
 `./gradlew check`. `--no-verify` is the deliberate escape hatch. ktlint config is `.editorconfig` only (including
 the `@Composable` function-naming exemption).
@@ -330,6 +331,13 @@ the `@Composable` function-naming exemption).
 `.github/workflows/ci.yml` runs `./gradlew check assembleDebug` on every push to `main`, on `workflow_dispatch`, and
 when a green `portal-commons` run dispatches `portal-commons-green`. It checks out `portal-assistant` and
 `portal-commons@main` side by side so that `includeBuild("../portal-commons")` resolves.
+
+A `shellcheck` job lints every tracked shell script (the `provisioning/` installer that ships to end users,
+`setup.sh`, `scripts/`, the hooks) with the runner's preinstalled shellcheck. shellcheck isn't part of
+`./gradlew check`: the hook and this job cover it. `.shellcheckrc` makes it follow sourced files
+(`config.env`, `keyprov.sh`) relative to each script, so a variable set in one file and read in another isn't
+reported as unused. `.githooks/pre-commit` and `.shellcheckrc` are identical copies in portal-commons,
+portal-wake and portal-assistant; change all of them together.
 
 A separate `build-health` job runs `./gradlew buildHealth` (the `com.autonomousapps.dependency-analysis` plugin)
 and fails on any dependency advice: unused, used-but-undeclared or wrongly-configured dependencies. It is not part
