@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlinter)
+  alias(libs.plugins.detekt)
   alias(libs.plugins.dependency.analysis) // `buildHealth` advice; see the root build
   alias(libs.plugins.kotlin.compose)
 }
@@ -103,4 +104,20 @@ dependencies {
   testImplementation(libs.json)
 
   debugImplementation(libs.androidx.compose.ui.tooling)
+
+  // Jetpack Compose rules for detekt (portal-assistant is the only Compose app).
+  detektPlugins(libs.compose.rules.detekt)
+}
+
+// detekt on the defaults plus the shared opt-ins in config/detekt/detekt.yml (identical in all three repos).
+detekt {
+  buildUponDefaultConfig = true
+  config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+}
+
+// `check` runs the type-resolving tasks (detektMain/detektTest: main and test classes, every variant) instead of the
+// plugin's default `detekt` task, which analyses the same sources without type resolution.
+tasks.check {
+  setDependsOn(dependsOn.filterNot { it is TaskProvider<*> && it.name == "detekt" })
+  dependsOn("detektMain", "detektTest")
 }

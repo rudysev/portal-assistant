@@ -18,6 +18,10 @@ junit = "4.13.2"
 # 3.19's kotlin-bom 2.4.0 sets the build's kotlin-daemon-client to at least 2.4.0, so KGP (`kotlin`) must stay
 # >= 2.4.0 or the Kotlin daemon fails (NoSuchMethodError).
 dependencyAnalysis = "3.19.2"
+# detekt 2.0 is still alpha (1.x has no AGP 9 support); quality-tooling ticket 08 moves it to stable.
+detekt = "2.0.0-alpha.6"
+# Built against detekt 2.0.0-alpha.6 (each compose-rules release targets one detekt alpha). Bump both together.
+composeRules = "0.6.8"
 
 [libraries]
 # portal-commons modules: no version, because includeBuild("../portal-commons") substitutes them from source.
@@ -52,6 +56,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okio = { group = "com.squareup.okio", name = "okio", version.ref = "okio" }
 json = { group = "org.json", name = "json", version.ref = "json" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+compose-rules-detekt = { group = "io.nlopez.compose.rules", name = "detekt", version.ref = "composeRules" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -59,3 +64,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinter = { id = "org.jmailen.kotlinter", version.ref = "kotlinter" }
 dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependencyAnalysis" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
