@@ -59,10 +59,10 @@ object AppPrefs {
     /** The selected model id, or [GeminiModel.ID] if unset or no longer offered. Self-heals: a saved id that
      *  fell out of the catalog is cleared so prefs never retain an orphan. */
     fun modelId(context: Context): String {
-        val saved = prefs(context).getString(KEY_MODEL, null) ?: return GeminiModel.ID
-        if (saved in GeminiModel.AVAILABLE) return saved
-        prefs(context).edit { remove(KEY_MODEL) } // orphan from a catalog change — drop it
-        return GeminiModel.ID
+        val saved = prefs(context).getString(KEY_MODEL, null)
+        val offered = saved?.takeIf { it in GeminiModel.AVAILABLE }
+        if (saved != null && offered == null) prefs(context).edit { remove(KEY_MODEL) } // orphan from a catalog change — drop it
+        return offered ?: GeminiModel.ID
     }
 
     /** Persist the chosen model (applies to the next conversation). Ignores ids outside the catalog so prefs
@@ -76,9 +76,9 @@ object AppPrefs {
      *  [GeminiSpeaker.AVAILABLE]. Self-heals: an orphaned name is cleared so prefs never retain it. */
     fun speakerId(context: Context): String? {
         val saved = prefs(context).getString(KEY_SPEAKER, null) ?: return null
-        GeminiSpeaker.find(saved)?.let { return it.name }
-        prefs(context).edit { remove(KEY_SPEAKER) } // orphan from a catalog change — drop it
-        return null
+        val speaker = GeminiSpeaker.find(saved)
+        if (speaker == null) prefs(context).edit { remove(KEY_SPEAKER) } // orphan from a catalog change — drop it
+        return speaker?.name
     }
 
     /** Persist the Chosen speaker (applies to the next conversation), or return to Server default with null.
@@ -97,9 +97,9 @@ object AppPrefs {
      *  falls back to its next choice). */
     fun defaultMusicPkg(context: Context): String? {
         val saved = prefs(context).getString(KEY_DEFAULT_MUSIC_PKG, null)?.trim()?.ifBlank { null } ?: return null
-        if (context.packageManager.getLaunchIntentForPackage(saved) != null) return saved
-        prefs(context).edit { remove(KEY_DEFAULT_MUSIC_PKG) } // uninstalled pick — drop it
-        return null
+        val installed = context.packageManager.getLaunchIntentForPackage(saved) != null
+        if (!installed) prefs(context).edit { remove(KEY_DEFAULT_MUSIC_PKG) } // uninstalled pick — drop it
+        return saved.takeIf { installed }
     }
 
     /** Set the default music app package, or clear it with a null/blank value (applies to the next play). */
@@ -195,10 +195,9 @@ object AppPrefs {
     @SuppressLint("UseKtx")
     fun importProvisionedKey(context: Context) {
         val f = File(context.getExternalFilesDir(null), PROVISION_FILE)
-        if (!f.exists()) return
         // Keep the file if the read fails (transient FS error) so the next launch can retry — don't delete a
         // key we never imported.
-        val provisioned = runCatching { f.readText().trim() }.getOrNull() ?: return
+        val provisioned = (if (f.exists()) runCatching { f.readText().trim() }.getOrNull() else null) ?: return
         if (provisioned.isEmpty()) {
             f.delete() // nothing to import — drop the empty file
             return

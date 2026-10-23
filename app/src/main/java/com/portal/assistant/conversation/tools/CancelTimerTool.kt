@@ -21,10 +21,8 @@ class CancelTimerTool(private val scheduler: TimerScheduler) : Tool {
         val id = if (args.has("id")) args.optInt("id") else null
         val label = args.optString("label").ifBlank { null }
         if (id == null && label == null) return JSONObject().put("error", "provide id or label")
-        val cancelled = scheduler.cancel(id, label) ?: return JSONObject().put("error", "no matching timer")
-        return JSONObject()
-            .put("cancelled", true)
-            .put("id", cancelled.id)
-            .put("label", cancelled.label)
+        val cancelled = scheduler.cancel(id, label)
+        return cancelled?.let { JSONObject().put("cancelled", true).put("id", it.id).put("label", it.label) }
+            ?: JSONObject().put("error", "no matching timer")
     }
 }

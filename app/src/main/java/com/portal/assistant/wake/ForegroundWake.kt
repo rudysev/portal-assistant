@@ -72,16 +72,18 @@ class ForegroundWake(
 
     private fun armIfAllowed() {
         if (!mayArm) return
-        // Don't load the model for a capture that can only fail. The first conversation is what asks for the mic,
-        // so its end re-arms.
-        if (!micPermitted()) {
-            DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
-            return
+        when {
+            // Don't load the model for a capture that can only fail. The first conversation is what asks for the
+            // mic, so its end re-arms.
+            !micPermitted() -> DebugLog.log("foreground detection skipped — RECORD_AUDIO not granted yet")
+
+            !model.isInstalled() -> download()
+
+            else -> arm()
         }
-        if (!model.isInstalled()) {
-            download()
-            return
-        }
+    }
+
+    private fun arm() {
         val armed = detector ?: detectors(
             model.dir,
             { wakeId -> main.execute { heard(wakeId) } },

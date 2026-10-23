@@ -38,19 +38,16 @@ object AppMatch {
         val tokens = tokenize(query).dropWhile { it in FILLER }
         if (tokens.isEmpty() || apps.isEmpty()) return Result(null, emptyList(), "none", 0)
         val raw = match(tokens, apps)
-        if (raw.pick != null) return raw
         // Only consult the alias map if the literal name didn't resolve — so a real "Browser" label still wins.
-        ALIASES[tokens.joinToString("")]?.let { alias ->
-            val aliased = match(listOf(alias), apps)
-            if (aliased.pick != null) return aliased
-        }
-        return raw
+        val aliased = if (raw.pick == null) ALIASES[tokens.joinToString("")]?.let { alias -> match(listOf(alias), apps) } else null
+        return aliased?.takeIf { it.pick != null } ?: raw
     }
 
     private fun match(nameTokens: List<String>, apps: List<AppEntry>): Result {
         val q = nameTokens.joinToString("")
-        if (q.isEmpty()) return Result(null, emptyList(), "none", 0)
         val ranked = apps
+            .takeIf { q.isNotEmpty() }
+            .orEmpty()
             .map { app -> app to scoreTier(q, nameTokens, app) }
             .filter { it.second.second > 0 }
             .sortedWith(
@@ -72,14 +69,25 @@ object AppMatch {
     /** (tier, score) for one app. [q] is the compact query; both [q] and label sides are length-guarded. */
     private fun scoreTier(q: String, qTokens: List<String>, app: AppEntry): Pair<String, Int> {
         val label = compact(app.label)
-        if (q == label) return "exact" to 100
-        if (q.length < MIN_QUERY_LEN || label.length < MIN_QUERY_LEN) return "none" to 0
-        if (label.startsWith(q) || q.startsWith(label)) return "prefix" to 80
-        // q.contains(label): the whole label is inside the query (label is the anchor, e.g. "googlephotos" ⊃
-        // "photos") — safe at any length. label.contains(q): q is a mid-substring of the label — only trust it
-        // for a longer q, else a 3-char fragment ("ify") would auto-pick "Spotify".
-        if (q.contains(label) || (q.length >= CONTAINS_MIN && label.contains(q))) return "contains" to 60
-        val j = jaccard(qTokens.toSet(), tokenize(app.label).toSet())
+        return when {
+            q == label -> "exact" to 100
+
+            q.length < MIN_QUERY_LEN || label.length < MIN_QUERY_LEN -> "none" to 0
+
+            label.startsWith(q) || q.startsWith(label) -> "prefix" to 80
+
+            // q.contains(label): the whole label is inside the query (label is the anchor, e.g. "googlephotos" ⊃
+            // "photos") — safe at any length. label.contains(q): q is a mid-substring of the label — only trust it
+            // for a longer q, else a 3-char fragment ("ify") would auto-pick "Spotify".
+            q.contains(label) || (q.length >= CONTAINS_MIN && label.contains(q)) -> "contains" to 60
+
+            else -> looseTier(q, qTokens, app.label, label)
+        }
+    }
+
+    /** (tier, score) by shared tokens or a shared stem, for a query that matched none of the strict tiers. */
+    private fun looseTier(q: String, qTokens: List<String>, rawLabel: String, label: String): Pair<String, Int> {
+        val j = jaccard(qTokens.toSet(), tokenize(rawLabel).toSet())
         val tokenScore = if (j > 0.0) (j * 40).roundToInt().coerceIn(1, 40) else 0
         val cp = commonPrefixLen(q, label) // catches misheard names sharing a stem ("spotty" ~ "spotify")
         val fuzzyScore = if (cp >= MIN_QUERY_LEN) cp else 0

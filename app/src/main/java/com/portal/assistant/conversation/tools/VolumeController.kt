@@ -70,22 +70,25 @@ class VolumeController(context: Context, afterSpeech: AfterSpeech) {
      * model confirms) but apply the actual mute once the confirmation has finished playing. Unmute applies
      * immediately so its confirmation is audible.
      */
-    fun setMuted(muted: Boolean): VolumeState {
-        if (!muted) {
+    fun setMuted(muted: Boolean): VolumeState = when {
+        !muted -> {
             deferredMute.cancel()
             audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_UNMUTE, 0)
-            return current().also { DebugLog.log("volume unmute → ${it.percent}% muted=${it.muted}") }
+            current().also { DebugLog.log("volume unmute → ${it.percent}% muted=${it.muted}") }
         }
-        if (isMuted(audioManager.getStreamVolume(STREAM))) {
-            // Already muting, muted, or at zero — don't schedule a redundant deferred apply.
-            return current().also { DebugLog.log("volume mute=true (already pending/muted)") }
+
+        // Already muting, muted, or at zero — don't schedule a redundant deferred apply.
+        isMuted(audioManager.getStreamVolume(STREAM)) ->
+            current().also { DebugLog.log("volume mute=true (already pending/muted)") }
+
+        else -> {
+            deferredMute.schedule {
+                audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_MUTE, 0)
+                DebugLog.log("volume mute applied (after speech)")
+            }
+            DebugLog.log("volume mute=true (deferred to turn-end)")
+            VolumeState(current().percent, muted = true) // report intended state; model says "muted"
         }
-        deferredMute.schedule {
-            audioManager.adjustStreamVolume(STREAM, AudioManager.ADJUST_MUTE, 0)
-            DebugLog.log("volume mute applied (after speech)")
-        }
-        DebugLog.log("volume mute=true (deferred to turn-end)")
-        return VolumeState(current().percent, muted = true) // report intended state; model says "muted"
     }
 
     /** Drop any pending deferred mute. Call on conversation teardown so it can't fire into the next one. */

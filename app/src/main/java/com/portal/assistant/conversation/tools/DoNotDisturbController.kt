@@ -45,24 +45,31 @@ class DoNotDisturbController(context: Context, afterSpeech: AfterSpeech) {
         return DndState(isOn()).toJson()
     }
 
-    fun setEnabled(enabled: Boolean): JSONObject {
-        if (!manager.isNotificationPolicyAccessGranted) {
+    fun setEnabled(enabled: Boolean): JSONObject = when {
+        !manager.isNotificationPolicyAccessGranted -> {
             DebugLog.log("dnd change skipped — notification policy access not granted")
-            return JSONObject().put("error", "dnd access not granted")
+            JSONObject().put("error", "dnd access not granted")
         }
-        if (!enabled) {
-            deferredEnable.cancel() // an explicit disable overrides a pending enable
-            manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
-            // Leave the ringer alone. Our enable (INTERRUPTION_FILTER_NONE) puts the ringer mode into SILENT, and
-            // ZenModeHelper puts the previous ringer mode back on its own, asynchronously, once zen is off. Touching
-            // the ring stream here (an ADJUST_UNMUTE used to) races that restore: AudioService re-writes the SILENT
-            // it read a moment earlier, and the device can no longer ring (device-verified on gen2).
-            return DndState(false).toJson().also { DebugLog.log("dnd disabled") }
-        }
-        if (isOn()) {
-            // Already enabling or on — don't schedule a redundant deferred apply.
-            return DndState(true).toJson().also { DebugLog.log("dnd enable=true (already pending/on)") }
-        }
+
+        !enabled -> disable()
+
+        // Already enabling or on — don't schedule a redundant deferred apply.
+        isOn() -> DndState(true).toJson().also { DebugLog.log("dnd enable=true (already pending/on)") }
+
+        else -> enableAfterSpeech()
+    }
+
+    private fun disable(): JSONObject {
+        deferredEnable.cancel() // an explicit disable overrides a pending enable
+        manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+        // Leave the ringer alone. Our enable (INTERRUPTION_FILTER_NONE) puts the ringer mode into SILENT, and
+        // ZenModeHelper puts the previous ringer mode back on its own, asynchronously, once zen is off. Touching
+        // the ring stream here (an ADJUST_UNMUTE used to) races that restore: AudioService re-writes the SILENT
+        // it read a moment earlier, and the device can no longer ring (device-verified on gen2).
+        return DndState(false).toJson().also { DebugLog.log("dnd disabled") }
+    }
+
+    private fun enableAfterSpeech(): JSONObject {
         deferredEnable.schedule {
             manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
             DebugLog.log("dnd enable applied (after speech)")

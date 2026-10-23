@@ -21,21 +21,26 @@ class AppLauncher(context: Context) {
     fun open(name: String): JSONObject {
         val r = AppMatch.best(name, PackageCatalog.launchable(appContext))
         val pick = r.pick
-            ?: return JSONObject()
+        val launch = pick?.let { pm.getLaunchIntentForPackage(it.pkg) }
+        return when {
+            pick == null -> JSONObject()
                 .put("error", "app not found")
                 .put("query", name)
                 .put("candidates", r.candidates.fold(org.json.JSONArray()) { a, c -> a.put(c) })
                 .also { DebugLog.log("open_app: no match for \"$name\" (candidates=${r.candidates})") }
 
-        val launch = pm.getLaunchIntentForPackage(pick.pkg)
-            ?: return JSONObject().put("error", "couldn't open ${pick.label}")
-        return runCatching {
-            appContext.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            DebugLog.log("open_app → ${pick.pkg} (${r.tier} ${r.score})")
-            JSONObject().put("opened", true).put("app", pick.label)
-        }.getOrElse {
-            DebugLog.log("open_app failed for ${pick.pkg}: ${it.message}")
-            JSONObject().put("error", "couldn't open ${pick.label}: ${it.message}")
+            launch == null -> JSONObject().put("error", "couldn't open ${pick.label}")
+
+            else -> launch(pick, launch, r)
         }
+    }
+
+    private fun launch(pick: AppEntry, launch: Intent, r: AppMatch.Result): JSONObject = runCatching {
+        appContext.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        DebugLog.log("open_app → ${pick.pkg} (${r.tier} ${r.score})")
+        JSONObject().put("opened", true).put("app", pick.label)
+    }.getOrElse {
+        DebugLog.log("open_app failed for ${pick.pkg}: ${it.message}")
+        JSONObject().put("error", "couldn't open ${pick.label}: ${it.message}")
     }
 }

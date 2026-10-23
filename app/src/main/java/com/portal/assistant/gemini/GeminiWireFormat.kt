@@ -126,47 +126,55 @@ class GeminiWireFormat(
      * carry both, so we collect all events and return them merged in document order.
      */
     override fun decode(text: String): List<BackendEvent> {
-        val json = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
-
-        if (json.has("setupComplete")) return listOf(BackendEvent.Ready)
-
-        json.optJSONObject("goAway")?.let { goAway ->
-            return listOf(BackendEvent.ClosingSoon(parseDurationMs(goAway.optString("timeLeft"))))
+        val json = runCatching { JSONObject(text) }.getOrNull()
+        val goAway = json?.optJSONObject("goAway")
+        return when {
+            json == null -> emptyList()
+            json.has("setupComplete") -> listOf(BackendEvent.Ready)
+            goAway != null -> listOf(BackendEvent.ClosingSoon(parseDurationMs(goAway.optString("timeLeft"))))
+            else -> contentEvents(json)
         }
+    }
 
+    /** The tool and `serverContent` events of one message, in document order. */
+    private fun contentEvents(json: JSONObject): List<BackendEvent> {
         val events = mutableListOf<BackendEvent>()
 
-        // Tool events are top-level — must be parsed BEFORE the serverContent guard below.
+        // Tool events are top-level, so they are read whether or not the message carries serverContent.
         ToolCallWire.parseCalls(json.optJSONObject("toolCall")?.optJSONArray("functionCalls"))
             .takeIf { it.isNotEmpty() }?.let { events += BackendEvent.ToolCall(it) }
         ToolCallWire.parseCancelIds(json.optJSONObject("toolCallCancellation")?.optJSONArray("ids"))
             .takeIf { it.isNotEmpty() }?.let { events += BackendEvent.ToolCancel(it) }
 
-        val serverContent = json.optJSONObject("serverContent") ?: return events
+        json.optJSONObject("serverContent")?.let { addServerContent(it, events) }
+        return events
+    }
 
+    private fun addServerContent(serverContent: JSONObject, events: MutableList<BackendEvent>) {
         serverContent.optJSONObject("inputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }
             ?.let { events.add(BackendEvent.InputTranscript(it)) }
 
         if (serverContent.optBoolean("interrupted", false)) events.add(BackendEvent.Interrupted)
 
         val parts = serverContent.optJSONObject("modelTurn")?.optJSONArray("parts")
-        if (parts != null && parts.length() > 0) {
-            events.add(BackendEvent.ModelGenerating)
-            for (i in 0 until parts.length()) {
-                val base64Audio = parts.optJSONObject(i)?.optJSONObject("inlineData")?.optString("data").orEmpty()
-                if (base64Audio.isNotEmpty()) {
-                    runCatching { Base64.getMimeDecoder().decode(base64Audio) }.getOrNull()
-                        ?.let { events.add(BackendEvent.Audio(it)) }
-                }
-            }
-        }
+        if (parts != null && parts.length() > 0) addModelTurn(parts, events)
 
         serverContent.optJSONObject("outputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }
             ?.let { events.add(BackendEvent.OutputTranscript(it)) }
 
         if (serverContent.optBoolean("turnComplete", false)) events.add(BackendEvent.TurnComplete)
+    }
 
-        return events
+    /** The model turn has started; its parts carry the base64 audio chunks. */
+    private fun addModelTurn(parts: JSONArray, events: MutableList<BackendEvent>) {
+        events.add(BackendEvent.ModelGenerating)
+        for (i in 0 until parts.length()) {
+            val base64Audio = parts.optJSONObject(i)?.optJSONObject("inlineData")?.optString("data").orEmpty()
+            if (base64Audio.isNotEmpty()) {
+                runCatching { Base64.getMimeDecoder().decode(base64Audio) }.getOrNull()
+                    ?.let { events.add(BackendEvent.Audio(it)) }
+            }
+        }
     }
 
     /** Gemini sends JSON in binary frames too: read the bytes as UTF-8 and decode them as text. */

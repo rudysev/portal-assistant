@@ -26,18 +26,22 @@ object Geolocation {
      */
     fun parse(json: String): DeviceLocation? {
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return null
-        if (o.optBoolean("error", false)) return null // ipapi.co failure
-        if (o.has("success") && !o.optBoolean("success", true)) return null // ipwho.is failure
+        val ipapiFailed = o.optBoolean("error", false)
+        val ipwhoFailed = o.has("success") && !o.optBoolean("success", true)
         val city = o.optString("city").trim()
         val lat = o.optDouble("latitude", Double.NaN)
         val lon = o.optDouble("longitude", Double.NaN)
-        if (city.isEmpty() || lat.isNaN() || lon.isNaN() || (lat == 0.0 && lon == 0.0)) return null
-        return DeviceLocation(
-            city = city,
-            region = o.optString("region").trim(),
-            country = o.optString("country").ifEmpty { o.optString("country_name") }.trim(),
-            lat = lat,
-            lon = lon,
-        )
+        val hasFix = !lat.isNaN() && !lon.isNaN() && !(lat == 0.0 && lon == 0.0)
+        return if (ipapiFailed || ipwhoFailed || city.isEmpty() || !hasFix) {
+            null
+        } else {
+            DeviceLocation(
+                city = city,
+                region = o.optString("region").trim(),
+                country = o.optString("country").ifEmpty { o.optString("country_name") }.trim(),
+                lat = lat,
+                lon = lon,
+            )
+        }
     }
 }

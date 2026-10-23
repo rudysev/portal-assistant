@@ -108,15 +108,14 @@ class MediaControl(context: Context) {
             { PackageCatalog.searchPlayableApps(appContext) },
             PackageCatalog.SPOTIFY_PKGS,
         )
-        val pkg = target.pkg
-            ?: return JSONObject().put("error", target.reason ?: "couldn't find a music app to play on")
-        val label = target.label ?: appLabel(pkg)
+        return target.pkg?.let { pkg -> playOn(pkg, target.label ?: appLabel(pkg), q, type) }
+            ?: JSONObject().put("error", target.reason ?: "couldn't find a music app to play on")
+    }
 
-        return when (MediaRouting.strategyFor(pkg, PackageCatalog.SPOTIFY_PKGS) { hasPlayFromSearch(pkg) }) {
-            MediaRouting.PlayStrategy.DEEP_LINK -> playSpotify(pkg, q, label)
-            MediaRouting.PlayStrategy.PLAY_FROM_SEARCH -> playFromSearch(pkg, q, label, MediaRouting.playType(type))
-            MediaRouting.PlayStrategy.LAUNCH_ONLY -> launchOnly(pkg, q, label)
-        }
+    private fun playOn(pkg: String, label: String, q: String, type: String?): JSONObject = when (MediaRouting.strategyFor(pkg, PackageCatalog.SPOTIFY_PKGS) { hasPlayFromSearch(pkg) }) {
+        MediaRouting.PlayStrategy.DEEP_LINK -> playSpotify(pkg, q, label)
+        MediaRouting.PlayStrategy.PLAY_FROM_SEARCH -> playFromSearch(pkg, q, label, MediaRouting.playType(type))
+        MediaRouting.PlayStrategy.LAUNCH_ONLY -> launchOnly(pkg, q, label)
     }
 
     // A *search* deep link, not an exact `spotify:track:<id>`: the Portal's Spotify is Free-tier (can't
@@ -227,8 +226,8 @@ class MediaControl(context: Context) {
         body: (MediaController) -> JSONObject,
     ): JSONObject {
         val controllers = activeSessions() ?: return notEnabledError()
-        val idx = pick(controllers.mapIndexed { i, c -> c.toInfo(i) }) ?: return notFound(controllers.isEmpty())
-        return body(controllers[idx])
+        val idx = pick(controllers.mapIndexed { i, c -> c.toInfo(i) })
+        return if (idx == null) notFound(controllers.isEmpty()) else body(controllers[idx])
     }
 
     private fun MediaController.toInfo(index: Int): SessionInfo {

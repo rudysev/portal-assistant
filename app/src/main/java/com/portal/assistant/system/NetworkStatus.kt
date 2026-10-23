@@ -13,10 +13,11 @@ import android.net.NetworkCapabilities
 object NetworkStatus {
     fun isOnline(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-        val caps = runCatching {
-            val network = cm.activeNetwork ?: return false // a null active network is a definitive "offline"
-            cm.getNetworkCapabilities(network)
-        }.getOrNull() ?: return true
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        return runCatching {
+            // A null active network is a definitive "offline"; unknown capabilities count as online.
+            cm.activeNetwork?.let { network ->
+                cm.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: true
+            } ?: false
+        }.getOrDefault(true)
     }
 }

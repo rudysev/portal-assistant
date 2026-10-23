@@ -29,48 +29,50 @@ object LocalVoiceHost {
     /** Parse [input]; blank/whitespace-only is [ParseResult.Invalid]. */
     fun parse(input: String): ParseResult {
         val trimmed = input.trim()
-        if (trimmed.isEmpty()) return ParseResult.Invalid
+        val hostPort = when {
+            trimmed.startsWith(WSS, ignoreCase = true) -> splitHostPort(trimmed.drop(WSS.length))
 
-        val (host, port) = when {
-            trimmed.startsWith("wss://", ignoreCase = true) -> splitHostPort(trimmed.drop(6))
-
-            trimmed.contains("://") -> return ParseResult.Invalid
+            trimmed.contains("://") -> null
 
             // ws://, http://, …
-
-            else -> splitHostPort(trimmed)
-        } ?: return ParseResult.Invalid
-
-        if (!isLanHost(host)) return ParseResult.Invalid
-        return ParseResult.Ok("wss://$host:$port")
+            else -> splitHostPort(trimmed) // blank input has no port, so it is rejected here too
+        }
+        return if (hostPort != null && isLanHost(hostPort.first)) {
+            ParseResult.Ok("$WSS${hostPort.first}:${hostPort.second}")
+        } else {
+            ParseResult.Invalid
+        }
     }
 
     /** Split `host:port` (no scheme). Rejects paths, query strings, and missing/invalid ports. */
     private fun splitHostPort(hostPort: String): Pair<String, Int>? {
-        if ('/' in hostPort || '?' in hostPort || '#' in hostPort) return null
         val colon = hostPort.lastIndexOf(':')
-        if (colon <= 0) return null
-        val host = hostPort.substring(0, colon)
-        val port = hostPort.substring(colon + 1).toIntOrNull() ?: return null
-        if (port !in 1..65535 || host.isBlank()) return null
-        return host to port
+        val host = hostPort.substring(0, colon.coerceAtLeast(0))
+        val port = if (colon > 0) hostPort.substring(colon + 1).toIntOrNull() else null
+        val hasPath = '/' in hostPort || '?' in hostPort || '#' in hostPort
+        return if (!hasPath && port != null && port in 1..MAX_PORT && host.isNotBlank()) host to port else null
     }
 
     private fun isLanHost(host: String): Boolean {
         val lower = host.lowercase()
-        if (lower == "localhost") return true
-        if (lower.endsWith(".local")) return isValidHostname(lower)
-
         val octets = host.split('.')
-        if (octets.size == 4 && octets.all { it.toIntOrNull() in 0..255 }) {
-            return isPrivateIpv4(octets.map { it.toInt() })
-        }
+        return when {
+            lower == "localhost" -> true
 
-        // Short mDNS name (no dots) — e.g. `raspberrypi:8080`.
-        if ('.' !in host) return isValidSimpleHostname(host)
-        return false
+            lower.endsWith(".local") -> isValidHostname(lower)
+
+            octets.size == IPV4_OCTETS && octets.all { it.toIntOrNull() in 0..MAX_OCTET } -> isPrivateIpv4(octets.map { it.toInt() })
+
+            // Short mDNS name (no dots) — e.g. `raspberrypi:8080`.
+            '.' !in host -> isValidSimpleHostname(host)
+
+            else -> false
+        }
     }
 
+    // The octets are the private, loopback and link-local ranges' own literals (10/8, 172.16/12, 192.168/16,
+    // 127/8, 169.254/16); naming each would only restate them.
+    @Suppress("MagicNumber")
     private fun isPrivateIpv4(o: List<Int>): Boolean = when {
         o[0] == 10 -> true
         o[0] == 172 && o[1] in 16..31 -> true
@@ -79,6 +81,11 @@ object LocalVoiceHost {
         o[0] == 169 && o[1] == 254 -> true
         else -> false
     }
+
+    private const val WSS = "wss://"
+    private const val MAX_PORT = 65_535
+    private const val IPV4_OCTETS = 4
+    private const val MAX_OCTET = 255
 
     private fun isValidHostname(host: String): Boolean = host.all { it.isLetterOrDigit() || it == '-' || it == '.' }
 

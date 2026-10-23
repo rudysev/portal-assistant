@@ -35,13 +35,12 @@ class PrebuiltTrack(private val logLabel: String, private val buildTrack: () -> 
 
     /** Play the sound from its start. Returns whether it started; a failure is already logged. */
     fun play(): Boolean {
-        keptTrack?.let { prebuilt ->
-            if (replayOrDiscard(prebuilt, "prebuilt track unusable, building a fresh one")) return true
-        }
-        val fresh = buildOrNull() ?: return false
-        if (!replayOrDiscard(fresh, "failed to play")) return false
-        keptTrack = fresh
-        return true
+        val prebuilt = keptTrack
+        if (prebuilt != null && replayOrDiscard(prebuilt, "prebuilt track unusable, building a fresh one")) return true
+        val fresh = buildOrNull()
+        val played = fresh != null && replayOrDiscard(fresh, "failed to play")
+        if (played) keptTrack = fresh
+        return played
     }
 
     /** Replay [candidate]; if it can't, log [failureContext], release it, and stop keeping it. Returns whether it played. */

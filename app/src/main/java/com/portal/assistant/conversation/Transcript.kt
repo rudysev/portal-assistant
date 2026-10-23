@@ -103,10 +103,8 @@ data class Transcript(
     /** Recompute the active Jarvis turn's reveal from [playedBytes]; `this` when no new word shows. */
     private fun revealAt(playedBytes: Long): Transcript {
         val idx = jarvisIndex()
-        if (idx < 0) return this
-        val next = wordsHeard(turns[idx].text, playedBytes)
-        if (next == revealedWords) return this
-        return copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
+        val next = if (idx < 0) revealedWords else wordsHeard(turns[idx].text, playedBytes)
+        return if (next == revealedWords) this else copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
     }
 
     /**
@@ -114,11 +112,17 @@ data class Transcript(
      * (`null` when no word was). A turn with no audio keeps its text — there's nothing to measure it against.
      */
     private fun endedAsHeard(turn: Turn, playedBytes: Long): Turn? {
-        if (playedBytes - revealBaseBytes >= receivedBytes) return turn.copy(revealedWords = null)
         val heard = wordsHeard(turn.text, playedBytes)
-        if (heard == 0) return null
-        val words = RevealProgress.wordRanges(turn.text)
-        return turn.copy(text = turn.text.substring(0, words[heard - 1].last + 1), revealedWords = null)
+        return when {
+            playedBytes - revealBaseBytes >= receivedBytes -> turn.copy(revealedWords = null)
+
+            heard == 0 -> null
+
+            else -> {
+                val words = RevealProgress.wordRanges(turn.text)
+                turn.copy(text = turn.text.substring(0, words[heard - 1].last + 1), revealedWords = null)
+            }
+        }
     }
 
     /** How many of [text]'s words the active turn's audio played by [playedBytes] covers (monotonic, capped). */
@@ -130,13 +134,12 @@ data class Transcript(
     )
 
     private fun appendUser(delta: String): Transcript {
-        if (delta.isEmpty()) return this
         val idx = if (userTurnId == NONE) -1 else turns.indexOfLast { it.id == userTurnId }
-        if (idx < 0) {
-            val turn = Turn(Role.USER, delta)
-            return copy(turns = turns + turn, userTurnId = turn.id)
+        return when {
+            delta.isEmpty() -> this
+            idx < 0 -> Turn(Role.USER, delta).let { turn -> copy(turns = turns + turn, userTurnId = turn.id) }
+            else -> copy(turns = turns.patched(idx) { it.copy(text = it.text + delta) })
         }
-        return copy(turns = turns.patched(idx) { it.copy(text = it.text + delta) })
     }
 
     /**
@@ -149,13 +152,16 @@ data class Transcript(
         val raw = jarvisRaw + delta
         val clean = Markdown.strip(raw)
         val idx = jarvisIndex()
-        if (idx < 0) {
-            if (clean.isEmpty()) return copy(jarvisRaw = raw) // only markup so far → keep accumulating
-            val turn = Turn(Role.MODEL, clean, revealedWords = revealedWords)
-            return copy(turns = turns + turn, jarvisTurnId = turn.id, jarvisRaw = raw)
+        return when {
+            idx >= 0 -> copy(turns = turns.patched(idx) { it.copy(text = clean) }, jarvisRaw = raw)
+
+            // clean is the full stripped accumulation, not a delta
+            clean.isEmpty() -> copy(jarvisRaw = raw)
+
+            // only markup so far → keep accumulating
+            else -> Turn(Role.MODEL, clean, revealedWords = revealedWords)
+                .let { turn -> copy(turns = turns + turn, jarvisTurnId = turn.id, jarvisRaw = raw) }
         }
-        // clean is the full stripped accumulation, not a delta
-        return copy(turns = turns.patched(idx) { it.copy(text = clean) }, jarvisRaw = raw)
     }
 
     private fun jarvisIndex(): Int = if (jarvisTurnId == NONE) -1 else turns.indexOfLast { it.id == jarvisTurnId }

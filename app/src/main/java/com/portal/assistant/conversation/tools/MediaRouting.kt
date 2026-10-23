@@ -49,29 +49,33 @@ object MediaRouting {
         musicApps: List<AppEntry>,
         fallbackApps: () -> List<AppEntry>,
         spotifyPkgs: List<String>,
-    ): MusicTarget {
-        if (!spokenApp.isNullOrBlank()) {
-            val pick = AppMatch.best(spokenApp, musicApps).pick
-                ?: AppMatch.best(spokenApp, fallbackApps()).pick
-            return if (pick != null) {
-                MusicTarget(pick.pkg, pick.label)
-            } else {
-                MusicTarget(null, null, reason = "can't play music on \"${spokenApp.trim()}\"")
-            }
-        }
+    ): MusicTarget = when {
+        !spokenApp.isNullOrBlank() -> spokenTarget(spokenApp, musicApps, fallbackApps)
 
         // No app named — resolve the default. A saved default is pre-validated as installed by the caller, so
         // trust it directly (label resolved by the shell); no dependency on the music-app snapshot.
-        if (defaultPkg != null) return MusicTarget(defaultPkg, null)
+        defaultPkg != null -> MusicTarget(defaultPkg, null)
+
         // The same effective default Settings renders, over the same inputs — the picker can't show a default
         // that play won't honor.
-        effectiveDefault(musicApps, { (musicApps + fallbackApps()).distinctBy { it.pkg } }, spotifyPkgs)
-            ?.let { return MusicTarget(it.pkg, it.label) }
-        return MusicTarget(
-            null,
-            null,
-            reason = "no default music app set — say which app to play on, or pick a favorite in Settings",
-        )
+        else -> effectiveDefault(musicApps, { (musicApps + fallbackApps()).distinctBy { it.pkg } }, spotifyPkgs)
+            ?.let { MusicTarget(it.pkg, it.label) }
+            ?: MusicTarget(
+                null,
+                null,
+                reason = "no default music app set — say which app to play on, or pick a favorite in Settings",
+            )
+    }
+
+    /** The app the user named: matched over the music apps first, then the fallback set. */
+    private fun spokenTarget(spokenApp: String, musicApps: List<AppEntry>, fallbackApps: () -> List<AppEntry>): MusicTarget {
+        val pick = AppMatch.best(spokenApp, musicApps).pick
+            ?: AppMatch.best(spokenApp, fallbackApps()).pick
+        return if (pick != null) {
+            MusicTarget(pick.pkg, pick.label)
+        } else {
+            MusicTarget(null, null, reason = "can't play music on \"${spokenApp.trim()}\"")
+        }
     }
 
     /**

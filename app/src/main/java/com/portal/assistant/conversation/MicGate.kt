@@ -121,32 +121,41 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
      */
     fun onFrame(pcm: ByteArray, length: Int, capturedUntilMs: Long): FrameOutcome {
         val logLines = ArrayList<String>(1)
-        if (droppedForListeningTone(capturedUntilMs, logLines)) {
-            val indicator = if (listening) Indicator.BarAtRest else Indicator.None
-            return FrameOutcome(emptyList(), indicator, speechHeard = false, logLines)
-        }
-        if (listening) {
-            val gained = withMicGain(pcm, length)
-            val audioToSend = ArrayList<ByteArray>(connectBuffer.size + 1)
-            if (connectBuffering) { // first listening frame: flush what was captured while connecting, in order
-                connectBuffering = false
-                if (connectBuffer.isNotEmpty()) logLines += flushLine(connectBuffer.size)
-                while (connectBuffer.isNotEmpty()) audioToSend += connectBuffer.removeFirst()
+        return when {
+            droppedForListeningTone(capturedUntilMs, logLines) -> {
+                val indicator = if (listening) Indicator.BarAtRest else Indicator.None
+                FrameOutcome(emptyList(), indicator, speechHeard = false, logLines)
             }
-            audioToSend += gained
-            return FrameOutcome(
-                audioToSend,
-                Indicator.Level(PcmLevel.normalized(pcm, length)),
-                speechHeard = PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL,
-                logLines,
-            )
+
+            listening -> listeningFrame(pcm, length, logLines)
+
+            else -> {
+                if (connectBuffering) { // connecting: the socket isn't ready, so keep the user's first words
+                    if (connectBuffer.size >= CONNECT_BUFFER_MAX_FRAMES) connectBuffer.removeFirst()
+                    connectBuffer.addLast(withMicGain(pcm, length))
+                }
+                // else: muted while Jarvis speaks (buffering here would capture and echo the model's own turn)
+                FrameOutcome(emptyList(), Indicator.None, speechHeard = false, logLines)
+            }
         }
-        if (connectBuffering) { // connecting: the socket isn't ready, so keep the user's first words
-            if (connectBuffer.size >= CONNECT_BUFFER_MAX_FRAMES) connectBuffer.removeFirst()
-            connectBuffer.addLast(withMicGain(pcm, length))
+    }
+
+    /** A frame while listening: sent (after any connect buffer it flushes), metered, and checked for speech. */
+    private fun listeningFrame(pcm: ByteArray, length: Int, logLines: MutableList<String>): FrameOutcome {
+        val gained = withMicGain(pcm, length)
+        val audioToSend = ArrayList<ByteArray>(connectBuffer.size + 1)
+        if (connectBuffering) { // first listening frame: flush what was captured while connecting, in order
+            connectBuffering = false
+            if (connectBuffer.isNotEmpty()) logLines += flushLine(connectBuffer.size)
+            while (connectBuffer.isNotEmpty()) audioToSend += connectBuffer.removeFirst()
         }
-        // else: muted while Jarvis speaks (buffering here would capture and echo the model's own turn)
-        return FrameOutcome(emptyList(), Indicator.None, speechHeard = false, logLines)
+        audioToSend += gained
+        return FrameOutcome(
+            audioToSend,
+            Indicator.Level(PcmLevel.normalized(pcm, length)),
+            speechHeard = PcmLevel.normalized(gained) >= NoSpeechGrace.VAD_LEVEL,
+            logLines,
+        )
     }
 
     /**

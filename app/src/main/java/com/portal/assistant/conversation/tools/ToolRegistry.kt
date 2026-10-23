@@ -60,9 +60,12 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
     override fun externalPromptLines(): List<String> = external.promptLines()
 
     override fun invoke(name: String, args: JSONObject): JSONObject {
-        tools.firstOrNull { it.name == name }?.let { return it.invoke(args) } // built-ins win
-        if (external.handles(name)) return external.invoke(name, args)
-        return JSONObject().put("error", "unknown tool: $name")
+        val builtIn = tools.firstOrNull { it.name == name } // built-ins win
+        return when {
+            builtIn != null -> builtIn.invoke(args)
+            external.handles(name) -> external.invoke(name, args)
+            else -> JSONObject().put("error", "unknown tool: $name")
+        }
     }
 
     /** Release any tool-held resources on conversation teardown (deferred mute/DND, external invoke executor). */
