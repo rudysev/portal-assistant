@@ -211,7 +211,9 @@ class ToolRunnerTest {
         }
 
         fun runAll() {
-            while (runNext()) Unit
+            while (runNext()) {
+                // Each runNext() call runs one queued task.
+            }
         }
 
         override fun shutdown() {

@@ -20,7 +20,9 @@ object ToolCallWire {
 
     /** One `{id, name, args}` element; `args` may be an object or a JSON string, anything else → empty args. */
     fun parseCall(element: JSONObject): FunctionCall {
-        val args = when (val rawArgs = element.opt("args")) {
+        // `Any?`, not the platform type `Any!`: Kotlin 2.4.21 wrongly reports a when over `Any!` as non-exhaustive
+        // despite the `else`.
+        val args = when (val rawArgs: Any? = element.opt("args")) {
             is JSONObject -> rawArgs
             is String -> runCatching { JSONObject(rawArgs) }.getOrElse { JSONObject() }
             else -> JSONObject()
