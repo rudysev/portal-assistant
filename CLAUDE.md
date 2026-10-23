@@ -108,7 +108,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `turnComplete && playbackIdle && no tools in flight` — replaces the reference app's CAS latch.
   - **Stall = dead-air clock (arm-on-drain).** The server can stream a long answer's audio *ahead of
     realtime*, so it sits queued in `PcmPlayer` (which paces playback via blocking `AudioTrack` writes). The
-    reducer arms/cancels the stall only via `stallDecision(state, event)` — nothing playing **and** no tools
+    reducer arms/cancels the stall only via `stallDecision(state, event)` (in `conversation/StallDecision.kt`) —
+    nothing playing **and** no tools
     in flight for the pre-first-audio gap (`ModelActivity`), further `ModelActivity` while still idle (local
     LLM/tool think), playback **drain** without a `turnComplete` (`PlaybackIdle`), and tool-flight drain. It
     **cancels** while audio flows (`PlaybackBusy`) or a mid-turn tool starts. Never re-arm from
@@ -192,7 +193,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   music app, or an app the user names in the request (`app` param) which is honoured over the default; an
   optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
   honour it. Pure
-  routing is `MediaRouting` (target selection + per-app play strategy); `MediaControl.play` fires it via a
+  routing is `MediaRouting` (target selection + per-app play strategy); `MusicLauncher.play` (behind
+  `MediaControl.play`) fires it via a
   fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
   on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
   which can't on-demand-play one exact track but *can* shuffle-play an artist/playlist), else the generic
@@ -274,8 +276,10 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
 `TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
-`system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
-`ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
+`system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
+`ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
+`TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
+sections, with `SpeakerSettings.kt`, `ConnectionSettings.kt` and the shared `SettingsComponents.kt`),
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
 bar) + `UiVisibility` (foreground flag, read only for the orange bar) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
@@ -293,7 +297,7 @@ git submodule update --init --recursive   # from the portal-apps workspace: pull
 # The gen2 "hey jarvis" Vosk model is NOT bundled — the app downloads it at runtime on first gen2 use
 #   (wake/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
 #   place at build time. gen1 is unaffected (it uses portal-wake, which bundles its own model).
-./gradlew check            # verify: unit tests + Android Lint + ktlint (kotlinter); formatKotlin fixes style
+./gradlew check            # verify: unit tests + Android Lint + detekt + ktlint (kotlinter); formatKotlin fixes style
 ./gradlew assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state); also enables .githooks
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"
@@ -325,14 +329,34 @@ warning fails it (and so pre-push and CI). There is no `lint-baseline.xml`: supp
 (`AndroidGradlePluginVersion`, `GradleDependency`, `NewerVersionAvailable`) are disabled, because they query the
 network and fail whenever upstream ships a release. Report: `app/build/reports/lint-results-debug.html`.
 
+## detekt
+
+`check` also runs detekt 2.0.0-alpha.6 (`dev.detekt`; still alpha, because detekt 1.x doesn't support AGP 9;
+quality-tooling ticket 08 moves it to stable) with type resolution: `detektMain` and `detektTest`, every variant. It
+also runs compose-rules 0.6.8 (`io.nlopez.compose.rules:detekt`), which is built against one detekt alpha, so bump the
+two together (`gradle/libs.versions.toml`). The config is detekt's defaults plus `config/detekt/detekt.yml`, identical
+in portal-commons, portal-wake and portal-assistant (change all three together): the coroutine opt-ins
+(`GlobalCoroutineUsage`, `InjectDispatcher`, `SleepInsteadOfDelay`, `SuspendFunSwallowedCancellation`), any
+TODO/FIXME/STOPSHIP comment forbidden, `@Composable` exempt from `FunctionNaming`, and warnings as errors. There is no
+baseline: suppress inline only (`@Suppress("RuleId")`), each with a reason comment. Lines are capped at 120: detekt's
+default `MaxLineLength`, and `max_line_length = 120` in `.editorconfig` for ktlint. Reports:
+`app/build/reports/detekt/`.
+
+With KGP 2.4, a compiler warning (`allWarningsAsErrors`) fails the build with only "warnings found and -Werror
+specified"; run the build with `--info` to see the warnings themselves.
+
 ## Hooks
 
-`git config core.hooksPath .githooks` (done by `./setup.sh`). `pre-commit` runs the `ktlint` CLI on staged
-`.kt`/`.kts` files and `shellcheck` on staged shell scripts (`*.sh`, `*.command`, `.githooks/*`), and rejects on
+`git config core.hooksPath .githooks` (done by `./setup.sh`). `pre-commit` runs the `ktlint` and `detekt-cli` CLIs on
+staged `.kt`/`.kts` files and `shellcheck` on staged shell scripts (`*.sh`, `*.command`, `.githooks/*`), and rejects on
 findings (never auto-fixes; `brew install ktlint shellcheck`). For ktlint it refuses a CLI other than ktlint 1.8.0, the
-version kotlinter 5.7.0 bundles (`gradle/libs.versions.toml`), so bump both together. `pre-push` runs
-`./gradlew check`. `--no-verify` is the deliberate escape hatch. ktlint config is `.editorconfig` only (including
-the `@Composable` function-naming exemption).
+version kotlinter 5.7.0 bundles (`gradle/libs.versions.toml`), so bump both together. detekt runs there without type
+resolution (about a second); the type-resolved tasks and compose-rules run in `check`. The hook refuses a `detekt-cli`
+other than the pinned `DETEKT_VERSION` (the Gradle plugin's version, so bump both together). Homebrew only ships detekt
+1.x: install the CLI by unzipping
+`https://github.com/detekt/detekt/releases/download/v2.0.0-alpha.6/detekt-cli-2.0.0-alpha.6.zip` and putting its `bin/`
+on your `PATH`. `pre-push` runs `./gradlew check`. `--no-verify` is the deliberate escape hatch. ktlint config is
+`.editorconfig` only (including the `@Composable` function-naming exemption).
 
 ## CI
 
