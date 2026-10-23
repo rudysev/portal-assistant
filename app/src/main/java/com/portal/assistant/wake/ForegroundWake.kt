@@ -1,6 +1,5 @@
 package com.portal.assistant.wake
 
-import com.portal.assistant.conversation.ModelSetup
 import com.portal.commons.DebugLog
 import java.io.File
 import java.util.concurrent.Executor

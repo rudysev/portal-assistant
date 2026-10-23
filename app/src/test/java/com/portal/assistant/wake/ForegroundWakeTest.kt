@@ -1,6 +1,5 @@
 package com.portal.assistant.wake
 
-import com.portal.assistant.conversation.ModelSetup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -353,7 +352,7 @@ class ForegroundWakeTest {
         fun isEmpty() = queue.isEmpty()
 
         fun runAll() {
-            while (queue.isNotEmpty()) queue.poll().run()
+            while (queue.isNotEmpty()) queue.removeFirst().run()
         }
     }
 }
