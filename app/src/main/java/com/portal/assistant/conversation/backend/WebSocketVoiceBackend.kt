@@ -19,12 +19,16 @@ import java.util.concurrent.TimeUnit
  *  - **Setup:** the socket's open sends the wire format's [WireFormat.setup] frame.
  *  - **Setup gate:** audio, text and tool results are dropped until the backend reports [BackendEvent.Ready]
  *    (the transport opens the gate itself, then relays ready); a dropped text turn is logged.
- *  - **First audio:** [VoiceBackend.Listener.onModelGenerating] is reported before the first audio of every turn
- *    — if the wire format didn't decode one this turn, the transport reports it first.
- *  - **Errors are typed** ([BackendError]): a socket **failure** reports one [BackendError.Transport],
- *    "<label> connection failed: <detail>", and closes the gate — so does an [address] no request can be built
- *    from, without dialling. The server's close reports a [BackendError.Server] when the wire format finds a
- *    message for the user in it ([WireFormat.closeMessage], e.g. a rejected API key), as does its [BackendEvent.Error].
+ *  - **Events pass through as is:** each decoded [BackendEvent] goes to [VoiceBackend.Listener.onEvent]
+ *    unchanged; the transport adds only the first-audio [BackendEvent.ModelGenerating] and its own socket
+ *    outcomes, [BackendEvent.Failed] and [BackendEvent.Closed].
+ *  - **First audio:** [BackendEvent.ModelGenerating] is reported before the first audio of every turn — if the wire
+ *    format didn't decode one this turn, the transport reports it first.
+ *  - **Errors are typed** ([BackendEvent.Failed] with a [BackendError]): a socket **failure** reports one
+ *    [BackendError.Transport], "<label> connection failed: <detail>", and closes the gate — so does an [address]
+ *    no request can be built from, without dialling. The server's close reports a [BackendError.Server] when the
+ *    wire format finds a message for the user in it ([WireFormat.closeMessage], e.g. a rejected API key); a wire
+ *    format's own decoded [BackendEvent.Failed] passes through.
  *  - **Closed** closes the gate and reports closed; the server's closing is answered with a normal close.
  *    [close] is idempotent.
  *
@@ -47,8 +51,8 @@ class WebSocketVoiceBackend(
     @Volatile private var setupDone = false
 
     /**
-     * Per-turn latch for the first-audio guarantee: whether [VoiceBackend.Listener.onModelGenerating] has been
-     * reported this turn. Reset on turn complete, failure, close and the client's own [close].
+     * Per-turn latch for the first-audio guarantee: whether [BackendEvent.ModelGenerating] has been reported this
+     * turn. Reset on turn complete, failure, close and the client's own [close].
      */
     @Volatile private var modelGeneratingReported = false
 
@@ -100,7 +104,9 @@ class WebSocketVoiceBackend(
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
             DebugLog.log("$logTag ws CLOSING code=$code reason=$reason")
-            wireFormat.closeMessage(code, reason)?.let { listener.onError(BackendError.Server(it)) }
+            wireFormat.closeMessage(code, reason)?.let { message ->
+                listener.onEvent(BackendEvent.Failed(BackendError.Server(message)))
+            }
             runCatching { webSocket.close(NORMAL_CLOSURE, null) }
         }
 
@@ -113,14 +119,14 @@ class WebSocketVoiceBackend(
             DebugLog.log("$logTag ws closed code=$code reason=$reason")
             setupDone = false
             modelGeneratingReported = false
-            listener.onClosed()
+            listener.onEvent(BackendEvent.Closed)
         }
     }
 
     private fun reportFailure(cause: Throwable) {
         closeGate()
         val detail = cause.message ?: cause.javaClass.simpleName
-        listener.onError(BackendError.Transport("${wireFormat.label} connection failed: $detail"))
+        listener.onEvent(BackendEvent.Failed(BackendError.Transport("${wireFormat.label} connection failed: $detail")))
     }
 
     /** Close the setup gate and reset the first-audio latch — the socket is gone or going. */
@@ -129,56 +135,33 @@ class WebSocketVoiceBackend(
         modelGeneratingReported = false
     }
 
+    /** Hand each decoded event to the listener as is, after the transport's own bookkeeping for it. */
     private fun relay(events: List<BackendEvent>) {
         for (event in events) {
             when (event) {
                 is BackendEvent.Ready -> {
                     setupDone = true
                     DebugLog.log("$logTag ready")
-                    listener.onReady()
                 }
 
-                is BackendEvent.InputTranscript -> listener.onInputTranscript(event.text)
-
-                is BackendEvent.OutputTranscript -> listener.onOutputTranscript(event.text)
-
-                is BackendEvent.Audio -> {
-                    if (!modelGeneratingReported) {
-                        modelGeneratingReported = true
-                        listener.onModelGenerating()
-                    }
-                    listener.onAudio(event.pcm24k)
-                }
-
-                is BackendEvent.ModelGenerating -> {
+                is BackendEvent.Audio -> if (!modelGeneratingReported) {
                     modelGeneratingReported = true
-                    listener.onModelGenerating()
+                    listener.onEvent(BackendEvent.ModelGenerating)
                 }
 
-                is BackendEvent.TurnComplete -> {
-                    modelGeneratingReported = false
-                    listener.onTurnComplete()
-                }
+                is BackendEvent.ModelGenerating -> modelGeneratingReported = true
 
-                is BackendEvent.Interrupted -> listener.onInterrupted()
+                is BackendEvent.TurnComplete -> modelGeneratingReported = false
 
-                is BackendEvent.ToolCall -> {
-                    DebugLog.log("$logTag toolCall ids=${event.calls.map { it.id }}")
-                    listener.onToolCall(event.calls)
-                }
+                is BackendEvent.ToolCall -> DebugLog.log("$logTag toolCall ids=${event.calls.map { it.id }}")
 
-                is BackendEvent.ToolCancel -> {
-                    DebugLog.log("$logTag toolCancel ids=${event.ids}")
-                    listener.onToolCancel(event.ids)
-                }
+                is BackendEvent.ToolCancel -> DebugLog.log("$logTag toolCancel ids=${event.ids}")
 
-                is BackendEvent.ClosingSoon -> {
-                    DebugLog.log("$logTag closing soon graceMs=${event.graceMs}")
-                    listener.onServerClosingSoon(event.graceMs)
-                }
+                is BackendEvent.ClosingSoon -> DebugLog.log("$logTag closing soon graceMs=${event.graceMs}")
 
-                is BackendEvent.Error -> listener.onError(BackendError.Server(event.message))
+                else -> Unit
             }
+            listener.onEvent(event)
         }
     }
 

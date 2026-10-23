@@ -45,49 +45,11 @@ class VoiceBackendTest {
         }
     }
 
-    /** Records every callback the seam raises, so a test can assert the engine-facing surface. */
+    /** Records every event the seam raises, so a test can assert the engine-facing surface. */
     private class RecordingListener : VoiceBackend.Listener {
-        val events = mutableListOf<String>()
-        val audio = mutableListOf<ByteArray>()
-        override fun onReady() {
-            events += "ready"
-        }
-        override fun onInputTranscript(textDelta: String) {
-            events += "in:$textDelta"
-        }
-        override fun onOutputTranscript(textDelta: String) {
-            events += "out:$textDelta"
-        }
-        override fun onAudio(pcm24k: ByteArray) {
-            events += "audio:${pcm24k.size}"
-            audio += pcm24k
-        }
-        override fun onTurnComplete() {
-            events += "turnComplete"
-        }
-        override fun onInterrupted() {
-            events += "interrupted"
-        }
-        override fun onModelGenerating() {
-            events += "generating"
-        }
-        override fun onToolCall(calls: List<FunctionCall>) {
-            events += "toolCall:${calls.map { it.name }}"
-        }
-        override fun onToolCancel(ids: List<String>) {
-            events += "toolCancel:$ids"
-        }
-        override fun onServerClosingSoon(graceMs: Long) {
-            events += "closingSoon:$graceMs"
-        }
-        override fun onError(error: BackendError) {
-            events += when (error) {
-                is BackendError.Transport -> "transport:${error.detail}"
-                is BackendError.Server -> "server:${error.message}"
-            }
-        }
-        override fun onClosed() {
-            events += "closed"
+        val events = mutableListOf<BackendEvent>()
+        override fun onEvent(event: BackendEvent) {
+            events += event
         }
     }
 
@@ -125,29 +87,20 @@ class VoiceBackendTest {
         assertEquals(listOf("hi"), backend.sentText)
         assertEquals(1, backend.sentToolResponses.single().size)
 
-        // Backend-side callbacks reach the listener, in order, across a whole turn.
-        backend.listener.onReady()
-        backend.listener.onInputTranscript("set a timer")
-        backend.listener.onModelGenerating()
-        backend.listener.onToolCall(listOf(FunctionCall("id1", "portal.set_timer", JSONObject())))
-        backend.listener.onOutputTranscript("Timer set.")
-        backend.listener.onAudio(ByteArray(480))
-        backend.listener.onTurnComplete()
-        backend.listener.onClosed()
-
-        assertEquals(
-            listOf(
-                "ready",
-                "in:set a timer",
-                "generating",
-                "toolCall:[portal.set_timer]",
-                "out:Timer set.",
-                "audio:480",
-                "turnComplete",
-                "closed",
-            ),
-            listener.events,
+        // Backend-side events reach the listener, in order, across a whole turn.
+        val turn = listOf(
+            BackendEvent.Ready,
+            BackendEvent.InputTranscript("set a timer"),
+            BackendEvent.ModelGenerating,
+            BackendEvent.ToolCall(listOf(FunctionCall("id1", "portal.set_timer", JSONObject()))),
+            BackendEvent.OutputTranscript("Timer set."),
+            BackendEvent.Audio(ByteArray(480)),
+            BackendEvent.TurnComplete,
+            BackendEvent.Closed,
         )
+        turn.forEach(backend.listener::onEvent)
+
+        assertEquals(turn, listener.events)
 
         backend.close()
         assertTrue(backend.closed)
@@ -237,8 +190,8 @@ class VoiceBackendTest {
             listener,
         )
         backend.connect()
-        assertEquals(1, listener.events.size)
-        assertTrue(listener.events.single().startsWith("transport:Local connection failed: "))
+        val failure = (listener.events.single() as BackendEvent.Failed).error as BackendError.Transport
+        assertTrue(failure.detail.startsWith("Local connection failed: "))
     }
 
     @Test

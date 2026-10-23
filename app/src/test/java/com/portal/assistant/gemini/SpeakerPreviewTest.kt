@@ -1,7 +1,5 @@
 package com.portal.assistant.gemini
 
-import com.portal.assistant.conversation.FunctionCall
-import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.Frame
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.WebSocketVoiceBackend
@@ -281,20 +279,7 @@ class SpeakerPreviewTest {
 
     // ---- the preview session --------------------------------------------------------------------------
 
-    private object Silent : VoiceBackend.Listener {
-        override fun onReady() = Unit
-        override fun onInputTranscript(textDelta: String) = Unit
-        override fun onOutputTranscript(textDelta: String) = Unit
-        override fun onAudio(pcm24k: ByteArray) = Unit
-        override fun onTurnComplete() = Unit
-        override fun onInterrupted() = Unit
-        override fun onModelGenerating() = Unit
-        override fun onToolCall(calls: List<FunctionCall>) = Unit
-        override fun onToolCancel(ids: List<String>) = Unit
-        override fun onServerClosingSoon(graceMs: Long) = Unit
-        override fun onError(error: BackendError) = Unit
-        override fun onClosed() = Unit
-    }
+    private val silent = VoiceBackend.Listener { }
 
     /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
     private fun configOf(speaker: GeminiSpeaker.Speaker?) =
@@ -304,7 +289,7 @@ class SpeakerPreviewTest {
         JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
 
     @Test fun previewSessionRunsOnTheSharedTransport() {
-        assertTrue(GeminiBackend.Factory.create(configOf(charon), Silent) is WebSocketVoiceBackend)
+        assertTrue(GeminiBackend.Factory.create(configOf(charon), silent) is WebSocketVoiceBackend)
     }
 
     @Test fun previewSessionConnectsWithTheApiKey() {

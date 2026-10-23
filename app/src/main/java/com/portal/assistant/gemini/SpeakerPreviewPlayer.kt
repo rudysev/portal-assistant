@@ -3,8 +3,7 @@ package com.portal.assistant.gemini
 import android.os.Handler
 import android.os.Looper
 import com.portal.assistant.audio.PcmPlayer
-import com.portal.assistant.conversation.FunctionCall
-import com.portal.assistant.conversation.backend.BackendError
+import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.commons.DebugLog
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -122,36 +121,39 @@ class SpeakerPreviewPlayer(private val apiKey: String, private val model: String
         clips[speaker].orEmpty().forEach(player::enqueue)
     }
 
-    /** Relays preview [id]'s socket callbacks as events. */
+    /** Relays preview [id]'s backend events as preview events. No `else`: a new backend event needs a decision here. */
     private fun listenerFor(id: Long, player: PcmPlayer, clip: ConcurrentLinkedQueue<ByteArray>) =
-        object : VoiceBackend.Listener {
-            override fun onReady() = post(SpeakerPreview.Event.Ready(id))
+        VoiceBackend.Listener { event ->
+            when (event) {
+                BackendEvent.Ready -> post(SpeakerPreview.Event.Ready(id))
 
-            override fun onAudio(pcm24k: ByteArray) {
-                // Enqueue synchronously (like the engine) — the posted event only moves the row to "playing".
-                // Also keep every chunk, in case this preview plays to completion (KeepClip).
-                player.enqueue(pcm24k)
-                clip.add(pcm24k)
-                post(SpeakerPreview.Event.Audio(id))
+                is BackendEvent.Audio -> {
+                    // Enqueue synchronously (like the engine) — the posted event only moves the row to "playing".
+                    // Also keep every chunk, in case this preview plays to completion (KeepClip).
+                    player.enqueue(event.pcm24k)
+                    clip.add(event.pcm24k)
+                    post(SpeakerPreview.Event.Audio(id))
+                }
+
+                BackendEvent.TurnComplete -> post(SpeakerPreview.Event.TurnComplete(id))
+
+                is BackendEvent.Failed -> {
+                    DebugLog.log("speaker preview $id error: ${event.error}")
+                    post(SpeakerPreview.Event.Disconnected(id))
+                }
+
+                BackendEvent.Closed -> post(SpeakerPreview.Event.Disconnected(id))
+
+                // A one-sentence intro with no function declarations — nothing else matters here.
+                is BackendEvent.InputTranscript,
+                is BackendEvent.OutputTranscript,
+                BackendEvent.Interrupted,
+                BackendEvent.ModelGenerating,
+                is BackendEvent.ToolCall,
+                is BackendEvent.ToolCancel,
+                is BackendEvent.ClosingSoon,
+                -> Unit
             }
-
-            override fun onTurnComplete() = post(SpeakerPreview.Event.TurnComplete(id))
-
-            override fun onError(error: BackendError) {
-                DebugLog.log("speaker preview $id error: $error")
-                post(SpeakerPreview.Event.Disconnected(id))
-            }
-
-            override fun onClosed() = post(SpeakerPreview.Event.Disconnected(id))
-
-            // A one-sentence intro with no function declarations — nothing else matters here.
-            override fun onInputTranscript(textDelta: String) = Unit
-            override fun onOutputTranscript(textDelta: String) = Unit
-            override fun onInterrupted() = Unit
-            override fun onModelGenerating() = Unit
-            override fun onToolCall(calls: List<FunctionCall>) = Unit
-            override fun onToolCancel(ids: List<String>) = Unit
-            override fun onServerClosingSoon(graceMs: Long) = Unit
         }
 }
 
