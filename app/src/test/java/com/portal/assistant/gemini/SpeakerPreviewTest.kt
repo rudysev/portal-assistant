@@ -1,6 +1,7 @@
 package com.portal.assistant.gemini
 
 import com.portal.assistant.conversation.FunctionCall
+import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.Frame
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.WebSocketVoiceBackend
@@ -269,7 +270,7 @@ class SpeakerPreviewTest {
         override fun onToolCall(calls: List<FunctionCall>) {}
         override fun onToolCancel(ids: List<String>) {}
         override fun onServerClosingSoon(graceMs: Long) {}
-        override fun onError(message: String) {}
+        override fun onError(error: BackendError) {}
         override fun onClosed() {}
     }
 

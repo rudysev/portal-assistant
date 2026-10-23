@@ -25,5 +25,7 @@ sealed interface BackendEvent {
     data class ToolCall(val calls: List<FunctionCall>) : BackendEvent
     data class ToolCancel(val ids: List<String>) : BackendEvent
     data class ClosingSoon(val graceMs: Long) : BackendEvent
+
+    /** The server reported an error in words meant for the user — relayed as a [BackendError.Server]. */
     data class Error(val message: String) : BackendEvent
 }

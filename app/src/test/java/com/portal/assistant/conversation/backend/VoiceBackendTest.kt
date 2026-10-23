@@ -80,8 +80,11 @@ class VoiceBackendTest {
         override fun onServerClosingSoon(graceMs: Long) {
             events += "closingSoon:$graceMs"
         }
-        override fun onError(message: String) {
-            events += "error:$message"
+        override fun onError(error: BackendError) {
+            events += when (error) {
+                is BackendError.Transport -> "transport:${error.detail}"
+                is BackendError.Server -> "server:${error.message}"
+            }
         }
         override fun onClosed() {
             events += "closed"
@@ -230,7 +233,7 @@ class VoiceBackendTest {
         )
         backend.connect()
         assertEquals(1, listener.events.size)
-        assertTrue(listener.events.single().startsWith("error:Local connection failed: "))
+        assertTrue(listener.events.single().startsWith("transport:Local connection failed: "))
     }
 
     @Test

@@ -82,5 +82,8 @@ class LocalWireFormat(
     override fun decode(bytes: ByteArray): List<BackendEvent> =
         if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
 
+    /** The host reports its errors as `error` frames; a close reason is never meant for the user. */
+    override fun closeMessage(code: Int, reason: String): String? = null
+
     private fun JSONObject.toFrame() = Frame.Text(toString())
 }

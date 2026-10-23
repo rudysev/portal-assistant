@@ -21,9 +21,12 @@ import java.util.concurrent.TimeUnit
  *    (the transport opens the gate itself, then relays ready); a dropped text turn is logged.
  *  - **First audio:** [VoiceBackend.Listener.onModelGenerating] is reported before the first audio of every turn
  *    — if the wire format didn't decode one this turn, the transport reports it first.
- *  - **Failure** reports one error, "<label> connection failed: <detail>", and closes the gate — so does an
- *    [address] no request can be built from, without dialling. **Closed** closes the gate and reports closed;
- *    the server's closing is answered with a normal close. [close] is idempotent.
+ *  - **Errors are typed** ([BackendError]): a socket **failure** reports one [BackendError.Transport],
+ *    "<label> connection failed: <detail>", and closes the gate — so does an [address] no request can be built
+ *    from, without dialling. The server's close reports a [BackendError.Server] when the wire format finds a
+ *    message for the user in it ([WireFormat.closeMessage], e.g. a rejected API key), as does its [BackendEvent.Error].
+ *  - **Closed** closes the gate and reports closed; the server's closing is answered with a normal close.
+ *    [close] is idempotent.
  *
  * Socket callbacks are relayed on the socket's own thread (the engine marshals them). [dial] is the socket seam
  * — production uses [socketClient] of [tls]; tests pass a fake socket and drive the listener by hand.
@@ -80,7 +83,7 @@ class WebSocketVoiceBackend(
     }
 
     override fun close() {
-        runCatching { socket?.close(1000, "client closing") }
+        runCatching { socket?.close(NORMAL_CLOSURE, "client closing") }
         socket = null
         closeGate()
     }
@@ -97,7 +100,8 @@ class WebSocketVoiceBackend(
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
             DebugLog.log("$logTag ws CLOSING code=$code reason=$reason")
-            runCatching { webSocket.close(1000, null) }
+            wireFormat.closeMessage(code, reason)?.let { listener.onError(BackendError.Server(it)) }
+            runCatching { webSocket.close(NORMAL_CLOSURE, null) }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -115,7 +119,8 @@ class WebSocketVoiceBackend(
 
     private fun reportFailure(cause: Throwable) {
         closeGate()
-        listener.onError("${wireFormat.label} connection failed: ${cause.message ?: cause.javaClass.simpleName}")
+        val detail = cause.message ?: cause.javaClass.simpleName
+        listener.onError(BackendError.Transport("${wireFormat.label} connection failed: $detail"))
     }
 
     /** Close the setup gate and reset the first-audio latch — the socket is gone or going. */
@@ -172,7 +177,7 @@ class WebSocketVoiceBackend(
                     listener.onServerClosingSoon(event.graceMs)
                 }
 
-                is BackendEvent.Error -> listener.onError(event.message)
+                is BackendEvent.Error -> listener.onError(BackendError.Server(event.message))
             }
         }
     }
@@ -185,6 +190,8 @@ class WebSocketVoiceBackend(
     }
 
     companion object {
+        private const val NORMAL_CLOSURE = 1000
+
         /** [base] (its TLS trust) with the socket settings every voice backend shares. */
         fun socketClient(base: OkHttpClient): OkHttpClient = base.newBuilder()
             .pingInterval(20, TimeUnit.SECONDS)

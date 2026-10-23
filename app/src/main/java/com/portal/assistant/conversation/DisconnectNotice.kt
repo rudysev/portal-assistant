@@ -1,12 +1,14 @@
 package com.portal.assistant.conversation
 
+import com.portal.assistant.conversation.backend.BackendError
+
 /**
  * Pure policy for which user-facing banner to show when a conversation ends unexpectedly.
  *
- * Backend implementations surface specific errors via [VoiceBackend.Listener.onError] so the user can act
- * (missing credential, auth failure, unreachable host). When the device is offline, prefer the offline copy
- * over opaque transport failures ("unable to resolve host", etc.) — the actionable fix is Wi‑Fi, not the
- * socket message. [onClosed] without a prior error uses the generic connect/lost fallbacks.
+ * Offline wins over everything — the actionable fix is Wi‑Fi. Otherwise a [BackendError.Server] message is shown
+ * as is (the server said why, e.g. a rejected API key); a [BackendError.Transport] failure, or a close with no
+ * error, gets the generic copy — "Connection lost" if the session had been ready, else "Couldn't reach Jarvis" —
+ * never the raw socket text.
  *
  * Android-free so it's unit-tested; [AssistantEngine] supplies [offline] and [connectedOk].
  */
@@ -16,9 +18,12 @@ object DisconnectNotice {
     const val CONNECTION_LOST = "Connection lost. Please try again."
     const val COULDNT_REACH = "Couldn’t reach Jarvis. Please try again."
 
-    fun message(backendError: String?, offline: Boolean, connectedOk: Boolean): String {
+    fun message(backendError: BackendError?, offline: Boolean, connectedOk: Boolean): String {
         if (offline) return OFFLINE
-        backendError?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-        return if (connectedOk) CONNECTION_LOST else COULDNT_REACH
+        val serverMessage = when (backendError) {
+            is BackendError.Server -> backendError.message.trim().takeIf { it.isNotEmpty() }
+            is BackendError.Transport, null -> null
+        }
+        return serverMessage ?: if (connectedOk) CONNECTION_LOST else COULDNT_REACH
     }
 }

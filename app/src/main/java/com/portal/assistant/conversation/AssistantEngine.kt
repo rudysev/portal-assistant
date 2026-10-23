@@ -6,6 +6,7 @@ import android.os.Looper
 import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
+import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.tools.ToolRunner
@@ -282,9 +283,9 @@ class AssistantEngine(
         override fun onServerClosingSoon(graceMs: Long) {
             DebugLog.log("backend closing soon (grace=${graceMs}ms)") // handled in 2.c; let onClosed end it
         }
-        override fun onError(message: String) {
-            DebugLog.log("backend error: $message")
-            handler.post { surfaceDisconnect(notice = message) }
+        override fun onError(backendError: BackendError) {
+            DebugLog.log("backend error: $backendError")
+            handler.post { surfaceDisconnect(backendError) }
         }
         override fun onClosed() {
             handler.post { surfaceDisconnect() }
@@ -297,19 +298,19 @@ class AssistantEngine(
      * banner before letting [Event.Disconnected] tear the conversation down. (When `ended` is already true this
      * is just our own teardown closing the socket; [dispatch] ignores the event and we post nothing.)
      *
-     * Double-fire safe: a failed socket emits onError THEN onClosed. The first posts the notice and ends the
-     * turn (so `ended` flips true); the second sees `ended == true` → posts nothing and its dispatch no-ops.
+     * Double-fire safe: an error can be followed by a close (a server close reason reports onError, then onClosed).
+     * The first posts the notice and ends the turn (so `ended` flips true); the second sees `ended == true` → posts nothing and its dispatch no-ops.
      * (Even a redundant post would be idempotent — [ConversationHub.notice] is a StateFlow that drops an
      * equal value.)
      */
-    private fun surfaceDisconnect(notice: String? = null) {
+    private fun surfaceDisconnect(backendError: BackendError? = null) {
         if (!ended) {
-            ConversationHub.postNotice(userDisconnectNotice(notice))
+            ConversationHub.postNotice(userDisconnectNotice(backendError))
         }
         dispatch(Event.Disconnected)
     }
 
-    private fun userDisconnectNotice(backendError: String?): String = DisconnectNotice.message(
+    private fun userDisconnectNotice(backendError: BackendError?): String = DisconnectNotice.message(
         backendError = backendError,
         offline = !NetworkStatus.isOnline(appContext),
         connectedOk = connectedOk,

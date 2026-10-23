@@ -30,6 +30,13 @@ interface WireFormat {
 
     /** The events one incoming binary frame carries, in order. */
     fun decode(bytes: ByteArray): List<BackendEvent>
+
+    /**
+     * The words meant for the user in the server's close frame ([code], [reason]) — reported as a
+     * [BackendError.Server] — or null when this backend's close reasons aren't (a normal close, a blank reason, or
+     * a backend that reports its errors as frames instead).
+     */
+    fun closeMessage(code: Int, reason: String): String?
 }
 
 /** One outgoing WebSocket frame. */

@@ -172,9 +172,15 @@ class GeminiWireFormat(
     /** Gemini sends JSON in binary frames too: read the bytes as UTF-8 and decode them as text. */
     override fun decode(bytes: ByteArray): List<BackendEvent> = decode(String(bytes, Charsets.UTF_8))
 
+    /** Gemini says why it ends a session in the close reason (e.g. a rejected API key); a normal close says nothing. */
+    override fun closeMessage(code: Int, reason: String): String? =
+        reason.takeIf { code != NORMAL_CLOSURE && it.isNotBlank() }
+
     private fun JSONObject.toFrame() = Frame.Text(toString())
 
     companion object {
+        private const val NORMAL_CLOSURE = 1000
+
         // Server-side VAD tuning. The silence window dictates how long the user must remain silent before
         // the model considers their turn "complete" and starts generating its response. 600 ms stays safe for
         // a mid-clause breath only because endOfSpeechSensitivity is END_SENSITIVITY_LOW below — raise this
