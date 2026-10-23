@@ -1,5 +1,6 @@
 package com.portal.assistant.util
 
+import android.annotation.SuppressLint
 import okhttp3.OkHttpClient
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -23,11 +24,14 @@ object Http {
      * with normal PKI verification.
      */
     val lanVoice: OkHttpClient by lazy {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
+        // CustomX509TrustManager: trust-all is the point here (self-signed LAN host, opt-in, never used for Gemini).
+        val trustAll =
+            @SuppressLint("CustomX509TrustManager")
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
+                override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
         val sslContext = SSLContext.getInstance("TLS").apply {
             init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
         }
