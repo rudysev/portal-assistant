@@ -85,7 +85,7 @@ import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.Dims
 import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.Radii
-import com.portal.assistant.ui.theme.SecondaryAlpha
+import com.portal.assistant.ui.theme.SECONDARY_ALPHA
 import com.portal.assistant.ui.theme.TextSize
 import com.portal.commons.DebugLog
 import kotlinx.coroutines.Dispatchers
@@ -116,7 +116,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     // after a save, so saving gives feedback without leaving the screen.
     var savedPlace by remember { mutableStateOf(place) }
     // Helper/caption text raised to clear AA at viewing distance.
-    val subtle = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha)
+    val subtle = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA)
 
     // If geo is still in flight when the screen opens, poll until the result lands (up to 10 s).
     // Stops early if the user starts typing — their input wins over the auto-detected value.
@@ -588,7 +588,7 @@ private fun SpeakerDialog(
                 // Always one line, so a hint appearing (a conversation starting, no key) never resizes the dialog.
                 Text(
                     previewState.hint?.text ?: PREVIEW_PROMPT,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
                     fontSize = TextSize.Body,
                     maxLines = 1,
                     modifier = Modifier.padding(bottom = 10.dp),
@@ -661,7 +661,7 @@ private fun SpeakerRow(
             if (preview == SpeakerPreview.RowStatus.FAILED) {
                 Text(
                     "Couldn't play preview",
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
                     fontSize = TextSize.Meta,
                 )
             }

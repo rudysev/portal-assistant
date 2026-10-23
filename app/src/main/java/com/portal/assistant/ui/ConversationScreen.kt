@@ -99,7 +99,7 @@ import com.portal.assistant.ui.theme.Dims
 import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.OrangeLight
 import com.portal.assistant.ui.theme.Radii
-import com.portal.assistant.ui.theme.SecondaryAlpha
+import com.portal.assistant.ui.theme.SECONDARY_ALPHA
 import com.portal.assistant.ui.theme.TextSize
 import com.portal.assistant.ui.theme.TurnSpacing
 import com.portal.assistant.wake.ModelSetup
@@ -252,7 +252,7 @@ private fun TopBar(
             // The chosen model + a live status while a conversation runs (display only — no picker).
             Text(
                 text = statusLabel(phase)?.let { "$modelLabel · $it" } ?: modelLabel,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
                 fontSize = TextSize.Body,
             )
         }
@@ -344,7 +344,7 @@ private fun NoticeBanner(message: String, onDismiss: () -> Unit, modifier: Modif
         Icon(
             imageVector = Icons.Filled.Close,
             contentDescription = "Dismiss",
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = SecondaryAlpha),
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = SECONDARY_ALPHA),
             modifier = Modifier.padding(end = 18.dp).size(22.dp),
         )
     }
@@ -412,7 +412,7 @@ private fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit,
                         GreetingHeader()
                         Text(
                             text = setupMessage,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
                             fontSize = TextSize.Body,
                             textAlign = TextAlign.Center,
                         )
@@ -468,7 +468,7 @@ private fun WakeSetupIndicator() {
         Spacer(Modifier.size(16.dp))
         Text(
             text = text,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
             fontSize = TextSize.Body,
             textAlign = TextAlign.Center,
         )
@@ -631,7 +631,7 @@ private fun Clock() {
             // Prime ambient data — raised to the readable secondary tier (was the dim metadata tier, which
             // whispered the date from across the room).
             text = date,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
             fontSize = TextSize.ClockDate,
             letterSpacing = 0.5.sp,
         )
@@ -711,7 +711,7 @@ private fun TimerCard(label: String, remaining: Long, onCancel: () -> Unit) {
                 // Capitalize the first letter so a name (esp. the default "timer") reads as a label, not a
                 // raw tool argument.
                 text = label.replaceFirstChar { it.uppercase() },
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = SecondaryAlpha),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = SECONDARY_ALPHA),
                 fontSize = TextSize.TimerLabel,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -732,7 +732,7 @@ private fun TimerCard(label: String, remaining: Long, onCancel: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "Cancel $label timer",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = SecondaryAlpha),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = SECONDARY_ALPHA),
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -872,7 +872,7 @@ private fun TurnItem(turn: Turn, dimmed: Boolean, revealedWords: Int?) {
                 }
                 append(turn.text)
             },
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (dimmed) OLDER_TURN_ALPHA else SecondaryAlpha),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (dimmed) OLDER_TURN_ALPHA else SECONDARY_ALPHA),
             fontSize = TextSize.UserEcho,
             modifier = Modifier.fillMaxWidth().padding(top = TurnSpacing.PairGap, bottom = TurnSpacing.Couple),
         )
@@ -978,7 +978,7 @@ private fun BottomBar(
                 Spacer(Modifier.size(12.dp))
                 Text(
                     text = IDLE_HINT,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SecondaryAlpha),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
                     fontSize = TextSize.Body,
                 )
             }

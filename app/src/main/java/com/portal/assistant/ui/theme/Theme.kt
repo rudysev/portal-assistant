@@ -20,15 +20,15 @@ val UserChip = Color(0xFF3A332B) // warm-tinted surface for the user's spoken-tu
 
 /** Opacity for secondary/caption text (status subtitle, the idle hint, settings captions, timer labels) over
  *  [onBackground]/[onSurface] — one token so the dimming is consistent and tunable in one place. */
-val SubtleAlpha = 0.6f
+const val SUBTLE_ALPHA = 0.6f
 
 /** Secondary text that must stay readable across the room (helper copy, field labels, captions, the idle
- *  hint, timer labels). Raised from [SubtleAlpha] to clear WCAG AA (~4.5:1) on [Ink] at viewing distance. */
-val SecondaryAlpha = 0.80f
+ *  hint, timer labels). Raised from [SUBTLE_ALPHA] to clear WCAG AA (~4.5:1) on [Ink] at viewing distance. */
+const val SECONDARY_ALPHA = 0.80f
 
 /** Least-important metadata only (e.g. package ids) — dim, but not invisible. (The idle-home date was
- *  promoted to [SecondaryAlpha] for across-the-room legibility, so it no longer uses this tier.) */
-val TertiaryAlpha = 0.64f
+ *  promoted to [SECONDARY_ALPHA] for across-the-room legibility, so it no longer uses this tier.) */
+const val TERTIARY_ALPHA = 0.64f
 
 private val DarkColors = darkColorScheme(
     background = Ink,
