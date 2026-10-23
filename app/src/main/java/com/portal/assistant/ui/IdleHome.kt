@@ -162,13 +162,15 @@ internal fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit
  *  styling lives in one place. */
 @Composable
 private fun GreetingHeader() {
-    Text(
-        text = GREETING,
-        color = MaterialTheme.colorScheme.onBackground,
-        fontSize = TextSize.Greeting,
-        textAlign = TextAlign.Center,
-    )
-    Spacer(Modifier.size(20.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = GREETING,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = TextSize.Greeting,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.size(20.dp))
+    }
 }
 
 /** Greeting + the suggestion chips, center-aligned — shared by the stacked and two-pane homes. The "Try
@@ -196,13 +198,15 @@ private fun WakeSetupIndicator() {
         ModelSetup.Idle -> null
     }
     if (text != null) {
-        Spacer(Modifier.size(16.dp))
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-            fontSize = TextSize.Body,
-            textAlign = TextAlign.Center,
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.size(16.dp))
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
+                fontSize = TextSize.Body,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

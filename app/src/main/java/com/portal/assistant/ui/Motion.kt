@@ -32,6 +32,9 @@ import kotlin.math.sqrt
  * is fixed for the session (a change applies on the next launch — see [rememberReduceMotion]). Defaults to
  * false (animations on) for previews / any composition outside the theme.
  */
+// A deliberate, app-wide accessibility flag provided once by the theme (like Material's own locals), not a hidden
+// dependency of one component — so compose-rules' "avoid new CompositionLocals" doesn't apply.
+@Suppress("CompositionLocalAllowlist")
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
 /**
