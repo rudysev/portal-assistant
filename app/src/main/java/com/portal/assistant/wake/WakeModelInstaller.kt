@@ -1,4 +1,4 @@
-package com.portal.assistant.system
+package com.portal.assistant.wake
 
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
@@ -12,17 +12,17 @@ import java.util.zip.ZipInputStream
  *
  * The (large) English model is only needed by the **gen2 (Android 10+) foreground "hey jarvis" detector**;
  * bundling it would be dead weight on gen1, where portal-wake owns wake and ships its own copy. So the
- * assistant downloads it on first gen2 use, unpacks it into `filesDir`, and passes the directory to
- * `WakeDetectors.vosk(modelDir = …)` in `WakeMicConfig`. Idempotent: once [isInstalled] it never re-fetches.
+ * assistant downloads it on first gen2 use and unpacks it into `filesDir`, where [VoskDetector] loads it.
+ * Idempotent: once [isInstalled] it never re-fetches. The production [WakeModel] behind [ForegroundWake].
  *
  * [install] is blocking (network fetch + unzip) — call it off the main thread; it reports 0f‑1f progress for
  * the setup UI. Failure (offline, truncated, bad zip) leaves no partial model and returns false. The device
  * already needs network for Gemini, so a one-time model fetch is no new dependency.
  */
-class WakeModelInstaller(private val filesDir: File) {
+class WakeModelInstaller(private val filesDir: File) : WakeModel {
 
     /** The unpacked model directory Vosk loads from (contains `am/ conf/ graph/ ivector/` once installed). */
-    fun modelDir(): File = File(filesDir, MODEL_DIR)
+    override val dir: File = File(filesDir, MODEL_DIR)
 
     /**
      * True only when a **complete** model is on disk. A real Vosk model has all of [MODEL_SUBDIRS], so require
@@ -31,11 +31,11 @@ class WakeModelInstaller(private val filesDir: File) {
      * `Model()` would then fail to load. (Belt-and-suspenders: [install] also verifies bytes vs Content-Length
      * via OkHttp, but that only bites when the server sends a length.)
      */
-    fun isInstalled(): Boolean = MODEL_SUBDIRS.all { File(modelDir(), it).isDirectory }
+    override fun isInstalled(): Boolean = MODEL_SUBDIRS.all { File(dir, it).isDirectory }
 
     /** Remove the on-disk model so the next [install] re-fetches it — used when a present model fails to load. */
-    fun delete() {
-        modelDir().deleteRecursively()
+    override fun delete() {
+        dir.deleteRecursively()
     }
 
     /**
@@ -43,12 +43,11 @@ class WakeModelInstaller(private val filesDir: File) {
      * [onProgress] receives 0f–1f (download is the bulk; unzip finishes it). Returns false on any failure,
      * having cleaned up partial state so a retry starts fresh.
      */
-    fun install(onProgress: (Float) -> Unit): Boolean {
+    override fun install(onProgress: (Float) -> Unit): Boolean {
         if (isInstalled()) {
             onProgress(1f)
             return true
         }
-        val dir = modelDir()
         val zip = File(filesDir, "$MODEL_DIR.zip.part")
         val staging = File(filesDir, "$MODEL_DIR.staging")
         return try {
@@ -145,7 +144,7 @@ class WakeModelInstaller(private val filesDir: File) {
         // model portal-wake ships and the assistant used to bundle). HTTPS — no cleartext concern.
         const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip"
 
-        // Unpacked model lives here under filesDir; WakeDetectors.vosk(modelDir = modelDir()) loads it.
+        // Unpacked model lives here under filesDir; WakeDetectors.vosk(modelDir = dir) loads it.
         private const val MODEL_DIR = "wake-model"
 
         // Every dir a complete Vosk model has — all must be present for [isInstalled] to trust the install

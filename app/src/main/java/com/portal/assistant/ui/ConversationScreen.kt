@@ -86,7 +86,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.portal.assistant.R
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.ConversationOpening
-import com.portal.assistant.conversation.ModelSetup
 import com.portal.assistant.conversation.RevealProgress
 import com.portal.assistant.conversation.Role
 import com.portal.assistant.conversation.Turn
@@ -103,6 +102,8 @@ import com.portal.assistant.ui.theme.Radii
 import com.portal.assistant.ui.theme.SecondaryAlpha
 import com.portal.assistant.ui.theme.TextSize
 import com.portal.assistant.ui.theme.TurnSpacing
+import com.portal.assistant.wake.ModelSetup
+import com.portal.assistant.wake.WakeSetupStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -451,13 +452,13 @@ private fun AskPanel(onSuggestion: (String) -> Unit) {
 }
 
 /**
- * A quiet one-line indicator for the one-time **gen2** wake-model download ([ConversationHub.modelSetup]):
+ * A quiet one-line indicator for the one-time **gen2** wake-model download ([WakeSetupStatus]):
  * while it fetches, "Setting up voice wake… NN%"; on failure, a soft note that tap-to-talk still works.
  * Renders nothing once the model is present — so it's invisible on gen1 and after the first download.
  */
 @Composable
 private fun WakeSetupIndicator() {
-    val setup by ConversationHub.modelSetup.collectAsStateWithLifecycle()
+    val setup by WakeSetupStatus.setup.collectAsStateWithLifecycle()
     val text = when (val s = setup) {
         is ModelSetup.Downloading -> "Setting up voice wake… ${(s.progress * 100).toInt()}%"
         ModelSetup.Failed -> "Voice wake setup didn’t finish — tap the mic to talk"

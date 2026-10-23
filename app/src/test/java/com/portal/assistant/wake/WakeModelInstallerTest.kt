@@ -1,4 +1,4 @@
-package com.portal.assistant.system
+package com.portal.assistant.wake
 
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,7 +29,7 @@ class WakeModelInstallerTest {
     }
 
     private fun mkSubdirs(vararg names: String) {
-        names.forEach { File(installer.modelDir(), it).mkdirs() }
+        names.forEach { File(installer.dir, it).mkdirs() }
     }
 
     // ---- isInstalled: requires ALL four model subdirs (a truncated unzip must not read as complete) ------
@@ -57,7 +57,7 @@ class WakeModelInstallerTest {
         mkSubdirs("am", "conf", "graph", "ivector")
         assertTrue(installer.isInstalled())
         installer.delete()
-        assertFalse(installer.modelDir().exists())
+        assertFalse(installer.dir.exists())
         assertFalse(installer.isInstalled())
     }
 
