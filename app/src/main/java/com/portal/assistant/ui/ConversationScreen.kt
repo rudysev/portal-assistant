@@ -744,7 +744,8 @@ private fun formatRemaining(totalSec: Long): String {
     val h = totalSec / 3600
     val m = (totalSec % 3600) / 60
     val s = totalSec % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+    // Locale.ROOT: a countdown is always ASCII digits, whatever the device locale.
+    return if (h > 0) "%d:%02d:%02d".format(Locale.ROOT, h, m, s) else "%d:%02d".format(Locale.ROOT, m, s)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
