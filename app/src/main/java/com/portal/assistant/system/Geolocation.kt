@@ -31,8 +31,9 @@ object Geolocation {
         val city = o.optString("city").trim()
         val lat = o.optDouble("latitude", Double.NaN)
         val lon = o.optDouble("longitude", Double.NaN)
+        val failed = ipapiFailed || ipwhoFailed
         val hasFix = !lat.isNaN() && !lon.isNaN() && !(lat == 0.0 && lon == 0.0)
-        return if (ipapiFailed || ipwhoFailed || city.isEmpty() || !hasFix) {
+        return if (failed || city.isEmpty() || !hasFix) {
             null
         } else {
             DeviceLocation(

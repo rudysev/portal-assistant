@@ -40,62 +40,70 @@ object ExternalToolSpec {
         enabledPkgs: Set<String>,
         onDropped: (String) -> Unit = {},
     ): ExternalTools {
-        val declarations = mutableListOf<JSONObject>()
-        val authorityByName = LinkedHashMap<String, String>()
-        val winnerPkg = HashMap<String, String>()
-        val toolsByPkg = LinkedHashMap<String, MutableList<String>>()
-        val summariesByPkg = LinkedHashMap<String, String>()
-
+        val collected = Collected(onDropped)
         providers.asSequence()
             .filter { it.pkg in enabledPkgs }
             .sortedBy { it.pkg } // deterministic collision order
-            .forEach { provider ->
-                val summary = provider.summary?.trim()?.takeIf { it.isNotEmpty() }
-                if (summary == null) {
-                    onDropped("provider ${provider.pkg}: missing ${ToolContract.META_SUMMARY}")
-                    return@forEach
-                }
-                summariesByPkg.putIfAbsent(provider.pkg, summary)
-                val array = runCatching { JSONArray(provider.declarationsJson.orEmpty()) }.getOrNull()
-                if (array == null) {
-                    onDropped("provider ${provider.pkg}: declarations not a JSON array")
-                    return@forEach
-                }
-                for (i in 0 until array.length()) {
-                    val decl = array.optJSONObject(i)
-                    if (decl == null) {
-                        onDropped("provider ${provider.pkg}: declaration #$i not an object")
-                        continue
-                    }
-                    val name = decl.optString("name").trim()
-                    if (!ToolContract.isValidExternalName(name)) {
-                        onDropped("provider ${provider.pkg}: invalid tool name '$name'")
-                        continue
-                    }
-                    decl.put("name", name) // normalize (trimmed) so Gemini's declaration + the invoke map agree
-                    if (decl.optString("description").isBlank()) {
-                        onDropped("provider ${provider.pkg}: tool '$name' missing description")
-                        continue
-                    }
-                    if (decl.optJSONObject("parameters") == null) {
-                        onDropped("provider ${provider.pkg}: tool '$name' missing parameters")
-                        continue
-                    }
-                    if (name in authorityByName) {
-                        onDropped("collision: '$name' kept from ${winnerPkg[name]}, dropped from ${provider.pkg}")
-                        continue
-                    }
-                    declarations.add(decl)
-                    authorityByName[name] = provider.authority
-                    winnerPkg[name] = provider.pkg
-                    toolsByPkg.getOrPut(provider.pkg) { mutableListOf() }.add(name)
+            .forEach(collected::addProvider)
+        val promptLines = collected.toolsByPkg.keys.sorted().map { pkg ->
+            val names = collected.toolsByPkg.getValue(pkg).joinToString(", ")
+            "- ${collected.summariesByPkg.getValue(pkg)} Tools: $names."
+        }
+        return ExternalTools(collected.declarations, collected.authorityByName, promptLines)
+    }
+
+    /** One [parse] pass's accepted tools, filled provider by provider in collision order. */
+    private class Collected(private val onDropped: (String) -> Unit) {
+        val declarations = mutableListOf<JSONObject>()
+        val authorityByName = LinkedHashMap<String, String>()
+        val toolsByPkg = LinkedHashMap<String, MutableList<String>>()
+        val summariesByPkg = LinkedHashMap<String, String>()
+        private val winnerPkg = HashMap<String, String>()
+
+        fun addProvider(provider: DiscoveredProvider) {
+            val summary = provider.summary?.trim()?.takeIf { it.isNotEmpty() }
+            if (summary == null) {
+                onDropped("provider ${provider.pkg}: missing ${ToolContract.META_SUMMARY}")
+                return
+            }
+            summariesByPkg.putIfAbsent(provider.pkg, summary)
+            val array = runCatching { JSONArray(provider.declarationsJson.orEmpty()) }.getOrNull()
+            if (array == null) {
+                onDropped("provider ${provider.pkg}: declarations not a JSON array")
+                return
+            }
+            for (i in 0 until array.length()) {
+                val decl = array.optJSONObject(i)
+                if (decl == null) {
+                    onDropped("provider ${provider.pkg}: declaration #$i not an object")
+                } else {
+                    addDeclaration(provider, decl)
                 }
             }
-        val promptLines = toolsByPkg.keys.sorted().map { pkg ->
-            val names = toolsByPkg.getValue(pkg).joinToString(", ")
-            "- ${summariesByPkg.getValue(pkg)} Tools: $names."
         }
-        return ExternalTools(declarations, authorityByName, promptLines)
+
+        private fun addDeclaration(provider: DiscoveredProvider, decl: JSONObject) {
+            val name = decl.optString("name").trim()
+            val problem = problemWith(decl, name, provider.pkg)
+            if (problem != null) {
+                onDropped(problem)
+                return
+            }
+            decl.put("name", name) // normalize (trimmed) so Gemini's declaration + the invoke map agree
+            declarations.add(decl)
+            authorityByName[name] = provider.authority
+            winnerPkg[name] = provider.pkg
+            toolsByPkg.getOrPut(provider.pkg) { mutableListOf() }.add(name)
+        }
+
+        /** Why [decl] (named [name], from [pkg]) is dropped, or null when it is accepted. */
+        private fun problemWith(decl: JSONObject, name: String, pkg: String): String? = when {
+            !ToolContract.isValidExternalName(name) -> "provider $pkg: invalid tool name '$name'"
+            decl.optString("description").isBlank() -> "provider $pkg: tool '$name' missing description"
+            decl.optJSONObject("parameters") == null -> "provider $pkg: tool '$name' missing parameters"
+            name in authorityByName -> "collision: '$name' kept from ${winnerPkg[name]}, dropped from $pkg"
+            else -> null
+        }
     }
 
     /** Drop any external declaration whose name collides with a built-in — built-ins always win. */

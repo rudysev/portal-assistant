@@ -5,6 +5,9 @@ import com.portal.commons.DebugLog
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
 /**
@@ -82,33 +85,35 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
             require(resp.isSuccessful) { "HTTP ${resp.code}" }
             val body = resp.body ?: error("empty body")
             val total = body.contentLength()
-            body.byteStream().use { input ->
-                FileOutputStream(dest).use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    var done = 0L
-                    var lastPct = -1
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        done += n
-                        // Emit only when the shown integer percent changes — a large fetch in small chunks
-                        // otherwise fires thousands of StateFlow writes (UI recompositions) for ~100 values.
-                        if (total > 0) {
-                            val pct = (100 * done / total).toInt()
-                            if (pct != lastPct) {
-                                lastPct = pct
-                                onProgress(DOWNLOAD_FRACTION * done / total)
-                            }
-                        }
-                    }
-                    // Explicit truncation guard: OkHttp throws on a short read only when the server sent a
-                    // Content-Length, so make that check visible and cover the known-length case here. (When the
-                    // length is unknown, the all-dirs isInstalled() check + the caller's bounded retry catch it.)
-                    check(total <= 0 || done == total) { "truncated download ($done/$total bytes)" }
-                }
+            val done = body.byteStream().use { input ->
+                FileOutputStream(dest).use { out -> copyWithProgress(input, out, total, onProgress) }
             }
+            // Explicit truncation guard: OkHttp throws on a short read only when the server sent a
+            // Content-Length, so make that check visible and cover the known-length case here. (When the
+            // length is unknown, the all-dirs isInstalled() check + the caller's bounded retry catch it.)
+            check(total <= 0 || done == total) { "truncated download ($done/$total bytes)" }
         }
+    }
+
+    /** Copy [input] to [out], reporting progress against [total] bytes (unknown when <= 0). Returns the bytes copied. */
+    private fun copyWithProgress(input: InputStream, out: OutputStream, total: Long, onProgress: (Float) -> Unit): Long {
+        val buf = ByteArray(64 * 1024)
+        var done = 0L
+        var lastPct = -1
+        var n = input.read(buf)
+        while (n >= 0) {
+            out.write(buf, 0, n)
+            done += n
+            // Emit only when the shown integer percent changes — a large fetch in small chunks
+            // otherwise fires thousands of StateFlow writes (UI recompositions) for ~100 values.
+            val pct = if (total > 0) (100 * done / total).toInt() else lastPct
+            if (pct != lastPct) {
+                lastPct = pct
+                onProgress(DOWNLOAD_FRACTION * done / total)
+            }
+            n = input.read(buf)
+        }
+        return done
     }
 
     /** Unzip [zip] into [into], stripping the archive's top-level `[ZIP_ROOT]/` folder so the model root is flat. */
@@ -117,27 +122,28 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
         into.mkdirs()
         val root = into.canonicalFile
         ZipInputStream(zip.inputStream().buffered()).use { zin ->
-            while (true) {
-                val entry = zin.nextEntry ?: break
+            var entry = zin.nextEntry
+            while (entry != null) {
                 // Strip the well-known top dir; entries outside it (e.g. a stray README) are dropped.
                 val rel = entry.name.substringAfter("$ZIP_ROOT/", "")
-                if (rel.isEmpty()) {
-                    zin.closeEntry()
-                    continue
-                }
-                val outFile = File(into, rel)
-                // Zip-slip guard: refuse any entry that would escape [into] via "../" traversal.
-                if (!outFile.canonicalFile.path.startsWith(root.path + File.separator)) {
-                    throw SecurityException("zip entry escapes target: ${entry.name}")
-                }
-                if (entry.isDirectory) {
-                    outFile.mkdirs()
-                } else {
-                    outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { zin.copyTo(it) }
-                }
+                if (rel.isNotEmpty()) extract(zin, entry, File(into, rel), root)
                 zin.closeEntry()
+                entry = zin.nextEntry
             }
+        }
+    }
+
+    /** Write the current [entry] of [zin] to [outFile], which must stay inside [root]. */
+    private fun extract(zin: ZipInputStream, entry: ZipEntry, outFile: File, root: File) {
+        // Zip-slip guard: refuse any entry that would escape [into] via "../" traversal.
+        if (!outFile.canonicalFile.path.startsWith(root.path + File.separator)) {
+            throw SecurityException("zip entry escapes target: ${entry.name}")
+        }
+        if (entry.isDirectory) {
+            outFile.mkdirs()
+        } else {
+            outFile.parentFile?.mkdirs()
+            FileOutputStream(outFile).use { zin.copyTo(it) }
         }
     }
 

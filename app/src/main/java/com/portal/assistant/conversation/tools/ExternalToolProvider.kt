@@ -130,15 +130,11 @@ class ExternalToolProvider(context: Context) {
 
             @Suppress("DEPRECATION", "QueryPermissionsNeeded")
             val pkgs = pm.getInstalledPackages(PackageManager.GET_PROVIDERS or PackageManager.GET_META_DATA)
-            buildList {
-                for (pi in pkgs) {
-                    for (prov in pi.providers ?: continue) {
-                        val json = prov.metaData?.getString(ToolContract.META_DECLARATIONS) ?: continue
-                        val authority = prov.authority ?: continue
-                        val summary = prov.metaData?.getString(ToolContract.META_SUMMARY)?.trim()?.takeIf { it.isNotEmpty() }
-                        add(DiscoveredProvider(prov.packageName, authority, json, summary))
-                    }
-                }
+            pkgs.flatMap { it.providers.orEmpty().asIterable() }.mapNotNull { prov ->
+                val json = prov.metaData?.getString(ToolContract.META_DECLARATIONS)
+                val authority = prov.authority
+                val summary = prov.metaData?.getString(ToolContract.META_SUMMARY)?.trim()?.takeIf { it.isNotEmpty() }
+                if (json == null || authority == null) null else DiscoveredProvider(prov.packageName, authority, json, summary)
             }
         }.getOrElse {
             DebugLog.log("ext-tool discovery failed: ${it.message}")

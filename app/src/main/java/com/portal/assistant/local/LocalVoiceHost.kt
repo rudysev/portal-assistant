@@ -50,7 +50,8 @@ object LocalVoiceHost {
         val host = hostPort.substring(0, colon.coerceAtLeast(0))
         val port = if (colon > 0) hostPort.substring(colon + 1).toIntOrNull() else null
         val hasPath = '/' in hostPort || '?' in hostPort || '#' in hostPort
-        return if (!hasPath && port != null && port in 1..MAX_PORT && host.isNotBlank()) host to port else null
+        val validPort = port != null && port in 1..MAX_PORT
+        return if (!hasPath && validPort && host.isNotBlank()) host to port else null
     }
 
     private fun isLanHost(host: String): Boolean {

@@ -51,32 +51,25 @@ class LocalWireFormat(
     /** One JSON control frame; unparseable input or an unknown `type` → empty. */
     override fun decode(text: String): List<BackendEvent> {
         val json = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
-        return when (json.optString("type")) {
-            "ready" -> listOf(BackendEvent.Ready)
-
-            "input_transcript" ->
-                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.InputTranscript(it)) }.orEmpty()
-
-            "output_transcript" ->
-                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.OutputTranscript(it)) }.orEmpty()
-
-            "model_generating" -> listOf(BackendEvent.ModelGenerating)
-
-            "turn_complete" -> listOf(BackendEvent.TurnComplete)
-
-            "interrupted" -> listOf(BackendEvent.Interrupted)
-
-            "error" -> listOf(BackendEvent.Error(json.optString("message").ifEmpty { "Local server error" }))
-
-            "tool_call" -> ToolCallWire.parseCalls(json.optJSONArray("calls"))
-                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCall(it)) }.orEmpty()
-
-            "tool_cancel" -> ToolCallWire.parseCancelIds(json.optJSONArray("ids"))
-                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCancel(it)) }.orEmpty()
-
-            else -> emptyList()
-        }
+        val type = json.optString("type")
+        return SIGNALS[type]?.let { listOf(it) } ?: payloadEvents(type, json)
     }
+
+    /** The frame types that carry data; an unknown type → empty. */
+    private fun payloadEvents(type: String, json: JSONObject): List<BackendEvent> = when (type) {
+        "input_transcript" -> ifPresent(json.optString("text"), BackendEvent::InputTranscript)
+        "output_transcript" -> ifPresent(json.optString("text"), BackendEvent::OutputTranscript)
+        "error" -> listOf(BackendEvent.Error(json.optString("message").ifEmpty { "Local server error" }))
+        "tool_call" -> ifPresent(ToolCallWire.parseCalls(json.optJSONArray("calls")), BackendEvent::ToolCall)
+        "tool_cancel" -> ifPresent(ToolCallWire.parseCancelIds(json.optJSONArray("ids")), BackendEvent::ToolCancel)
+        else -> emptyList()
+    }
+
+    /** [event] of a non-empty text payload; nothing for an empty one. */
+    private fun ifPresent(text: String, event: (String) -> BackendEvent): List<BackendEvent> = if (text.isEmpty()) emptyList() else listOf(event(text))
+
+    /** [event] of a non-empty list payload; nothing for an empty one. */
+    private fun <T> ifPresent(items: List<T>, event: (List<T>) -> BackendEvent): List<BackendEvent> = if (items.isEmpty()) emptyList() else listOf(event(items))
 
     /** One raw 24 kHz PCM chunk. */
     override fun decode(bytes: ByteArray): List<BackendEvent> = if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
@@ -86,3 +79,11 @@ class LocalWireFormat(
 
     private fun JSONObject.toFrame() = Frame.Text(toString())
 }
+
+/** The frame types that carry no data, each one event. */
+private val SIGNALS: Map<String, BackendEvent> = mapOf(
+    "ready" to BackendEvent.Ready,
+    "model_generating" to BackendEvent.ModelGenerating,
+    "turn_complete" to BackendEvent.TurnComplete,
+    "interrupted" to BackendEvent.Interrupted,
+)

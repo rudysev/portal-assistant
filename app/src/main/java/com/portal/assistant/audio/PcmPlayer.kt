@@ -54,25 +54,29 @@ class PcmPlayer {
         writer = Thread {
             DebugLog.log("pcm player started")
             while (running) {
-                val chunk = runCatching { queue.take() }.getOrNull() ?: continue
-                if (chunk.isEmpty()) continue
-                runCatching { t.write(chunk, 0, chunk.size) } // blocks until the buffer drains (paces playback)
-                playedBytes += chunk.size
-                // After playedBytes so a listener reading it (the paced-reveal fraction) sees this chunk.
-                onLevel?.invoke(PcmLevel.normalized(chunk))
-                if (queue.isEmpty()) {
-                    // write() returns when data is *buffered*, not *played* — up to BUFFER_BYTES (~0.5 s) can
-                    // still be in the AudioTrack when the queue empties. Firing onDrained now ends the turn
-                    // early and the final word ("…50%") gets clipped on underrun. Wait for the hardware to
-                    // actually clock the tail out first; bail the instant more audio arrives (no mid-word gap).
-                    awaitTailPlayed(t)
-                    if (queue.isEmpty()) {
-                        onLevel?.invoke(0f)
-                        onDrained?.invoke()
-                    }
-                }
+                val chunk = runCatching { queue.take() }.getOrNull()
+                if (chunk != null && chunk.isNotEmpty()) playChunk(t, chunk)
             }
         }.also { it.start() }
+    }
+
+    /** Writer thread: play one chunk, then report the drain once the queue and the track's tail are empty. */
+    private fun playChunk(t: AudioTrack, chunk: ByteArray) {
+        runCatching { t.write(chunk, 0, chunk.size) } // blocks until the buffer drains (paces playback)
+        playedBytes += chunk.size
+        // After playedBytes so a listener reading it (the paced-reveal fraction) sees this chunk.
+        onLevel?.invoke(PcmLevel.normalized(chunk))
+        if (queue.isEmpty()) {
+            // write() returns when data is *buffered*, not *played* — up to BUFFER_BYTES (~0.5 s) can
+            // still be in the AudioTrack when the queue empties. Firing onDrained now ends the turn
+            // early and the final word ("…50%") gets clipped on underrun. Wait for the hardware to
+            // actually clock the tail out first; bail the instant more audio arrives (no mid-word gap).
+            awaitTailPlayed(t)
+            if (queue.isEmpty()) {
+                onLevel?.invoke(0f)
+                onDrained?.invoke()
+            }
+        }
     }
 
     /**
