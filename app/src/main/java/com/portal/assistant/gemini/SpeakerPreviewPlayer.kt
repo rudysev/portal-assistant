@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * [SpeakerPreview.Event] reduced on the **main thread** (socket and player callbacks post there — no locks);
  * this class only carries out the resulting [SpeakerPreview.Action]s and publishes [state] for the rows.
  *
- * Each preview gets its own [LiveClient] + [PcmPlayer], so a stopped preview's stragglers land on a dead
+ * Each preview gets its own session (from [GeminiBackend.Factory]) + [PcmPlayer], so a stopped preview's stragglers land on a dead
  * session and the reducer drops them by id. Independent of the conversation engine: it never touches the mic,
  * the hub, or the reducer — the dialog reports whether a conversation is live via [setConversationLive].
  *
@@ -38,11 +38,11 @@ class SpeakerPreviewPlayer(
     )
     val state: StateFlow<SpeakerPreview.State> = _state.asStateFlow()
 
-    /** The preview in flight — at most one. [client] is null for a replay; [clip] collects a live one's audio
+    /** The preview in flight — at most one. [voiceSession] is null for a replay; [clip] collects a live one's audio
      *  (appended on the socket thread, read on main after its turnComplete). */
     private class Session(
         val id: Long,
-        val client: LiveClient?,
+        val voiceSession: VoiceBackend?,
         val player: PcmPlayer,
         val clip: ConcurrentLinkedQueue<ByteArray> = ConcurrentLinkedQueue(),
     )
@@ -79,13 +79,13 @@ class SpeakerPreviewPlayer(
                 clips[action.speaker] = s.clip.toList()
                 DebugLog.log("speaker preview ${s.id} kept clip ${pcmMs(s.clip.sumOf { it.size.toLong() })} ms")
             }
-            is SpeakerPreview.Action.SendIntro -> current(action.id)?.client?.sendText(SpeakerPreview.INTRO_TEXT)
-            is SpeakerPreview.Action.CloseSession -> current(action.id)?.client?.close()
+            is SpeakerPreview.Action.SendIntro -> current(action.id)?.voiceSession?.sendText(SpeakerPreview.INTRO_TEXT)
+            is SpeakerPreview.Action.CloseSession -> current(action.id)?.voiceSession?.close()
             is SpeakerPreview.Action.Stop -> current(action.id)?.let { s ->
                 DebugLog.log("speaker preview ${s.id} stop (played ${pcmMs(s.player.playedBytes())} ms)")
                 s.player.setOnDrained(null)
                 s.player.stop()
-                s.client?.close()
+                s.voiceSession?.close()
                 session = null
             }
         }
@@ -101,17 +101,20 @@ class SpeakerPreviewPlayer(
         DebugLog.log("speaker preview $id start speaker=${speaker?.name ?: "server default"} model=$model")
         val player = PcmPlayer()
         val clip = ConcurrentLinkedQueue<ByteArray>()
-        val client = SpeakerPreview.newClient(apiKey, model, speaker, listenerFor(id, player, clip))
-        session = Session(id, client, player, clip)
+        val voiceSession = GeminiBackend.Factory.create(
+            SpeakerPreview.sessionConfig(apiKey, model, speaker),
+            listenerFor(id, player, clip),
+        )
+        session = Session(id, voiceSession, player, clip)
         player.start()
         player.setOnDrained { post(SpeakerPreview.Event.PlaybackDrained(id)) }
-        client.connect()
+        voiceSession.connect()
     }
 
     private fun replay(id: Long, speaker: GeminiSpeaker.Speaker?) {
         DebugLog.log("speaker preview $id replay speaker=${speaker?.name ?: "server default"}")
         val player = PcmPlayer()
-        session = Session(id, client = null, player = player)
+        session = Session(id, voiceSession = null, player = player)
         player.start()
         player.setOnDrained { post(SpeakerPreview.Event.PlaybackDrained(id)) }
         clips[speaker].orEmpty().forEach(player::enqueue)

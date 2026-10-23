@@ -271,9 +271,18 @@ class SpeakerPreviewTest {
         override fun onClosed() {}
     }
 
-    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject = JSONObject(
-        SpeakerPreview.newClient(apiKey = "key", model = "gemini-live-x", speaker = speaker, listener = Silent).setupMessage(),
-    ).getJSONObject("setup")
+    /** The preview's session as the Gemini factory builds it — the same path as a conversation's. */
+    private fun sessionOf(speaker: GeminiSpeaker.Speaker?): LiveClient = GeminiBackend.Factory.create(
+        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker),
+        Silent,
+    ) as LiveClient
+
+    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject =
+        JSONObject(sessionOf(speaker).setupMessage()).getJSONObject("setup")
+
+    @Test fun previewSessionConnectsWithTheApiKey() {
+        assertEquals("${LiveClient.WS_BASE}?key=key", sessionOf(charon).connectUrl)
+    }
 
     @Test fun previewSessionUsesTheSelectedModelAndTheCandidateSpeaker() {
         val setup = setupOf(charon)

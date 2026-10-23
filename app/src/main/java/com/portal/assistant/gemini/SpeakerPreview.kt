@@ -1,6 +1,6 @@
 package com.portal.assistant.gemini
 
-import com.portal.assistant.conversation.backend.VoiceBackend
+import com.portal.assistant.conversation.backend.BackendConfig
 
 /**
  * Hear a Speaker before choosing it (Settings → Voice): tapping a row opens a short Gemini Live session with the
@@ -19,21 +19,16 @@ object SpeakerPreview {
     const val INTRO_TEXT = "Introduce yourself in one short sentence."
 
     /**
-     * The Live session for one preview: the selected [model], the candidate [speaker] (null = Server default),
-     * [SYSTEM_INSTRUCTION], and no function declarations (the client's `googleSearch` grounding stays — harmless).
-     * Same client and setup as a real conversation, so what the user hears is what they get.
+     * The session config for one preview: [apiKey] as the credential, the selected [model], the candidate
+     * [speaker] (null = Server default), [SYSTEM_INSTRUCTION], and no function declarations (the client's
+     * `googleSearch` grounding stays — harmless). [SpeakerPreviewPlayer] gets its session from
+     * [GeminiBackend.Factory], the same path as a conversation, so what the user hears is what they get.
      */
-    fun newClient(
-        apiKey: String,
-        model: String,
-        speaker: GeminiSpeaker.Speaker?,
-        listener: VoiceBackend.Listener,
-    ): LiveClient = LiveClient(
-        apiKey = apiKey,
+    fun sessionConfig(apiKey: String, model: String, speaker: GeminiSpeaker.Speaker?): BackendConfig = BackendConfig(
+        credential = apiKey,
         model = model,
-        systemPrompt = SYSTEM_INSTRUCTION,
         speaker = speaker?.name,
-        listener = listener,
+        systemPrompt = SYSTEM_INSTRUCTION,
     )
 
     /** How the dialog draws one row. */
