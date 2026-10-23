@@ -169,19 +169,23 @@ object SpeakerPreview {
         is Event.Audio -> when (val s = state.status) {
             is Status.Loading ->
                 if (s.id == event.id) Decision(state.copy(status = Status.Playing(s.id, s.speaker))) else Decision(state)
+
             is Status.Playing ->
                 if (s.id == event.id) Decision(state.copy(status = s.copy(playbackIdle = false))) else Decision(state)
+
             else -> Decision(state)
         }
 
         is Event.TurnComplete -> when (val s = state.status) {
             // The model answered without a single audio chunk — nothing to hear.
             is Status.Loading -> if (s.id == event.id) fail(state, s.id, s.speaker) else Decision(state)
+
             is Status.Playing -> when {
                 s.id != event.id -> Decision(state)
                 s.playbackIdle -> finish(state, s)
                 else -> Decision(state.copy(status = s.copy(turnDone = true)), listOf(Action.CloseSession(s.id)))
             }
+
             else -> Decision(state)
         }
 
@@ -191,13 +195,16 @@ object SpeakerPreview {
                 s.turnDone -> finish(state, s)
                 else -> Decision(state.copy(status = s.copy(playbackIdle = true)))
             }
+
             else -> Decision(state)
         }
 
         is Event.Disconnected -> when (val s = state.status) {
             is Status.Loading -> if (s.id == event.id) fail(state, s.id, s.speaker) else Decision(state)
+
             // After turnComplete the close is our own CloseSession — the audio is already in hand.
             is Status.Playing -> if (s.id == event.id && !s.turnDone) fail(state, s.id, s.speaker) else Decision(state)
+
             else -> Decision(state)
         }
 

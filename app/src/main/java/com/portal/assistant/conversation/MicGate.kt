@@ -165,7 +165,9 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
         when (tonePlaybackNow) { // bookkeeping for the report only; the rule is suppresses'
             TonePlayback.None ->
                 if (tonePendingDroppedFrames > 0) reportToneDropOnce("then the tone didn't play, so frames are sent again", logLines)
+
             TonePlayback.Pending -> tonePendingDroppedFrames++
+
             is TonePlayback.Started -> {
                 val startedAtMs = tonePlaybackNow.startedAtMs
                 if (dropped) {

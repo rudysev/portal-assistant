@@ -1,6 +1,5 @@
 package com.portal.assistant.conversation
 
-
 /**
  * The conversation as a **pure state machine** — `reduce(state, event) -> (state, actions)` with no
  * Android, no I/O, no threads — so the tricky event orderings are exhaustively unit-testable (the same
@@ -175,7 +174,9 @@ fun stallDecision(state: ConversationState, event: Event): StallDecision = when 
         Event.PlaybackIdle -> when {
             // This event sets playbackIdle=true; turn ends when turnComplete && no tools.
             state.turnComplete && state.toolsInFlight.isEmpty() -> StallDecision.Cancel
+
             state.toolsInFlight.isEmpty() -> StallDecision.Arm
+
             else -> StallDecision.None
         }
 
