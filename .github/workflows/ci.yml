@@ -8,6 +8,15 @@ on:
     types: [portal-commons-green]
 
 jobs:
+  # Lints every shell script (*.sh, *.command, .githooks/*) with the runner's preinstalled shellcheck and the
+  # repo's .shellcheckrc, the same check .githooks/pre-commit runs on staged files.
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck --version
+      - run: git ls-files -z '*.sh' '*.command' '.githooks/*' | xargs -0 --no-run-if-empty shellcheck
+
   # Dependency advice (unused, undeclared-but-used and wrongly-configured dependencies). Kept out of `check` and the
   # hooks because the advice changes rarely and the analysis is slow, so this separate job is the alarm.
   build-health:
