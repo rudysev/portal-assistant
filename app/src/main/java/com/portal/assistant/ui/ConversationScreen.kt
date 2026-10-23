@@ -1,11 +1,8 @@
 package com.portal.assistant.ui
 
-import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -15,16 +12,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -35,29 +26,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,80 +50,27 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.portal.assistant.R
 import com.portal.assistant.conversation.ConversationHub
-import com.portal.assistant.conversation.ConversationOpening
-import com.portal.assistant.conversation.RevealProgress
-import com.portal.assistant.conversation.Role
 import com.portal.assistant.conversation.Turn
-import com.portal.assistant.conversation.backend.Backends
-import com.portal.assistant.conversation.tools.TimerStore
-import com.portal.assistant.conversation.tools.Timers
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.Dims
-import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.OrangeLight
 import com.portal.assistant.ui.theme.Radii
 import com.portal.assistant.ui.theme.SECONDARY_ALPHA
 import com.portal.assistant.ui.theme.TextSize
-import com.portal.assistant.ui.theme.TurnSpacing
-import com.portal.assistant.wake.ModelSetup
-import com.portal.assistant.wake.WakeSetupStatus
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-// Tuned for a large countertop display viewed from across the room — type is large, content is centered
-// in a readable column.
-private const val GREETING = "How can I help?"
-private const val IDLE_HINT = "Tap or say “Hey Jarvis”"
-
-// Example prompts shown on the idle home — discoverability (a first-timer otherwise has no idea Jarvis can
-// run timers, play music, or control the home) and a low-friction way in (tapping one asks it). Curated to
-// span categories rather than list every tool.
-//
-// Kept deliberately short — a calm, clock-first idle home, not a command menu. Two prompts that span a
-// grounded answer + a flagship built-in tool. (Music, home control, etc. are still one spoken request away.)
-private val SUGGESTIONS = listOf(
-    "What's the weather?",
-    "Set a 10-minute timer",
-)
-
-// Older turns fade so the latest answer stands out — but stay readable at distance (raised from 0.45).
-private const val OLDER_TURN_ALPHA = 0.62f
-
-// How far from the newest content the user can be scrolled and still count as "following".
-private const val BOTTOM_SLOP_PX = 160
-
-// Paced reveal: the model's transcription text arrives faster than its 24 kHz speech plays. The Transcript
-// stamps how many words have been "spoken" on the latest model turn (Turn.revealedWords, computed by
-// RevealProgress from audio played ÷ received); this screen just shows that many words while SPEAKING and
-// snaps to the turn's text when it ends (cut to the words heard if it ended early — see Transcript). Each
-// freshly revealed word fades in over WORD_FADE_MS (device-tunable).
-private const val WORD_FADE_MS = 140
-
-// Below this playback level the model is "thinking" (no audible output yet); at/above it, audio is flowing
-// so the thinking dots give way even before the first transcript word arrives.
-private const val THINKING_AUDIO_EPS = 0.05f
 
 /**
  * The foreground chat screen. Renders the live conversation [ConversationHub] publishes: an iOS-assistant
@@ -350,131 +278,6 @@ private fun NoticeBanner(message: String, onDismiss: () -> Unit, modifier: Modif
     }
 }
 
-// The two-pane landscape home needs a genuinely wide canvas; this is the floor below which even a landscape
-// layout is too cramped for it and we stack instead. NOTE: orientation is decided by width-vs-height, not
-// this absolute value — at the Portal+'s 160 dpi (1 px = 1 dp) portrait is still 1080 dp wide, so a pure
-// width threshold would never flip to portrait. See [IdleHome].
-private val WIDE_HOME_MIN = 720.dp
-
-/**
- * The idle home (shown only at rest): an ambient clock/date glance (what a countertop display is *for*), the
- * greeting, and a couple of example prompts that teach what Jarvis can do and ask it on tap. No center brand
- * mark here; the header already carries it.
- *
- * Orientation-aware: **landscape** keeps the two balanced panes (clock | hairline | ask) that suit the wide
- * display; **portrait/narrow** collapses to one clock-first center column (clock hero, calmer ask band
- * beneath) for the tall aspect. Both keep the idle home deliberately sparse — a clock-led glance, not a
- * dashboard.
- */
-@Composable
-private fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    // Not configured → Jarvis can't answer. The nudge shows exactly when a conversation would be refused (the one
-    // credential rule, [ConversationOpening.refusalFor]), so the idle home never shows chips that would fail.
-    val backendChoice = Backends.resolve(context)
-    val needsSetup = ConversationOpening.refusalFor(backendChoice) != null
-    val setupMessage = when (backendChoice.kind) {
-        AppPrefs.VoiceBackendKind.LOCAL -> "Add your local server address to get started"
-        AppPrefs.VoiceBackendKind.GEMINI -> "Add your Gemini API key to get started"
-    }
-    BoxWithConstraints(modifier = modifier) {
-        // Orientation is the real signal (width vs height), with WIDE_HOME_MIN only as a "wide enough" floor —
-        // an absolute width threshold can't tell landscape from portrait here (both clear 720 dp at 160 dpi).
-        val landscape = maxWidth > maxHeight
-        if (landscape && maxWidth >= WIDE_HOME_MIN && !needsSetup) {
-            // Landscape: two panes, each centered in its own half, separated by a hairline rule. Drifts as one.
-            Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 40.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { Clock() }
-                Spacer(Modifier.size(40.dp))
-                Box(
-                    Modifier
-                        .height(220.dp)
-                        .width(1.dp)
-                        .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)),
-                )
-                Spacer(Modifier.size(40.dp))
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { AskPanel(onSuggestion) }
-            }
-        } else {
-            // Portrait / narrow: one clock-first center column — the clock leads, the ask band sits beneath.
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Clock()
-                Spacer(Modifier.size(44.dp))
-                if (needsSetup) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GreetingHeader()
-                        Text(
-                            text = setupMessage,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-                            fontSize = TextSize.Body,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.size(14.dp))
-                        SuggestionChip("Open Settings", onTap = { onOpenSettings() }, contentDescription = "Open Settings")
-                    }
-                } else {
-                    AskPanel(onSuggestion)
-                }
-            }
-        }
-    }
-}
-
-/** The greeting line + its trailing gap — shared by the "ask" panel and the "add a key" CTA so the header
- *  styling lives in one place. */
-@Composable
-private fun GreetingHeader() {
-    Text(
-        text = GREETING,
-        color = MaterialTheme.colorScheme.onBackground,
-        fontSize = TextSize.Greeting,
-        textAlign = TextAlign.Center,
-    )
-    Spacer(Modifier.size(20.dp))
-}
-
-/** Greeting + the suggestion chips, center-aligned — shared by the stacked and two-pane homes. The "Try
- *  asking" caption was dropped to keep the idle home calm: the chips already read as prompts. */
-@Composable
-private fun AskPanel(onSuggestion: (String) -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        GreetingHeader()
-        SuggestionChips(onSuggestion)
-        WakeSetupIndicator()
-    }
-}
-
-/**
- * A quiet one-line indicator for the one-time **gen2** wake-model download ([WakeSetupStatus]):
- * while it fetches, "Setting up voice wake… NN%"; on failure, a soft note that tap-to-talk still works.
- * Renders nothing once the model is present — so it's invisible on gen1 and after the first download.
- */
-@Composable
-private fun WakeSetupIndicator() {
-    val setup by WakeSetupStatus.setup.collectAsStateWithLifecycle()
-    val text = when (val s = setup) {
-        is ModelSetup.Downloading -> "Setting up voice wake… ${(s.progress * 100).toInt()}%"
-        ModelSetup.Failed -> "Voice wake setup didn’t finish — tap the mic to talk"
-        ModelSetup.Idle -> null
-    }
-    if (text != null) {
-        Spacer(Modifier.size(16.dp))
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-            fontSize = TextSize.Body,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
 /**
  * Center-stage state while a turn is connecting or listening but nothing has been said yet (no transcript): a
  * large state word + a reactive orb, so what Jarvis is doing reads from across the room. The instant the user
@@ -568,7 +371,7 @@ private fun ListeningOrb(phase: ConversationHub.UiPhase, audioLevel: StateFlow<F
  * [AmbientGlow] and [ListeningOrb] so the radial-glow vocabulary lives in one place (the AudioVisualizer pill
  * mirrors the same look in its own shape).
  */
-private fun DrawScope.drawAccentGlow(alphaAtCenter: Float, radius: Float = size.minDimension / 2f) {
+internal fun DrawScope.drawAccentGlow(alphaAtCenter: Float, radius: Float = size.minDimension / 2f) {
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(Accent.copy(alpha = alphaAtCenter), Color.Transparent),
@@ -578,497 +381,4 @@ private fun DrawScope.drawAccentGlow(alphaAtCenter: Float, radius: Float = size.
         radius = radius,
         center = center,
     )
-}
-
-/**
- * A soft, slowly breathing warm glow behind the idle content. Subtle by design (peaks ~10% Accent over the
- * near-black background) — it should register as ambient life, not a light show. Pauses implicitly with the
- * idle screen (it isn't composed during a live conversation).
- */
-@Composable
-private fun AmbientGlow(modifier: Modifier = Modifier) {
-    val intensity = if (LocalReduceMotion.current) {
-        0.7f // a steady, gentle glow instead of breathing
-    } else {
-        rememberInfiniteTransition(label = "ambientGlow").animateFloat(
-            initialValue = 0.45f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(animation = tween(5200), repeatMode = RepeatMode.Reverse),
-            label = "glowIntensity",
-        ).value
-    }
-    Canvas(modifier = modifier.fillMaxSize()) {
-        drawAccentGlow(0.10f * intensity, radius = size.minDimension * (0.42f + 0.10f * intensity))
-    }
-}
-
-/** Big ambient time + date, re-read on each minute boundary (no seconds shown, so no faster tick needed). */
-@Composable
-private fun Clock() {
-    val context = LocalContext.current
-    val now by produceState(initialValue = System.currentTimeMillis()) {
-        while (true) {
-            value = System.currentTimeMillis()
-            delay(60_000 - (value % 60_000)) // sleep to the next minute so the display flips on time
-        }
-    }
-    // android's time format honors the device's 12/24-hour setting; the date is spelled out for glanceability.
-    val time = remember(now) { android.text.format.DateFormat.getTimeFormat(context).format(Date(now)) }
-    val date = remember(now) { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date(now)) }
-    // Wrapped as ONE unit so a SpaceBetween parent treats time+date as a single block (otherwise the two
-    // Texts get distributed apart and the date floats away from the time).
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = time,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = TextSize.ClockTime,
-            fontWeight = FontWeight.Light,
-            letterSpacing = (-1).sp, // tighten the large numerals into one composed block
-            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"), // equal-width digits, no reflow
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(
-            // Prime ambient data — raised to the readable secondary tier (was the dim metadata tier, which
-            // whispered the date from across the room).
-            text = date,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-            fontSize = TextSize.ClockDate,
-            letterSpacing = 0.5.sp,
-        )
-    }
-}
-
-/**
- * Live countdown cards for active timers — a most-wanted at-a-glance readout. Observes [TimerStore]
- * (kept in step with the canonical scheduler store) and ticks every second to recompute the remaining time
- * and drop any that just hit 0. Renders nothing when there are no active timers. Each card cancels on its ✕.
- */
-private const val TIMER_IMMINENT_SEC = 60L // under a minute → flag the card so it leads the glance
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TimerCards(hasTranscript: Boolean, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val timers by TimerStore.timers.collectAsStateWithLifecycle()
-    if (timers.isEmpty()) return // no per-second ticker (and no recomposition) when there's nothing to show
-    val now by produceState(initialValue = System.currentTimeMillis()) {
-        while (true) {
-            value = System.currentTimeMillis()
-            delay(1000)
-        }
-    }
-    // ms precision (matches Timers.active) so a card stays until the alarm actually fires, not ~1s early.
-    // Sorted soonest-to-fire first so the most time-critical countdown leads, not creation order.
-    val active = timers.filter { it.fireAtMs > now }.sortedBy { it.fireAtMs }
-    if (active.isEmpty()) return
-    // With a transcript, left-align the cards on the SAME gutter as the reading column so they read as part
-    // of the session, not a floating widget. On the idle home (no transcript) they stay centered.
-    BoxWithConstraints(modifier = modifier) {
-        val gutter = ((maxWidth - Measure.Reading) / 2).coerceAtLeast(Measure.MinGutter)
-        FlowRow(
-            modifier = if (hasTranscript) {
-                Modifier.fillMaxWidth().padding(horizontal = gutter)
-            } else {
-                Modifier.fillMaxWidth().widthIn(max = Measure.Reading)
-            },
-            horizontalArrangement = Arrangement.spacedBy(
-                12.dp,
-                if (hasTranscript) Alignment.Start else Alignment.CenterHorizontally,
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            active.forEach { t ->
-                TimerCard(
-                    label = t.label,
-                    remaining = Timers.remainingSec(t, now),
-                    onCancel = { TimerStore.cancel(context, t.id) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimerCard(label: String, remaining: Long, onCancel: () -> Unit) {
-    val imminent = remaining in 1..TIMER_IMMINENT_SEC
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(Radii.Card))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(start = 22.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // One spoken node for the label+time so TalkBack reads it as a unit (clearAndSetSemantics suppresses
-        // the child Texts so they aren't announced twice); the ✕ stays a separate "Cancel …" button. A
-        // label-less timer's default label is literally "timer", so avoid reading "timer timer".
-        val spoken = if (label.equals("timer", ignoreCase = true)) {
-            "Timer, ${formatRemaining(remaining)} left"
-        } else {
-            "$label timer, ${formatRemaining(remaining)} left"
-        }
-        Column(modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }) {
-            Text(
-                // Capitalize the first letter so a name (esp. the default "timer") reads as a label, not a
-                // raw tool argument.
-                text = label.replaceFirstChar { it.uppercase() },
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = SECONDARY_ALPHA),
-                fontSize = TextSize.TimerLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 220.dp), // a verbose voice label truncates instead of wrapping
-            )
-            Text(
-                text = formatRemaining(remaining),
-                // The about-to-fire card turns accent-orange so it leads the glance across the room.
-                color = if (imminent) Accent else MaterialTheme.colorScheme.onSurface,
-                fontSize = TextSize.TimerTime,
-                fontWeight = FontWeight.Medium,
-                // Tabular figures: every digit is the same width, so the card stops resizing each second as
-                // the countdown ticks (Inter's default proportional digits reflow the card).
-                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-            )
-        }
-        CircleButton(onClick = onCancel, bg = Color.Transparent, size = 48.dp) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Cancel $label timer",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = SECONDARY_ALPHA),
-                modifier = Modifier.size(24.dp),
-            )
-        }
-    }
-}
-
-/** mm:ss, or h:mm:ss past an hour. */
-private fun formatRemaining(totalSec: Long): String {
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    // Locale.ROOT: a countdown is always ASCII digits, whatever the device locale.
-    return if (h > 0) "%d:%02d:%02d".format(Locale.ROOT, h, m, s) else "%d:%02d".format(Locale.ROOT, m, s)
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SuggestionChips(onTap: (String) -> Unit) {
-    FlowRow(
-        modifier = Modifier.widthIn(max = 820.dp),
-        // Generous gaps so a far reach onto an upright screen can't graze the neighbouring chip.
-        horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        SUGGESTIONS.forEach { text -> SuggestionChip(text, onTap) }
-    }
-}
-
-@Composable
-private fun SuggestionChip(
-    text: String,
-    onTap: (String) -> Unit,
-    // TalkBack label — defaults to the "ask Jarvis" action; overridden for non-ask chips (e.g. Open Settings).
-    contentDescription: String = "Ask: $text",
-) {
-    val shape = RoundedCornerShape(Radii.Pill)
-    Text(
-        text = text,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.92f),
-        fontSize = TextSize.Chip,
-        modifier = Modifier
-            .clip(shape)
-            // A solid surface fill + a warm hairline border so the chip reads as a tappable control across the
-            // room — the old near-invisible 0.6α fill with no edge looked like decorative text, not a button.
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, Accent.copy(alpha = 0.35f), shape)
-            .clickable(onClick = { onTap(text) })
-            .semantics { this.contentDescription = contentDescription }
-            // Roomy padding → a tall, easy far-tap target on an arm's-length upright screen.
-            .padding(horizontal = 26.dp, vertical = 18.dp),
-    )
-}
-
-@Composable
-private fun Transcript(turns: List<Turn>, phase: ConversationHub.UiPhase, audioLevel: StateFlow<Float>) {
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    // reverseLayout anchors the conversation to the BOTTOM (newest just above the mic, history above it);
-    // index 0 is the newest, so we feed the list reversed.
-    val items = turns.asReversed()
-    val latest = turns.lastOrNull()
-    val latestId = latest?.id
-
-    // The model has taken the turn (SPEAKING) but hasn't produced words OR audio yet — the Search/tool
-    // "thinking" gap. Show animated dots where the answer will land so the latency reads as working, not stuck.
-    // The audio gate matters: the server can stream audio before any transcript (latest still the USER turn),
-    // and we must drop the dots the moment sound starts, not wait for the first transcribed word.
-    val level by audioLevel.collectAsStateWithLifecycle()
-    val thinking = phase == ConversationHub.UiPhase.SPEAKING &&
-        (latest?.role != Role.MODEL || latest.text.isBlank()) &&
-        level < THINKING_AUDIO_EPS
-
-    // "At bottom" = pinned to the newest (index 0). Flips false when the user scrolls up into history,
-    // pausing auto-follow so we never fight them reading back.
-    val atBottom by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= BOTTOM_SLOP_PX
-        }
-    }
-
-    // A new turn re-engages follow even if the user had scrolled up.
-    LaunchedEffect(turns.size) { listState.animateScrollToItem(0) }
-    // The newest turn grows as text streams (user chips) or words reveal (model, via revealedWords) — follow
-    // while pinned.
-    LaunchedEffect(latest?.text, latest?.revealedWords) { if (atBottom) listState.scrollToItem(0) }
-
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        // Cap the line measure for readability and center the column — queried against the real width at
-        // runtime so it adapts to any Portal model / orientation (no hardcoded resolution). Both user
-        // questions and model answers share this one left edge (single-column reading, no left/right split).
-        val gutter = ((maxWidth - Measure.Reading) / 2).coerceAtLeast(Measure.MinGutter)
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            reverseLayout = true,
-            contentPadding = PaddingValues(horizontal = gutter, vertical = 16.dp),
-        ) {
-            // reverseLayout → the first-declared item sits at the bottom (newest), just after the question.
-            if (thinking) {
-                item(key = "thinking") { ThinkingDots() }
-            }
-            items(items, key = { it.id }) { turn ->
-                // The Transcript stamps revealedWords on Jarvis's active turn while it speaks; reveal it word-
-                // by-word only then. Every finished/older turn (and any turn once speaking ends) shows its text —
-                // the full answer, or the words heard if it was cut short (the Transcript trims a cut turn's text
-                // and clears its count, so an interrupted answer still latest while SPEAKING shows what was heard).
-                val revealing = turn.id == latestId && phase == ConversationHub.UiPhase.SPEAKING
-                TurnItem(
-                    turn = turn,
-                    dimmed = turn.id != latestId,
-                    revealedWords = if (revealing) turn.revealedWords else null,
-                )
-            }
-        }
-        AnimatedVisibility(
-            visible = !atBottom,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
-        ) {
-            ScrollToBottomButton { scope.launch { listState.animateScrollToItem(0) } }
-        }
-    }
-}
-
-@Composable
-private fun TurnItem(turn: Turn, dimmed: Boolean, revealedWords: Int?) {
-    val alpha = if (dimmed) OLDER_TURN_ALPHA else 1f
-    when (turn.role) {
-        // The user's question reads as a quiet, left-aligned inset ABOVE its answer — same reading edge as
-        // the model text (one column, no right-side bubble), smaller and dimmer so the answer stays the star.
-        // A larger gap above groups each question with the answer that follows (a Q&A pair). An accent ›
-        // marker distinguishes a question from an answer without a chip.
-        Role.USER -> Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(color = Accent.copy(alpha = if (dimmed) OLDER_TURN_ALPHA else 1f))) {
-                    append("›  ")
-                }
-                append(turn.text)
-            },
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (dimmed) OLDER_TURN_ALPHA else SECONDARY_ALPHA),
-            fontSize = TextSize.UserEcho,
-            modifier = Modifier.fillMaxWidth().padding(top = TurnSpacing.PairGap, bottom = TurnSpacing.Couple),
-        )
-
-        Role.MODEL -> {
-            val modifier = Modifier.fillMaxWidth().padding(top = TurnSpacing.Couple, bottom = TurnSpacing.Trailing)
-            if (revealedWords != null) {
-                RevealingModelText(turn.text, revealedWords, modifier)
-            } else {
-                Text(
-                    text = turn.text,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
-                    fontSize = TextSize.ModelText,
-                    lineHeight = TextSize.ModelLine,
-                    modifier = modifier,
-                )
-            }
-        }
-    }
-}
-
-/**
- * The active model answer, revealed word-by-word in step with its speech: the first [revealedWords] words
- * of the *original* [text] are shown (so whitespace/newlines are preserved verbatim — no reflow when the
- * turn later snaps to the full plain text) and the most-recently revealed word fades in (alpha 0→1 over
- * [WORD_FADE_MS]).
- */
-@Composable
-private fun RevealingModelText(text: String, revealedWords: Int, modifier: Modifier = Modifier) {
-    val ranges = remember(text) { RevealProgress.wordRanges(text) }
-    val shown = revealedWords.coerceIn(0, ranges.size)
-    val color = MaterialTheme.colorScheme.onBackground
-
-    // A FRESH fade per newly revealed word: keyed on [shown], so each trailing word starts at 0 on its very
-    // first composition (no full-alpha frame → no blink) and fades in exactly once. Already-revealed words
-    // render at full alpha and are never re-animated ("once rendered, don't touch the word").
-    val fade = remember(shown) { Animatable(0f) }
-    LaunchedEffect(shown) { if (shown > 0) fade.animateTo(1f, tween(WORD_FADE_MS)) }
-
-    val annotated = buildAnnotatedString {
-        if (shown > 0) {
-            val last = ranges[shown - 1]
-            // Everything up to the newest word (prior words + their original whitespace) at full alpha…
-            withStyle(SpanStyle(color = color)) { append(text.substring(0, last.first)) }
-            // …then the newest word fades in. At full reveal, include the original trailing text too so this
-            // matches the plain-Text snap exactly.
-            val end = if (shown >= ranges.size) text.length else last.last + 1
-            withStyle(SpanStyle(color = color.copy(alpha = fade.value))) { append(text.substring(last.first, end)) }
-        }
-    }
-    Text(text = annotated, fontSize = TextSize.ModelText, lineHeight = TextSize.ModelLine, modifier = modifier)
-}
-
-/** Three staggered, breathing dots — the model's "thinking" placeholder during the pre-output gap. */
-@Composable
-private fun ThinkingDots(modifier: Modifier = Modifier) {
-    val reduceMotion = LocalReduceMotion.current
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 6.dp)
-            .semantics { contentDescription = "Jarvis is thinking" },
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (reduceMotion) {
-            // Three steady dots still read as "working", without the ripple.
-            repeat(3) { Box(Modifier.size(14.dp).clip(CircleShape).background(Accent.copy(alpha = 0.7f))) }
-        } else {
-            val transition = rememberInfiniteTransition(label = "thinking")
-            repeat(3) { i ->
-                val alpha by transition.animateFloat(
-                    initialValue = 0.25f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(600),
-                        repeatMode = RepeatMode.Reverse,
-                        initialStartOffset = StartOffset(i * 200), // stagger so the dots ripple
-                    ),
-                    label = "dot$i",
-                )
-                Box(Modifier.size(14.dp).clip(CircleShape).background(Accent.copy(alpha = alpha)))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BottomBar(
-    phase: ConversationHub.UiPhase,
-    audioLevel: StateFlow<Float>,
-    hasTranscript: Boolean,
-    onMicTap: () -> Unit,
-    onEnd: () -> Unit,
-) {
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            // At rest: the mic invitation.
-            phase == ConversationHub.UiPhase.IDLE -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                MicButton(onMicTap)
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = IDLE_HINT,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-                    fontSize = TextSize.Body,
-                )
-            }
-
-            // A conversation with a transcript: the compact bottom visualizer alongside End.
-            hasTranscript -> {
-                val level by audioLevel.collectAsStateWithLifecycle()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                ) {
-                    AudioVisualizer(level)
-                    EndButton(onEnd)
-                }
-            }
-
-            // Connecting / listening, nothing said yet: the center orb is the reactive element, so the bar is
-            // just End (no duplicate visualizer).
-            else -> EndButton(onEnd)
-        }
-    }
-}
-
-@Composable
-private fun EndButton(onEnd: () -> Unit) {
-    // The functional control in the speaking/listening bar — sized to lead, so the (ambient) audio orb beside
-    // it never out-weighs the one element that actually does something.
-    CircleButton(onClick = onEnd, bg = MaterialTheme.colorScheme.surface, size = Dims.EndButton) {
-        Icon(
-            imageVector = Icons.Filled.Close,
-            contentDescription = "End conversation",
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(Dims.EndIcon),
-        )
-    }
-}
-
-@Composable
-private fun MicButton(onTap: () -> Unit) {
-    // A slow breathing pulse invites a tap while idle (held still under reduce-motion).
-    val pulse = if (LocalReduceMotion.current) {
-        1f
-    } else {
-        rememberInfiniteTransition(label = "micPulse").animateFloat(
-            initialValue = 1f,
-            targetValue = 1.06f,
-            animationSpec = infiniteRepeatable(animation = tween(1100), repeatMode = RepeatMode.Reverse),
-            label = "pulse",
-        ).value
-    }
-    Box(
-        modifier = Modifier
-            .size(Dims.MicSize)
-            .scale(pulse)
-            .clip(CircleShape)
-            .background(Accent)
-            .clickable(onClick = onTap),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Mic,
-            contentDescription = "Start a conversation",
-            tint = Color.White,
-            modifier = Modifier.size(Dims.MicIcon),
-        )
-    }
-}
-
-@Composable
-private fun ScrollToBottomButton(onClick: () -> Unit) {
-    CircleButton(onClick = onClick, bg = MaterialTheme.colorScheme.surface, size = 52.dp) {
-        Icon(
-            imageVector = Icons.Filled.KeyboardArrowDown,
-            contentDescription = "Scroll to latest",
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(30.dp),
-        )
-    }
-}
-
-@Composable
-private fun CircleButton(
-    onClick: () -> Unit,
-    bg: Color,
-    size: Dp = 64.dp,
-    content: @Composable () -> Unit,
-) {
-    Box(
-        modifier = Modifier.size(size).clip(CircleShape).background(bg).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content() }
 }
