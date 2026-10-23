@@ -71,7 +71,8 @@ class LocalWireFormat(
             "tool_call" -> ToolCallWire.parseCalls(json.optJSONArray("calls"))
                 .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCall(it)) } ?: emptyList()
 
-            "tool_cancel" -> parseToolCancel(json)
+            "tool_cancel" -> ToolCallWire.parseCancelIds(json.optJSONArray("ids"))
+                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCancel(it)) } ?: emptyList()
 
             else -> emptyList()
         }
@@ -80,12 +81,6 @@ class LocalWireFormat(
     /** One raw 24 kHz PCM chunk. */
     override fun decode(bytes: ByteArray): List<BackendEvent> =
         if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
-
-    private fun parseToolCancel(json: JSONObject): List<BackendEvent> {
-        val idElements = json.optJSONArray("ids") ?: return emptyList()
-        val ids = (0 until idElements.length()).mapNotNull { i -> idElements.optString(i).takeIf { it.isNotEmpty() } }
-        return if (ids.isEmpty()) emptyList() else listOf(BackendEvent.ToolCancel(ids))
-    }
 
     private fun JSONObject.toFrame() = Frame.Text(toString())
 }

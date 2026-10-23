@@ -1,0 +1,188 @@
+package com.portal.assistant.gemini
+
+import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.BackendEvent
+import com.portal.assistant.conversation.backend.Frame
+import com.portal.assistant.conversation.backend.ToolCallWire
+import com.portal.assistant.conversation.backend.WireFormat
+import com.portal.commons.PcmCaptureFormat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.Base64
+
+/**
+ * The wire format of the **Gemini Live API** (BidiGenerateContent over a WebSocket).
+ *
+ * A real-time, bidirectional voice session: we stream raw 16 kHz PCM mic audio up, and the model
+ * streams native 24 kHz PCM speech back, plus running transcripts of both sides. The server does the
+ * voice-activity detection, so it decides when the user's turn ends and starts replying. The
+ * `googleSearch` tool is enabled for live weather/news grounding; [functionDeclarations] adds
+ * on-device function calling.
+ *
+ * Every frame is JSON text, audio base64 inside it. Pure — the socket is
+ * [WebSocketVoiceBackend][com.portal.assistant.conversation.backend.WebSocketVoiceBackend]'s, and the connect
+ * address (endpoint + API key) is [GeminiBackend.Factory]'s.
+ */
+class GeminiWireFormat(
+    private val model: String,
+    private val systemPrompt: String,
+    private val functionDeclarations: List<JSONObject> = emptyList(),
+    /** The Chosen speaker (a [GeminiSpeaker] name); null = Server default. */
+    private val speaker: String? = null,
+) : WireFormat {
+
+    override val label = "Live"
+
+    /**
+     * The `setup` frame: AUDIO responses, the system instruction, `googleSearch` grounding plus optional
+     * [functionDeclarations] (never emits an empty `functionDeclarations` array — the Live API rejects it),
+     * input- and output-audio transcription (drives the user-speech signal and the model's word-by-word chat
+     * text), and the server VAD config. A chosen [speaker] adds
+     * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`; null = Server default, which leaves
+     * `speechConfig` out entirely so Gemini picks its own voice.
+     */
+    override fun setup(): Frame = JSONObject().put(
+        "setup",
+        JSONObject().apply {
+            put("model", if (model.startsWith("models/")) model else "models/$model")
+            val generationConfig = JSONObject().put("responseModalities", JSONArray().put("AUDIO"))
+            if (speaker != null) {
+                generationConfig.put(
+                    "speechConfig",
+                    JSONObject().put(
+                        "voiceConfig",
+                        JSONObject().put("prebuiltVoiceConfig", JSONObject().put("voiceName", speaker)),
+                    ),
+                )
+            }
+            put("generationConfig", generationConfig)
+            put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
+            val toolsArray = JSONArray().put(JSONObject().put("googleSearch", JSONObject()))
+            if (functionDeclarations.isNotEmpty()) {
+                val declarationsArray = JSONArray()
+                functionDeclarations.forEach { declarationsArray.put(it) }
+                toolsArray.put(JSONObject().put("functionDeclarations", declarationsArray))
+            }
+            put("tools", toolsArray)
+            put("inputAudioTranscription", JSONObject())
+            put("outputAudioTranscription", JSONObject())
+            put(
+                "realtimeInputConfig",
+                JSONObject().put(
+                    "automaticActivityDetection",
+                    JSONObject()
+                        .put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
+                        .put("endOfSpeechSensitivity", "END_SENSITIVITY_LOW")
+                        .put("prefixPaddingMs", VAD_PREFIX_PADDING_MS)
+                        .put("silenceDurationMs", VAD_SILENCE_DURATION_MS),
+                ),
+            )
+        },
+    ).toFrame()
+
+    /** One chunk of 16 kHz mono 16-bit PCM mic audio, base64 in a `realtimeInput` media chunk. */
+    override fun audio(pcm: ByteArray): Frame {
+        val base64Pcm = Base64.getEncoder().encodeToString(pcm)
+        val mimeType = "audio/pcm;rate=${PcmCaptureFormat.SAMPLE_RATE}"
+        return JSONObject().put(
+            "realtimeInput",
+            JSONObject().put(
+                "mediaChunks",
+                JSONArray().put(JSONObject().put("mimeType", mimeType).put("data", base64Pcm)),
+            ),
+        ).toFrame()
+    }
+
+    /**
+     * One complete text turn as the user (e.g. a tapped suggestion). `turnComplete = true` finishes the user's
+     * turn so the model answers immediately — no VAD/end-of-speech wait.
+     */
+    override fun userText(text: String): Frame = JSONObject().put(
+        "clientContent",
+        JSONObject()
+            .put(
+                "turns",
+                JSONArray().put(
+                    JSONObject()
+                        .put("role", "user")
+                        .put("parts", JSONArray().put(JSONObject().put("text", text))),
+                ),
+            )
+            .put("turnComplete", true),
+    ).toFrame()
+
+    /** Tool results as `toolResponse.functionResponses`, in the original functionCalls order. */
+    override fun toolResults(results: List<ToolResult>): Frame {
+        val responses = JSONArray()
+        results.forEach { responses.put(ToolCallWire.resultElement(it)) }
+        return JSONObject().put("toolResponse", JSONObject().put("functionResponses", responses)).toFrame()
+    }
+
+    /**
+     * One server message into the [BackendEvent]s it carries, in document order; unparseable input → empty.
+     * `goAway` is [BackendEvent.ClosingSoon].
+     *
+     * `toolCall` and `toolCallCancellation` are top-level siblings of `serverContent` — the same message can
+     * carry both, so we collect all events and return them merged in document order.
+     */
+    override fun decode(text: String): List<BackendEvent> {
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
+
+        if (json.has("setupComplete")) return listOf(BackendEvent.Ready)
+
+        json.optJSONObject("goAway")?.let { goAway ->
+            return listOf(BackendEvent.ClosingSoon(parseDurationMs(goAway.optString("timeLeft"))))
+        }
+
+        val events = mutableListOf<BackendEvent>()
+
+        // Tool events are top-level — must be parsed BEFORE the serverContent guard below.
+        ToolCallWire.parseCalls(json.optJSONObject("toolCall")?.optJSONArray("functionCalls"))
+            .takeIf { it.isNotEmpty() }?.let { events += BackendEvent.ToolCall(it) }
+        ToolCallWire.parseCancelIds(json.optJSONObject("toolCallCancellation")?.optJSONArray("ids"))
+            .takeIf { it.isNotEmpty() }?.let { events += BackendEvent.ToolCancel(it) }
+
+        val serverContent = json.optJSONObject("serverContent") ?: return events
+
+        serverContent.optJSONObject("inputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }
+            ?.let { events.add(BackendEvent.InputTranscript(it)) }
+
+        if (serverContent.optBoolean("interrupted", false)) events.add(BackendEvent.Interrupted)
+
+        val parts = serverContent.optJSONObject("modelTurn")?.optJSONArray("parts")
+        if (parts != null && parts.length() > 0) {
+            events.add(BackendEvent.ModelGenerating)
+            for (i in 0 until parts.length()) {
+                val base64Audio = parts.optJSONObject(i)?.optJSONObject("inlineData")?.optString("data").orEmpty()
+                if (base64Audio.isNotEmpty()) {
+                    runCatching { Base64.getMimeDecoder().decode(base64Audio) }.getOrNull()
+                        ?.let { events.add(BackendEvent.Audio(it)) }
+                }
+            }
+        }
+
+        serverContent.optJSONObject("outputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }
+            ?.let { events.add(BackendEvent.OutputTranscript(it)) }
+
+        if (serverContent.optBoolean("turnComplete", false)) events.add(BackendEvent.TurnComplete)
+
+        return events
+    }
+
+    /** Gemini sends JSON in binary frames too: read the bytes as UTF-8 and decode them as text. */
+    override fun decode(bytes: ByteArray): List<BackendEvent> = decode(String(bytes, Charsets.UTF_8))
+
+    private fun JSONObject.toFrame() = Frame.Text(toString())
+
+    companion object {
+        // Server-side VAD tuning. The silence window dictates how long the user must remain silent before
+        // the model considers their turn "complete" and starts generating its response. 600 ms stays safe for
+        // a mid-clause breath only because endOfSpeechSensitivity is END_SENSITIVITY_LOW below — raise this
+        // window if you ever raise that sensitivity. Tune on device.
+        const val VAD_PREFIX_PADDING_MS = 300
+        const val VAD_SILENCE_DURATION_MS = 600
+
+        /** Parse a protobuf Duration string like "9.5s" to millis; 0 if unparseable. */
+        fun parseDurationMs(durationText: String): Long = (durationText.trim().removeSuffix("s").toDoubleOrNull()?.times(1000))?.toLong() ?: 0L
+    }
+}

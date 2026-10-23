@@ -7,7 +7,8 @@ with just a small orange bar over whatever's on screen (no takeover). Open the a
 **live on-screen chat** of the conversation.
 
 The voice backend is a swappable seam — "Jarvis" is the assistant; **Settings → Backend** picks
-**Gemini Live** (cloud, default) or a **local server** on your LAN.
+**Gemini Live** (cloud, default) or a **local server** on your LAN. Both run on one shared WebSocket
+transport; each backend only supplies its wire format (how its frames look), so a new backend is small.
 
 <p align="center">
   <a href="https://buymeacoffee.com/linuxbarista"><img src="docs/img/bmc-button.png" alt="Buy Me A Coffee" width="200"></a>

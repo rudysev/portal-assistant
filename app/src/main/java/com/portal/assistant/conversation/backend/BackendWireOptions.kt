@@ -1,9 +1,9 @@
 package com.portal.assistant.conversation.backend
 
 /**
- * Wire/transport knobs for the Gemini Live client. [GeminiBackend] reads this slice of [BackendConfig];
- * other factories ignore it. Endpoint defaults live in [LiveClient][com.portal.assistant.gemini.LiveClient]
- * unless [endpointUrl] is set here in the future.
+ * Wire/transport knobs for the Gemini Live backend. [GeminiBackend][com.portal.assistant.gemini.GeminiBackend] reads this
+ * slice of [BackendConfig]; other factories ignore it. A null [endpointUrl] connects to
+ * [GeminiBackend.DEFAULT_ENDPOINT][com.portal.assistant.gemini.GeminiBackend.DEFAULT_ENDPOINT].
  */
 data class GeminiWireOptions(
     val endpointUrl: String? = null,

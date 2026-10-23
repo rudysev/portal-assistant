@@ -13,7 +13,7 @@ data class DeviceLocation(
 
 /**
  * Pure IP-geolocation parsing — Android-free so it's unit-tested (same pattern as
- * [com.portal.assistant.gemini.LiveClient]'s parsers). The Android shell ([LocationProvider]) does the
+ * [com.portal.assistant.gemini.GeminiWireFormat]'s decoding). The Android shell ([LocationProvider]) does the
  * HTTP + SharedPreferences I/O around these.
  */
 object Geolocation {

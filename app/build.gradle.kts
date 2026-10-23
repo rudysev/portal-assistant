@@ -57,7 +57,7 @@ dependencies {
   implementation(libs.okhttp)
 
   testImplementation(libs.junit)
-  // Real org.json for JVM unit tests (android.jar's stubs throw), so LiveClient parsing is testable.
+  // Real org.json for JVM unit tests (android.jar's stubs throw), so the wire formats are testable.
   testImplementation(libs.json)
 
   debugImplementation(libs.androidx.compose.ui.tooling)

@@ -1,7 +1,9 @@
 package com.portal.assistant.gemini
 
 import com.portal.assistant.conversation.FunctionCall
+import com.portal.assistant.conversation.backend.Frame
 import com.portal.assistant.conversation.backend.VoiceBackend
+import com.portal.assistant.conversation.backend.WebSocketVoiceBackend
 import com.portal.assistant.gemini.SpeakerPreview.Action
 import com.portal.assistant.gemini.SpeakerPreview.Event
 import com.portal.assistant.gemini.SpeakerPreview.RowStatus
@@ -271,17 +273,19 @@ class SpeakerPreviewTest {
         override fun onClosed() {}
     }
 
-    /** The preview's session as the Gemini factory builds it — the same path as a conversation's. */
-    private fun sessionOf(speaker: GeminiSpeaker.Speaker?): LiveClient = GeminiBackend.Factory.create(
-        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker),
-        Silent,
-    ) as LiveClient
+    /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
+    private fun configOf(speaker: GeminiSpeaker.Speaker?) =
+        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
 
     private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject =
-        JSONObject(sessionOf(speaker).setupMessage()).getJSONObject("setup")
+        JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
+
+    @Test fun previewSessionRunsOnTheSharedTransport() {
+        assertTrue(GeminiBackend.Factory.create(configOf(charon), Silent) is WebSocketVoiceBackend)
+    }
 
     @Test fun previewSessionConnectsWithTheApiKey() {
-        assertEquals("${LiveClient.WS_BASE}?key=key", sessionOf(charon).connectUrl)
+        assertEquals("${GeminiBackend.DEFAULT_ENDPOINT}?key=key", GeminiBackend.connectAddress(configOf(charon)))
     }
 
     @Test fun previewSessionUsesTheSelectedModelAndTheCandidateSpeaker() {
