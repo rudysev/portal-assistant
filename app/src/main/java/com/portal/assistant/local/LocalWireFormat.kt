@@ -55,10 +55,10 @@ class LocalWireFormat(
             "ready" -> listOf(BackendEvent.Ready)
 
             "input_transcript" ->
-                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.InputTranscript(it)) } ?: emptyList()
+                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.InputTranscript(it)) }.orEmpty()
 
             "output_transcript" ->
-                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.OutputTranscript(it)) } ?: emptyList()
+                json.optString("text").takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.OutputTranscript(it)) }.orEmpty()
 
             "model_generating" -> listOf(BackendEvent.ModelGenerating)
 
@@ -69,10 +69,10 @@ class LocalWireFormat(
             "error" -> listOf(BackendEvent.Error(json.optString("message").ifEmpty { "Local server error" }))
 
             "tool_call" -> ToolCallWire.parseCalls(json.optJSONArray("calls"))
-                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCall(it)) } ?: emptyList()
+                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCall(it)) }.orEmpty()
 
             "tool_cancel" -> ToolCallWire.parseCancelIds(json.optJSONArray("ids"))
-                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCancel(it)) } ?: emptyList()
+                .takeIf { it.isNotEmpty() }?.let { listOf(BackendEvent.ToolCancel(it)) }.orEmpty()
 
             else -> emptyList()
         }

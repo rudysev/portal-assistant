@@ -213,7 +213,7 @@ object AppPrefs {
 
     /** Provider packages the user has enabled to contribute external tools. A defensive copy — the set
      *  SharedPreferences returns must never be mutated. */
-    fun enabledProviders(context: Context): Set<String> = prefs(context).getStringSet(KEY_TOOLS_ENABLED, null)?.toSet() ?: emptySet()
+    fun enabledProviders(context: Context): Set<String> = prefs(context).getStringSet(KEY_TOOLS_ENABLED, null)?.toSet().orEmpty()
 
     /** Add/remove [pkg] from the external-tool allowlist (applies to the next conversation). */
     fun setProviderEnabled(context: Context, pkg: String, enabled: Boolean) {

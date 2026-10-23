@@ -504,7 +504,7 @@ private fun ConversationStatus(
         // Cross-fade the word so Connecting→Listening doesn't pop. fillMaxWidth + centered text keeps both
         // states in the same full-width box — otherwise the narrower incoming word is left-aligned inside the
         // wider outgoing word's bounds, then jumps to center when the box remeasures (the offset/shift bug).
-        Crossfade(targetState = statusLabel(phase) ?: "", label = "statusWord") { label ->
+        Crossfade(targetState = statusLabel(phase).orEmpty(), label = "statusWord") { label ->
             Text(
                 text = label,
                 color = MaterialTheme.colorScheme.onBackground,

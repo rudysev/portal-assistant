@@ -56,7 +56,7 @@ object ExternalToolSpec {
                     return@forEach
                 }
                 summariesByPkg.putIfAbsent(provider.pkg, summary)
-                val array = runCatching { JSONArray(provider.declarationsJson ?: "") }.getOrNull()
+                val array = runCatching { JSONArray(provider.declarationsJson.orEmpty()) }.getOrNull()
                 if (array == null) {
                     onDropped("provider ${provider.pkg}: declarations not a JSON array")
                     return@forEach

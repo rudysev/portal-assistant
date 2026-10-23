@@ -83,7 +83,7 @@ object PackageCatalog {
      * [ExternalToolProvider]'s snapshot: a music app installed *after* the process warmed won't appear until
      * the next process start — accepted on this appliance, where apps are pre-installed and rarely change.
      */
-    fun musicApps(context: Context): List<AppEntry> = cachedMusicApps ?: queryMusicApps(context.applicationContext)?.also { cachedMusicApps = it } ?: emptyList()
+    fun musicApps(context: Context): List<AppEntry> = (cachedMusicApps ?: queryMusicApps(context.applicationContext)?.also { cachedMusicApps = it }).orEmpty()
 
     /** Pre-compute the music-app list off the main thread (service prewarm). Idempotent; safe anytime. */
     fun warmMusicApps(context: Context) {
