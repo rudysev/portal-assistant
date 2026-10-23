@@ -1,5 +1,6 @@
 package com.portal.assistant.wake
 
+import com.portal.commons.audio.CaptureLoss
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,6 +19,7 @@ class ForegroundWakeTest {
     private val model = FakeWakeModel()
     private val io = SteppedExecutor()
     private val main = SteppedExecutor()
+    private val later = DelayedExecutor()
     private val detectors = mutableListOf<FakeDetector>()
     private val wakes = mutableListOf<String>()
     private val setups = mutableListOf<ModelSetup>()
@@ -30,11 +32,12 @@ class ForegroundWakeTest {
         micPermitted = { micPermitted },
         online = { online },
         model = model,
-        detectors = { dir, onWake, onUnavailable ->
-            FakeDetector(dir, onWake, onUnavailable, events).also { detectors += it }
+        detectors = { dir, onWake, onUnavailable, onCaptureLost ->
+            FakeDetector(dir, onWake, onUnavailable, onCaptureLost, events).also { detectors += it }
         },
         io = io,
         main = main,
+        later = later,
         onWake = { wakeId ->
             wakes += wakeId
             events += "onWake($wakeId)"
@@ -291,6 +294,59 @@ class ForegroundWakeTest {
         assertTrue(detectors.isEmpty())
     }
 
+    @Test fun aDroppedCaptureRetriesStartOnceAfterADelayThenWaitsForTheNextArm() {
+        model.installed = true
+        val wake = foregroundWake()
+        wake.foregrounded()
+
+        detector.loses(CaptureLoss.Dropped("device died"))
+        main.runAll()
+        assertEquals(1, detector.starts) // not inline: the retry waits ~1 s
+        assertEquals(listOf(1_000L), later.delays)
+        later.runAll()
+        assertEquals(2, detector.starts)
+
+        detector.loses(CaptureLoss.Dropped("device died again")) // the retry dropped too: only once
+        main.runAll()
+        later.runAll()
+        assertEquals(2, detector.starts)
+
+        wake.conversationStarting()
+        wake.conversationEnded() // the next arm restarts, and earns a fresh retry
+        assertEquals(3, detector.starts)
+        detector.loses(CaptureLoss.Dropped("device died a third time"))
+        main.runAll()
+        later.runAll()
+        assertEquals(4, detector.starts)
+    }
+
+    @Test fun aRetryDueAfterTheMicWasReleasedStartsNothing() {
+        model.installed = true
+        val wake = foregroundWake()
+        wake.foregrounded()
+
+        detector.loses(CaptureLoss.Dropped("device died"))
+        main.runAll()
+        wake.backgrounded()
+        later.runAll()
+        assertEquals(1, detector.starts)
+    }
+
+    @Test fun aNotGrantedLossWaitsForTheNextArm() {
+        model.installed = true
+        val wake = foregroundWake()
+        wake.foregrounded()
+
+        detector.loses(CaptureLoss.NotGranted("mic busy"))
+        main.runAll()
+        assertTrue(later.delays.isEmpty())
+        assertEquals(1, detector.starts)
+
+        wake.backgrounded()
+        wake.foregrounded()
+        assertEquals(2, detector.starts)
+    }
+
     /** An in-memory [WakeModel]; each scripted result is used by one [install], then installs succeed. */
     private class FakeWakeModel : WakeModel {
         var installed = false
@@ -323,16 +379,15 @@ class ForegroundWakeTest {
         val dir: File,
         private val onWake: (String) -> Unit,
         private val onUnavailable: () -> Unit,
+        private val onCaptureLost: (CaptureLoss) -> Unit,
         private val events: MutableList<String>,
     ) : Detector {
         var starts = 0
         var pauses = 0
         var closed = false
-        var startReturns = true
 
-        override fun start(): Boolean {
+        override fun start() {
             starts++
-            return startReturns
         }
 
         override fun pause() {
@@ -347,6 +402,23 @@ class ForegroundWakeTest {
         fun hears(wakeId: String) = onWake(wakeId)
 
         fun reportsUnavailable() = onUnavailable()
+
+        fun loses(loss: CaptureLoss) = onCaptureLost(loss)
+    }
+
+    /** Records each delay and runs the delayed tasks only when the test says so. */
+    private class DelayedExecutor : (Long, Runnable) -> Unit {
+        val delays = mutableListOf<Long>()
+        private val queue = ArrayDeque<Runnable>()
+
+        override fun invoke(delayMs: Long, task: Runnable) {
+            delays += delayMs
+            queue.add(task)
+        }
+
+        fun runAll() {
+            while (queue.isNotEmpty()) queue.removeFirst().run()
+        }
     }
 
     /** Runs a task only when the test says so. */

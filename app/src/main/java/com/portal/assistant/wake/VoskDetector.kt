@@ -1,7 +1,7 @@
 package com.portal.assistant.wake
 
 import android.content.Context
-import com.portal.commons.DebugLog
+import com.portal.commons.audio.CaptureLoss
 import com.portal.commons.audio.WakeDetectors
 import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
@@ -11,10 +11,16 @@ import java.io.File
 
 /**
  * The production [Detector]: the commons [WakeMicEngine] running Vosk on the downloaded model, listening for
- * "hey jarvis". Its wake arrives on the capture thread and its unavailable report on main; [ForegroundWake] hops both.
+ * "hey jarvis". Its wake arrives on the capture thread, its unavailable report and capture loss on main;
+ * [ForegroundWake] hops all three.
  */
-class VoskDetector(context: Context, modelDir: File, onWake: (wakeId: String) -> Unit, onUnavailable: () -> Unit) :
-    Detector {
+class VoskDetector(
+    context: Context,
+    modelDir: File,
+    onWake: (wakeId: String) -> Unit,
+    onUnavailable: () -> Unit,
+    onCaptureLost: (CaptureLoss) -> Unit,
+) : Detector {
     private val engine = WakeMicEngine(
         context = context,
         config = WakeMicConfig(
@@ -22,11 +28,11 @@ class VoskDetector(context: Context, modelDir: File, onWake: (wakeId: String) ->
             detectors = listOf(WakeDetectors.vosk(modelDir = modelDir)),
             onDetectorUnavailable = { onUnavailable() },
             onWake = { event -> onWake(event.wakeId) },
-            onError = { DebugLog.log("foreground detector error: $it") },
+            onCaptureLost = onCaptureLost,
         ),
     )
 
-    override fun start(): Boolean = engine.start()
+    override fun start() = engine.start()
 
     override fun pause() = engine.pause()
 
