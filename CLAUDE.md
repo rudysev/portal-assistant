@@ -43,7 +43,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
     ("What's the weather?", "Set a 10-minute timer") — a calm, clock-first glance, not a command menu.
     Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
     time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
-    first turn** (not just opening the mic): `LiveClient.sendText` → a `clientContent` text turn — the
+    first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `clientContent` text turn — the
     `Trigger.SuggestionChip`'s text becomes the opening's `firstText`.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-
@@ -62,7 +62,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
   (`ui/SettingsScreen`): model picker, voice picker (Gemini only — the Chosen speaker from the
   `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
-  `LiveClient.buildSetup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
+  `GeminiWireFormat.setup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
   it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's session config, built by `GeminiBackend.Factory` like a conversation's) driven by the thin
   `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one
   "introduce yourself" text turn, its own `PcmPlayer`; one preview at a time, stopped when the dialog closes,
@@ -119,18 +119,24 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   16 kHz-in / 24 kHz-out PCM audio contract). `BackendConfig` carries the session inputs (Gemini's API key
   becomes the generic `credential`); `VoiceBackendFactory` builds one. `conversation/backend/Backends.kt` is
   the **single composition point** that picks the concrete backend — deliberately the only file in
-  `conversation/` that imports `gemini` (and `local`). Gemini's `LiveClient` implements `VoiceBackend`, wired via
-  `gemini/GeminiBackend.Factory`; the opt-in LAN backend is the top-level `local/` package, a sibling of `gemini/`
-  (`LocalBackend` factory object + the pure `LocalWireFormat` on the shared `conversation/backend/WebSocketVoiceBackend`
-  transport (setup gate, first-audio guarantee, failure/close; tool calls via `ToolCallWire`) — Pipecat voice host
-  over `wss://`, trust-all TLS, encryption without cert setup — plus its
-  tool-schema mapping `LocalToolMapping` and host address parsing `LocalVoiceHost`). `conversation/backend/` holds
+  `conversation/` that imports `gemini` (and `local`). **Both backends run on one transport**,
+  `conversation/backend/WebSocketVoiceBackend` (the only code that owns a socket: dial, setup frame on open, the
+  setup gate holding back audio/text/tool results until ready, the first-audio guarantee, one labelled error on
+  failure, closed/closing, idempotent close); each backend supplies only a pure `WireFormat` (encode setup / audio /
+  user text / tool results, decode text + binary frames into `BackendEvent`s, plus its "Live"/"Local" error label),
+  with tool calls parsed and results framed by the shared `ToolCallWire`. Each backend is a top-level package whose
+  factory object hands the transport its wire format, connect address and TLS client: `gemini/GeminiBackend`
+  (`GeminiWireFormat` — JSON text frames, base64 audio, binary frames read as UTF-8 JSON, `goAway` → closing soon;
+  the configured endpoint or `DEFAULT_ENDPOINT` + the URL-encoded `key`; system trust) and the opt-in LAN backend
+  `local/LocalBackend` (`LocalWireFormat` — JSON control + raw PCM binary frames; Pipecat voice host over `wss://`,
+  trust-all TLS, encryption without cert setup — plus its tool-schema mapping `LocalToolMapping` and host address
+  parsing `LocalVoiceHost`). `conversation/backend/` holds
   no concrete backend: only the seam (incl. the per-backend wire options, slices of `BackendConfig`), the shared
   transport (`BackendEvent`, `WireFormat`, `WebSocketVoiceBackend`, `ToolCallWire`) and the composition point.
   `Backends.resolve()` picks the factory + credential (API key vs host URL) per `AppPrefs.voiceBackendKind`;
   `Backends.warmDns()` pre-resolves the selected host. The reducer + engine never touch `gemini` or `local` directly. Seam contract is unit-tested
   (`conversation/backend/VoiceBackendTest`, `conversation/backend/WebSocketVoiceBackendTest`,
-  `local/LocalWireFormatTest`).
+  `gemini/GeminiWireFormatTest`, `local/LocalWireFormatTest`).
 - `conversation/Trigger.kt` + `conversation/ConversationOpening.kt` — **how a conversation opens**. A closed
   `Trigger` (`WakeWord(wakeId)` / `MicTap` / `SuggestionChip(text)`) is typed end to end; the only untyped hop is
   the Intent into the service (encoded + decoded side by side in `AssistantService`'s companion; an undecodable
@@ -175,9 +181,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied by `Transcript` to Jarvis's text (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
-- `gemini/LiveClient.kt` — Gemini Live WebSocket (OkHttp). `googleSearch` on, **plus function-calling**: the
-  `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `buildSetup`, and `toolCall`/
-  `toolCallCancellation` are parsed and answered (`sendToolResponse`). Built-in tools: `portal.get_time`,
+- `gemini/GeminiWireFormat.kt` — Gemini Live's frames (the socket is the shared transport's). `googleSearch` on,
+  **plus function-calling**: the `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `setup`,
+  and `toolCall`/`toolCallCancellation` are decoded and answered (`toolResults`). Built-in tools: `portal.get_time`,
   `portal.set_timer`/`list_timers`/`cancel_timer`, `portal.get_volume`/`set_volume`/`adjust_volume`/`set_mute`,
   `portal.get_brightness`/`set_brightness`/`adjust_brightness`, `portal.get_do_not_disturb`/`set_do_not_disturb`,
   `portal.play_music` (play a song/artist/album/playlist by name — **multi-app**: routes to the user's default
@@ -194,9 +200,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   pure `AppMatch` as `open_app`),
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
-  pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`). Inbound parsing is the pure, unit-tested `parseServerMessage`; `buildSetup` is unit-tested
-  too. A tapped suggestion chip sends a **text turn** via `sendText`/`buildClientText` (`clientContent` +
-  `turnComplete` — the model answers without waiting on VAD), also unit-tested.
+  pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`). Every frame — `setup`, `audio`, `userText`, `toolResults`
+  and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
+  via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
   one, routing unchanged: built-ins win, then external providers, then `unknown tool`), the `AfterSpeech` queue, the
@@ -261,7 +267,7 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`) · `gemini/LiveClient` · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
+`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
@@ -325,7 +331,7 @@ be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a tu
 
 ## Provenance
 
-`LiveClient`, `PcmPlayer`, `SpeechAudio`, the `RecordingOverlay`, and `MicCapture`'s `AudioRecord` config
+The Gemini Live client (now `GeminiWireFormat` on the shared transport), `PcmPlayer`, `SpeechAudio`, the `RecordingOverlay`, and `MicCapture`'s `AudioRecord` config
 were adapted from `portal-gemini-chat` (proven on-device), then **simplified**: no tools/skills, and a
 **per-conversation** Live connection (the reference's persistent socket forced session-recycle/stale-guard
 machinery + ~10 timers + a CAS latch — all dropped). `ConversationState`, `AssistantEngine`, and `PcmGain`

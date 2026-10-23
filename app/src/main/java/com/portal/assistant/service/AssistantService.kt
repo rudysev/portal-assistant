@@ -295,7 +295,7 @@ class AssistantService : Service() {
     /**
      * One-shot, off-thread pre-warm of the *conversation code path* so the first "hey jarvis" doesn't
      * pay it. Keeping the process resident (standby) avoids the cold spawn, but the first conversation
-     * still cold-loads [AssistantEngine]/[LiveClient]/the local backend/OkHttp + builds the shared clients (~1.5 s measured).
+     * still cold-loads [AssistantEngine]/the voice backends/OkHttp + builds the shared clients (~1.5 s measured).
      * Here we build the OkHttp clients, class-load the stack (both backends), pre-resolve the selected
      * backend's host DNS ([Backends.warmDns]), and snapshot the installed tool-provider list. **No mic, no
      * overlay, no socket** is opened — pure warm-up, safe in standby.
@@ -307,7 +307,8 @@ class AssistantService : Service() {
             runCatching {
                 com.portal.assistant.util.Http.shared // builds the OkHttpClient (dispatcher + pool)
                 com.portal.assistant.util.Http.lanVoice // local voice trust-all client
-                Class.forName("com.portal.assistant.gemini.LiveClient")
+                Class.forName("com.portal.assistant.gemini.GeminiBackend")
+                Class.forName("com.portal.assistant.gemini.GeminiWireFormat")
                 Class.forName("com.portal.assistant.conversation.backend.WebSocketVoiceBackend")
                 Class.forName("com.portal.assistant.local.LocalBackend")
                 Class.forName("com.portal.assistant.local.LocalWireFormat")

@@ -3,7 +3,6 @@ package com.portal.assistant.conversation.backend
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
 import com.portal.assistant.gemini.GeminiBackend
-import com.portal.assistant.gemini.LiveClient
 import com.portal.assistant.local.LocalBackend
 import com.portal.assistant.util.Http
 import org.json.JSONObject
@@ -17,7 +16,7 @@ import org.junit.Test
  * Locks in the model-neutral [VoiceBackend] seam. The engine is Android-bound (Handler/Looper,
  * AudioTrack, overlay), so rather than spin it up under Robolectric we test the *contract* it depends
  * on: any implementation can be driven through the full turn lifecycle, and the Gemini adapter maps a
- * neutral [BackendConfig] onto [LiveClient].
+ * neutral [BackendConfig] onto the shared transport.
  */
 class VoiceBackendTest {
 
@@ -152,21 +151,21 @@ class VoiceBackendTest {
     }
 
     @Test
-    fun `Gemini adapter maps neutral config onto a LiveClient`() {
+    fun `Gemini adapter runs the Gemini wire format on the shared transport`() {
         val backend = GeminiBackend.Factory.create(
             BackendConfig(credential = "key", model = "m", systemPrompt = "p"),
             RecordingListener(),
         )
-        assertTrue("Gemini backend should be a LiveClient", backend is LiveClient)
+        assertTrue("Gemini backend should be a WebSocketVoiceBackend", backend is WebSocketVoiceBackend)
     }
+
+    private fun geminiGenerationConfig(config: BackendConfig): JSONObject =
+        JSONObject((GeminiBackend.wireFormat(config).setup() as Frame.Text).text)
+            .getJSONObject("setup").getJSONObject("generationConfig")
 
     @Test
     fun `Gemini adapter speaks with the chosen speaker`() {
-        val backend = GeminiBackend.Factory.create(
-            BackendConfig(credential = "key", model = "m", speaker = "Charon", systemPrompt = "p"),
-            RecordingListener(),
-        ) as LiveClient
-        val voiceName = JSONObject(backend.setupMessage()).getJSONObject("setup").getJSONObject("generationConfig")
+        val voiceName = geminiGenerationConfig(BackendConfig(credential = "key", model = "m", speaker = "Charon", systemPrompt = "p"))
             .getJSONObject("speechConfig").getJSONObject("voiceConfig")
             .getJSONObject("prebuiltVoiceConfig").getString("voiceName")
         assertEquals("Charon", voiceName)
@@ -174,45 +173,43 @@ class VoiceBackendTest {
 
     @Test
     fun `Gemini adapter leaves server default to Gemini`() {
-        val backend = GeminiBackend.Factory.create(
-            BackendConfig(credential = "key", model = "m", speaker = null, systemPrompt = "p"),
-            RecordingListener(),
-        ) as LiveClient
-        val generationConfig = JSONObject(backend.setupMessage()).getJSONObject("setup").getJSONObject("generationConfig")
+        val generationConfig = geminiGenerationConfig(BackendConfig(credential = "key", model = "m", speaker = null, systemPrompt = "p"))
         assertFalse(generationConfig.has("speechConfig"))
     }
 
     @Test
     fun `Gemini adapter URL-encodes the API key into the default endpoint`() {
-        val liveClient = GeminiBackend.Factory.create(
-            BackendConfig(credential = "a+b/c=d&e f", model = "m", systemPrompt = "p"),
-            RecordingListener(),
-        ) as LiveClient
-        assertEquals("${LiveClient.WS_BASE}?key=a%2Bb%2Fc%3Dd%26e%20f", liveClient.connectUrl)
+        val address = GeminiBackend.connectAddress(BackendConfig(credential = "a+b/c=d&e f", model = "m", systemPrompt = "p"))
+        assertEquals(
+            "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService" +
+                ".BidiGenerateContent?key=a%2Bb%2Fc%3Dd%26e%20f",
+            address,
+        )
     }
 
     @Test
     fun `Gemini adapter connects to a configured endpoint`() {
-        val liveClient = GeminiBackend.Factory.create(
+        val address = GeminiBackend.connectAddress(
             BackendConfig(
                 credential = "a+b",
                 model = "m",
                 systemPrompt = "p",
                 gemini = GeminiWireOptions(endpointUrl = "wss://example.test/live"),
             ),
-            RecordingListener(),
-        ) as LiveClient
-        assertEquals("wss://example.test/live?key=a%2Bb", liveClient.connectUrl)
+        )
+        assertEquals("wss://example.test/live?key=a%2Bb", address)
     }
 
     @Test
     fun `Gemini adapter tolerates a null credential`() {
         // A local backend needs no credential; the adapter must not NPE mapping it into Gemini's connect address.
-        val backend = GeminiBackend.Factory.create(
-            BackendConfig(credential = null, model = "m", systemPrompt = "p"),
-            RecordingListener(),
-        )
-        assertTrue(backend is LiveClient)
+        val address = GeminiBackend.connectAddress(BackendConfig(credential = null, model = "m", systemPrompt = "p"))
+        assertTrue(address.endsWith("?key="))
+    }
+
+    @Test
+    fun `Gemini DNS warm-up derives the Gemini host`() {
+        assertEquals("generativelanguage.googleapis.com", GeminiBackend.dnsHost())
     }
 
     @Test

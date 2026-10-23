@@ -4,7 +4,7 @@ package com.portal.assistant.conversation
  * Pure helpers for **resuming** a conversation. When the user starts a turn while a finished transcript is
  * still on screen, we open a fresh Live socket and give the model the recent turns as context so it
  * remembers what was just said. No Android, no I/O — so it's unit-tested (the same pure-logic pattern as
- * [LiveClient.buildSetup][com.portal.assistant.gemini.LiveClient] and [Transcript]).
+ * [GeminiWireFormat][com.portal.assistant.gemini.GeminiWireFormat] and [Transcript]).
  *
  * The history is injected into the **system instruction** rather than a Live `clientContent` message: the
  * system instruction is always part of the prompt, whereas a `clientContent` seed (`turnComplete:false`)
