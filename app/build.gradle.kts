@@ -49,11 +49,19 @@ dependencies {
   implementation(libs.androidx.activity)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.media)
+  implementation(libs.androidx.compose.animation)
+  implementation(libs.androidx.compose.animation.core)
+  implementation(libs.androidx.compose.foundation)
+  implementation(libs.androidx.compose.foundation.layout)
   implementation(libs.androidx.compose.material3)
+  implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons)
+  implementation(libs.androidx.compose.runtime)
   implementation(libs.androidx.compose.ui)
+  implementation(libs.androidx.compose.ui.geometry)
   implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.compose.ui.text)
+  implementation(libs.androidx.compose.ui.unit)
   // NotificationCompat/ContextCompat; the app uses none of core-ktx's Kotlin extensions.
   implementation(libs.androidx.core)
   implementation(libs.androidx.lifecycle.common)
@@ -64,6 +72,8 @@ dependencies {
   implementation(libs.okhttp)
 
   testImplementation(libs.junit)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.animation.core) // FrameClockSpringTest reads Spring.StiffnessMedium
   // Real org.json for JVM unit tests (android.jar's stubs throw), so the wire formats are testable.
   testImplementation(libs.json)
 
