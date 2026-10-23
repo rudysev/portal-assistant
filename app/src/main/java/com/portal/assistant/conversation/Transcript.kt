@@ -104,13 +104,8 @@ data class Transcript(
     private fun revealAt(playedBytes: Long): Transcript {
         val idx = jarvisIndex()
         val next = if (idx < 0) revealedWords else wordsHeard(turns[idx].text, playedBytes)
-        return if (next ==
-            revealedWords
-        ) {
-            this
-        } else {
-            copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
-        }
+        if (next == revealedWords) return this
+        return copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
     }
 
     /**
