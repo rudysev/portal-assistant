@@ -28,7 +28,6 @@ die()  { printf "%sERROR:%s %s\n" "$R" "$N" "$1" >&2; exit 1; }
 
 # ----- load config -----------------------------------------------------------
 [ -f config.env ] || die "config.env not found next to this script."
-# shellcheck disable=SC1091
 set -a; . ./config.env; set +a
 
 # Local-install support (--local): the repo's standard debug build output, used when
@@ -187,7 +186,7 @@ grant_permissions() {
 # The key-provisioning logic + the app contract constants live in keyprov.sh, shared with ../setup.sh.
 # It calls adb via adb_x() and uses our styled step/ok/warn/die + colour vars (B/D/N/Y) automatically.
 adb_x() { a "$@"; }
-# shellcheck source=keyprov.sh disable=SC1091
+# shellcheck source=keyprov.sh
 . "$SCRIPT_DIR/keyprov.sh"
 
 # ----- launch + standby ------------------------------------------------------
