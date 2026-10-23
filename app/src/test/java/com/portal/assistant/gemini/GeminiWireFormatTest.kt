@@ -275,4 +275,18 @@ class GeminiWireFormatTest {
         assertEquals(0L, GeminiWireFormat.parseDurationMs(""))
         assertEquals(0L, GeminiWireFormat.parseDurationMs("garbage"))
     }
+
+    @Test
+    fun `a non-normal close reason is a message for the user, such as a rejected key`() {
+        assertEquals(
+            "API key not valid. Please pass a valid API key.",
+            wireFormat.closeMessage(1007, "API key not valid. Please pass a valid API key."),
+        )
+    }
+
+    @Test
+    fun `a normal close or a blank reason is no message`() {
+        assertEquals(null, wireFormat.closeMessage(1000, "bye"))
+        assertEquals(null, wireFormat.closeMessage(1011, " "))
+    }
 }

@@ -64,6 +64,7 @@ class WebSocketVoiceBackendTest {
             }
         }
         override fun decode(bytes: ByteArray): List<BackendEvent> = listOf(BackendEvent.Audio(bytes))
+        override fun closeMessage(code: Int, reason: String) = reason.takeIf { code == 4000 }
     }
 
     private class RecordingListener : VoiceBackend.Listener {
@@ -78,7 +79,12 @@ class WebSocketVoiceBackendTest {
         override fun onToolCall(calls: List<FunctionCall>) { events += "toolCall:${calls.map { it.name }}" }
         override fun onToolCancel(ids: List<String>) { events += "toolCancel:$ids" }
         override fun onServerClosingSoon(graceMs: Long) { events += "closingSoon:$graceMs" }
-        override fun onError(message: String) { events += "error:$message" }
+        override fun onError(error: BackendError) {
+            events += when (error) {
+                is BackendError.Transport -> "transport:${error.detail}"
+                is BackendError.Server -> "server:${error.message}"
+            }
+        }
         override fun onClosed() { events += "closed" }
     }
 
@@ -153,7 +159,7 @@ class WebSocketVoiceBackendTest {
                 "interrupted",
                 "closingSoon:5000",
                 "turnComplete",
-                "error:boom",
+                "server:boom",
             ),
             listener.events,
         )
@@ -192,12 +198,12 @@ class WebSocketVoiceBackendTest {
     }
 
     @Test
-    fun `failure reports one labelled error and closes the gate`() {
+    fun `failure reports one labelled transport failure and closes the gate`() {
         val backend = opened()
         socketListener.onMessage(socket, "ready")
         socketListener.onFailure(socket, IOException("connection reset"), null)
         backend.sendOneOfEach()
-        assertEquals(listOf("ready", "error:Test connection failed: connection reset"), listener.events)
+        assertEquals(listOf("ready", "transport:Test connection failed: connection reset"), listener.events)
         assertEquals(listOf("setup"), socket.sent)
     }
 
@@ -205,7 +211,7 @@ class WebSocketVoiceBackendTest {
     fun `a failure with no message names the exception`() {
         opened()
         socketListener.onFailure(socket, IOException(), null)
-        assertEquals(listOf("error:Test connection failed: IOException"), listener.events)
+        assertEquals(listOf("transport:Test connection failed: IOException"), listener.events)
     }
 
     @Test
@@ -214,7 +220,7 @@ class WebSocketVoiceBackendTest {
         socketListener.onMessage(socket, "ready,generating")
         socketListener.onFailure(socket, IOException("x"), null)
         socketListener.onMessage(socket, "audio")
-        assertEquals(listOf("ready", "generating", "error:Test connection failed: x", "generating", "audio:4"), listener.events)
+        assertEquals(listOf("ready", "generating", "transport:Test connection failed: x", "generating", "audio:4"), listener.events)
     }
 
     @Test
@@ -229,6 +235,22 @@ class WebSocketVoiceBackendTest {
     }
 
     @Test
+    fun `a close the wire format gives a message for is reported as a server message, then closed`() {
+        opened()
+        socketListener.onClosing(socket, 4000, "key rejected")
+        socketListener.onClosed(socket, 4000, "key rejected")
+        assertEquals(listOf("server:key rejected", "closed"), listener.events)
+    }
+
+    @Test
+    fun `a close the wire format gives no message for reports no error`() {
+        opened()
+        socketListener.onClosing(socket, 1011, "internal")
+        socketListener.onClosed(socket, 1011, "internal")
+        assertEquals(listOf("closed"), listener.events)
+    }
+
+    @Test
     fun `closing replies with a normal close`() {
         opened()
         socketListener.onClosing(socket, 1001, "going away")
@@ -236,10 +258,10 @@ class WebSocketVoiceBackendTest {
     }
 
     @Test
-    fun `a malformed address gives one error and never dials`() {
+    fun `a malformed address gives one transport failure and never dials`() {
         transport(address = "not an address").connect()
         assertEquals(1, listener.events.size)
-        assertEquals(true, listener.events.single().startsWith("error:Test connection failed: "))
+        assertEquals(true, listener.events.single().startsWith("transport:Test connection failed: "))
         assertEquals(0, dials)
     }
 

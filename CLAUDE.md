@@ -121,8 +121,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   the **single composition point** that picks the concrete backend — deliberately the only file in
   `conversation/` that imports `gemini` (and `local`). **Both backends run on one transport**,
   `conversation/backend/WebSocketVoiceBackend` (the only code that owns a socket: dial, setup frame on open, the
-  setup gate holding back audio/text/tool results until ready, the first-audio guarantee, one labelled error on
-  failure, closed/closing, idempotent close); each backend supplies only a pure `WireFormat` (encode setup / audio /
+  setup gate holding back audio/text/tool results until ready, the first-audio guarantee, typed errors — one labelled
+  `BackendError.Transport` on failure, a close reason the wire format finds a user message in
+  (`closeMessage` — Gemini's, e.g. a rejected key) or its error frame as a `BackendError.Server` — closed/closing, idempotent close); each backend supplies only a pure `WireFormat` (encode setup / audio /
   user text / tool results, decode text + binary frames into `BackendEvent`s, plus its "Live"/"Local" error label),
   with tool calls parsed and results framed by the shared `ToolCallWire`. Each backend is a top-level package whose
   factory object hands the transport its wire format, connect address and TLS client: `gemini/GeminiBackend`
@@ -159,7 +160,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto it.
   Also: the opening's `firstText` (chip-send) is sent on `Event.Ready` (`sendInitialText`); an unexpected socket
   drop (`onError`/`onClosed` while not ended) posts a user-facing `ConversationHub.notice` (`surfaceDisconnect`;
-  message picked by `connectedOk` + `NetworkStatus`).
+  pure `DisconnectNotice`: offline copy first, then a server message as is, else "Connection lost" / "Couldn't
+  reach Jarvis" by `connectedOk` — raw socket text is only logged).
   The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up
   re-listen) when the opening says so, played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`

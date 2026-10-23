@@ -53,6 +53,11 @@ class LocalWireFormatTest {
     }
 
     @Test
+    fun `a close reason is never a message for the user — the host reports errors as frames`() {
+        assertEquals(null, wireFormat.closeMessage(1011, "pipeline crashed"))
+    }
+
+    @Test
     fun `empty-text transcripts and unknown or unparseable frames yield nothing`() {
         assertTrue(wireFormat.decode("""{"type":"input_transcript","text":""}""").isEmpty())
         assertTrue(wireFormat.decode("""{"type":"nope"}""").isEmpty())

@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.FunctionCall
+import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.commons.DebugLog
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -134,8 +135,8 @@ class SpeakerPreviewPlayer(
 
         override fun onTurnComplete() = post(SpeakerPreview.Event.TurnComplete(id))
 
-        override fun onError(message: String) {
-            DebugLog.log("speaker preview $id error: $message")
+        override fun onError(error: BackendError) {
+            DebugLog.log("speaker preview $id error: $error")
             post(SpeakerPreview.Event.Disconnected(id))
         }
 

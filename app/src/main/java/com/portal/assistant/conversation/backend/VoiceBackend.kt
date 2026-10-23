@@ -77,8 +77,8 @@ interface VoiceBackend {
          */
         fun onServerClosingSoon(graceMs: Long)
 
-        /** A transport/session error. The engine surfaces a user-facing notice and ends the turn. */
-        fun onError(message: String)
+        /** The session failed (see [BackendError] for the two kinds). The engine surfaces a notice and ends. */
+        fun onError(error: BackendError)
 
         fun onClosed()
     }
