@@ -181,7 +181,7 @@ class MediaControl(context: Context) {
         MediaRouting.PlayType.ARTIST -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
         MediaRouting.PlayType.ALBUM -> MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE
         MediaRouting.PlayType.SONG -> MediaStore.Audio.Media.ENTRY_CONTENT_TYPE
-        MediaRouting.PlayType.PLAYLIST -> MediaStore.Audio.Playlists.ENTRY_CONTENT_TYPE
+        MediaRouting.PlayType.PLAYLIST -> PLAYLIST_FOCUS
         null -> MediaStore.Audio.Media.CONTENT_TYPE // generic "any audio" focus
     }
 
@@ -251,6 +251,12 @@ class MediaControl(context: Context) {
     private fun notEnabledError(): JSONObject = JSONObject().put("error", "media control isn't enabled — grant notification access in Settings")
 
     private companion object {
+        /**
+         * The playlist search focus — `MediaStore.Audio.Playlists.ENTRY_CONTENT_TYPE`'s value. That class is
+         * deprecated from API 31, but the focus mime itself is still what MEDIA_PLAY_FROM_SEARCH apps read.
+         */
+        const val PLAYLIST_FOCUS = "vnd.android.cursor.item/playlist"
+
         fun str(md: MediaMetadata?, key: String) = md?.getString(key)?.takeIf { it.isNotBlank() }
 
         fun title(md: MediaMetadata?) = str(md, MediaMetadata.METADATA_KEY_TITLE) ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)

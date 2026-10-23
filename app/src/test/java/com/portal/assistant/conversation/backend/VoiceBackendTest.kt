@@ -97,9 +97,9 @@ class VoiceBackendTest {
         var seenConfig: BackendConfig? = null
         val factory = object : VoiceBackendFactory {
             override val deadAirStallMs = 5_000L
-            override fun create(config: BackendConfig, l: VoiceBackend.Listener): VoiceBackend {
+            override fun create(config: BackendConfig, listener: VoiceBackend.Listener): VoiceBackend {
                 seenConfig = config
-                return FakeVoiceBackend(l)
+                return FakeVoiceBackend(listener)
             }
         }
 

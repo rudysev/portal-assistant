@@ -35,6 +35,11 @@ android {
   }
 }
 
+kotlin {
+  // Keep the build warning-free: any compiler warning fails compilation.
+  compilerOptions { allWarningsAsErrors.set(true) }
+}
+
 dependencies {
   // Shared utilities (DebugLog/PcmLevel/PcmCaptureSession/PcmCaptureFormat); composite-build substituted from ./commons.
   implementation("com.portal:commons")

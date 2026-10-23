@@ -283,9 +283,9 @@ class AssistantEngine(
         override fun onServerClosingSoon(graceMs: Long) {
             DebugLog.log("backend closing soon (grace=${graceMs}ms)") // handled in 2.c; let onClosed end it
         }
-        override fun onError(backendError: BackendError) {
-            DebugLog.log("backend error: $backendError")
-            handler.post { surfaceDisconnect(backendError) }
+        override fun onError(error: BackendError) {
+            DebugLog.log("backend error: $error")
+            handler.post { surfaceDisconnect(error) }
         }
         override fun onClosed() {
             handler.post { surfaceDisconnect() }
