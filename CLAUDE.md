@@ -262,7 +262,7 @@ session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Tran
 bar) + `UiVisibility` (foreground flag) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
-shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetectors` / `VoskWakeDetector` for the
+shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetector` / `WakeDetectors.vosk()` for the
 gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
 `ToolContract` is **local to this app** (`conversation/tools/ToolContract`); the inbound wake contract
 (`com.portal.wake.action.WAKE` / `…extra.ID`) is **portal-wake's** `WakeContract`, mirrored as literals in
