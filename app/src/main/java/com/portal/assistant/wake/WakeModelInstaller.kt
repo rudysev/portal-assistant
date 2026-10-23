@@ -50,7 +50,8 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
         }
         val zip = File(filesDir, "$MODEL_DIR.zip.part")
         val staging = File(filesDir, "$MODEL_DIR.staging")
-        return try {
+        // runCatching: any failure (I/O, a bad archive, a failed check) is a clean false, never a crash.
+        val installed = runCatching {
             download(zip, onProgress)
             unpack(zip, staging)
             // Atomic-ish swap: only expose the model dir once the unzip fully succeeded (so a crash mid-unzip
@@ -60,15 +61,13 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
             check(isInstalled()) { "unpacked model incomplete — truncated/bad archive" }
             onProgress(1f)
             DebugLog.log("wake model installed (${dir.absolutePath})")
-            true
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             DebugLog.log("wake model install failed: ${t.message}")
             staging.deleteRecursively()
             dir.deleteRecursively() // never leave a partial that isInstalled() would trust
-            false
-        } finally {
-            zip.delete()
-        }
+        }.isSuccess
+        zip.delete()
+        return installed
     }
 
     /** Stream the zip to [dest], reporting download progress into the 0f–[DOWNLOAD_FRACTION] band. */
