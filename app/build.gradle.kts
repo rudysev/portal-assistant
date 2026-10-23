@@ -1,5 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.dependency.analysis) // `buildHealth` advice; see the root build
   alias(libs.plugins.kotlin.compose)
 }
 

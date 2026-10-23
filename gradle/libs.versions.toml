@@ -12,6 +12,10 @@ okio = "3.6.0"
 json = "20240303"
 junit = "4.13.2"
 
+# Stay on 3.18.x while Kotlin is 2.2.x: 3.19's kotlin-bom 2.4.0 upgrades kotlin-daemon-client past KGP 2.2.10,
+# and the Kotlin daemon fails (NoSuchMethodError).
+dependencyAnalysis = "3.18.0"
+
 [libraries]
 androidx-core = { group = "androidx.core", name = "core", version.ref = "core" }
 androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
@@ -45,3 +49,4 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependencyAnalysis" }

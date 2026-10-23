@@ -322,6 +322,12 @@ be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a tu
 when a green `portal-commons` run dispatches `portal-commons-green`. It checks out `portal-assistant` and
 `portal-commons@main` side by side so that `includeBuild("../portal-commons")` resolves.
 
+A separate `build-health` job runs `./gradlew buildHealth` (the `com.autonomousapps.dependency-analysis` plugin)
+and fails on any dependency advice: unused, used-but-undeclared or wrongly-configured dependencies. It is not part
+of `check` or the hooks, because the advice changes rarely and the analysis is slow. It analyses only this build's
+`:app`; the included `../portal-commons` build has its own job. Run `./gradlew buildHealth` yourself after changing
+dependencies; the report is at `build/reports/dependency-analysis/build-health-report.txt`.
+
 ## Known limitations
 
 - **First-query clip**: the connect buffer (in `MicGate`) now recovers speech
