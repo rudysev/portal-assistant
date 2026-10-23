@@ -135,7 +135,7 @@ class TimerScheduler(context: Context) {
      * user's volume) and post the notification only as a best-effort extra for standard-Android surfaces.
      */
     private fun fireAlert(id: Int, label: String, onAlertDone: () -> Unit) {
-        TimerAlarmNotification.post(appContext, id, label)
+        TimerDoneNotification.post(appContext, id, label)
         DebugLog.log("timer fired id=$id label='$label' → chime + notification")
         ChimeSound.play(onAlertDone) // onAlertDone runs after the chime finishes (receiver releases its wake-lock)
     }

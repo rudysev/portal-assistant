@@ -3,14 +3,14 @@ package com.portal.assistant.conversation.tools
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-/** Starts a countdown timer that fires an alarm notification when it elapses. */
+/** Starts a countdown timer that plays the Timer chime (and posts a notification) when it elapses. */
 class SetTimerTool(private val scheduler: TimerScheduler) : Tool {
 
     override val name = "portal.set_timer"
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.set_timer",
-           "description":"Start a countdown timer that alarms when it elapses. Convert the user's phrasing into duration_seconds.",
+           "description":"Start a countdown timer that chimes when it elapses. Convert the user's phrasing into duration_seconds.",
            "parameters":{"type":"OBJECT",
              "properties":{
                "duration_seconds":{"type":"NUMBER","description":"Countdown length in seconds (1 to 86400)."},
