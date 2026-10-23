@@ -87,6 +87,9 @@ private const val LISTENING_GLOW_RANGE = 0.5f
  * The foreground chat screen. Renders the live conversation [ConversationHub] publishes: an iOS-assistant
  * layout (user chips + large model text, word-by-word) in our warm-orange identity, voice-only.
  */
+// A state-hoisted screen: the conversation state it renders and the six user actions it raises are its whole
+// contract, all passed by name from MainActivity. Bundling them into a holder would only rename the list.
+@Suppress("LongParameterList")
 @Composable
 fun ConversationScreen(
     phase: ConversationHub.UiPhase,
@@ -99,9 +102,10 @@ fun ConversationScreen(
     onEnd: () -> Unit,
     onNewConversation: () -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(

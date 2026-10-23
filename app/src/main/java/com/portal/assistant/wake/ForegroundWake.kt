@@ -19,6 +19,9 @@ import java.util.concurrent.Executor
  * Every call and both callbacks run on the main thread: the download runs on [io], and its progress and result, like
  * the detector's callbacks, come back through [main].
  */
+// Every collaborator is an injected seam (platform checks, model, detector factory, executors, callbacks), so the
+// unit tests drive it without Android; both call sites pass them by name.
+@Suppress("LongParameterList")
 class ForegroundWake(
     private val supported: Boolean,
     private val micPermitted: () -> Boolean,

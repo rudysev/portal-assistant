@@ -9,44 +9,44 @@ class MediaSelectionTest {
 
     private val own = "com.portal.assistant"
 
-    private fun s(
-        index: Int,
-        pkg: String,
-        playing: Boolean = false,
-        canPlay: Boolean = true,
-        canPause: Boolean = true,
-        canNext: Boolean = true,
-        canPrev: Boolean = true,
-        meta: Boolean = true,
-        canRepeat: Boolean = false,
-    ) = SessionInfo(index, pkg, playing, canPlay, canPause, canNext, canPrev, meta, canRepeat)
+    /** A session that supports every transport action, not playing, with metadata; tests copy() what matters. */
+    private fun s(index: Int, pkg: String) = SessionInfo(
+        index,
+        pkg,
+        isPlaying = false,
+        canPlay = true,
+        canPause = true,
+        canNext = true,
+        canPrev = true,
+        hasMetadata = true,
+    )
 
     @Test fun pauseTargetsThePlayingSession() {
         val sessions = listOf(
-            s(0, "com.alexa", playing = false, canNext = false, canPrev = false),
-            s(1, "com.spotify", playing = true),
+            s(0, "com.alexa").copy(isPlaying = false, canNext = false, canPrev = false),
+            s(1, "com.spotify").copy(isPlaying = true),
         )
         assertEquals(1, MediaSelection.pickForControl(sessions, MediaAction.PAUSE, own))
     }
 
     @Test fun playResumesPausedSessionWhenNothingPlaying() {
         // Nothing is playing; a paused Spotify that supports play must still be chosen (resume).
-        val sessions = listOf(s(0, "com.spotify", playing = false, canPlay = true))
+        val sessions = listOf(s(0, "com.spotify").copy(isPlaying = false, canPlay = true))
         assertEquals(0, MediaSelection.pickForControl(sessions, MediaAction.PLAY, own))
     }
 
     @Test fun nextRequiresSkipSupport() {
-        val sessions = listOf(s(0, "com.alexa", playing = false, canNext = false))
+        val sessions = listOf(s(0, "com.alexa").copy(isPlaying = false, canNext = false))
         assertNull(MediaSelection.pickForControl(sessions, MediaAction.NEXT, own))
-        val withSkip = listOf(s(0, "com.spotify", canNext = true))
+        val withSkip = listOf(s(0, "com.spotify").copy(canNext = true))
         assertEquals(0, MediaSelection.pickForControl(withSkip, MediaAction.NEXT, own))
     }
 
     @Test fun alexaHighPriorityDoesNotHijackMusicControl() {
         // Alexa is first (high priority) but not playing and can't skip; a playing music app must win.
         val sessions = listOf(
-            s(0, "com.amazon.alexa.multimodal.falcon", playing = false, canNext = false, canPrev = false),
-            s(1, "com.spotify", playing = true),
+            s(0, "com.amazon.alexa.multimodal.falcon").copy(isPlaying = false, canNext = false, canPrev = false),
+            s(1, "com.spotify").copy(isPlaying = true),
         )
         assertEquals(1, MediaSelection.pickForControl(sessions, MediaAction.PAUSE, own))
         assertEquals(1, MediaSelection.pickForControl(sessions, MediaAction.NEXT, own))
@@ -56,14 +56,14 @@ class MediaSelectionTest {
         // Nothing playing; Alexa is first and supports play but has no metadata; paused Spotify has metadata.
         // PLAY must resume Spotify, not poke Alexa.
         val sessions = listOf(
-            s(0, "com.amazon.alexa.multimodal.falcon", playing = false, canPlay = true, meta = false),
-            s(1, "com.spotify", playing = false, canPlay = true, meta = true),
+            s(0, "com.amazon.alexa.multimodal.falcon").copy(isPlaying = false, canPlay = true, hasMetadata = false),
+            s(1, "com.spotify").copy(isPlaying = false, canPlay = true, hasMetadata = true),
         )
         assertEquals(1, MediaSelection.pickForControl(sessions, MediaAction.PLAY, own))
     }
 
     @Test fun ownPackageNeverTargeted() {
-        val sessions = listOf(s(0, own, playing = true))
+        val sessions = listOf(s(0, own).copy(isPlaying = true))
         assertNull(MediaSelection.pickForControl(sessions, MediaAction.PAUSE, own))
     }
 
@@ -73,14 +73,14 @@ class MediaSelectionTest {
 
     @Test fun statusPrefersPlayingThenMetadata() {
         val playing = listOf(
-            s(0, "com.spotify", playing = false, meta = true),
-            s(1, "com.player", playing = true, meta = true),
+            s(0, "com.spotify").copy(isPlaying = false, hasMetadata = true),
+            s(1, "com.player").copy(isPlaying = true, hasMetadata = true),
         )
         assertEquals(1, MediaSelection.pickForStatus(playing, own))
 
         val pausedOnly = listOf(
-            s(0, "com.noMeta", playing = false, meta = false),
-            s(1, "com.spotify", playing = false, meta = true),
+            s(0, "com.noMeta").copy(isPlaying = false, hasMetadata = false),
+            s(1, "com.spotify").copy(isPlaying = false, hasMetadata = true),
         )
         assertEquals(1, MediaSelection.pickForStatus(pausedOnly, own))
 
@@ -89,19 +89,19 @@ class MediaSelectionTest {
 
     @Test fun repeatTargetsPlayingSessionThatSupportsIt() {
         val sessions = listOf(
-            s(0, "com.alexa", playing = false, canRepeat = false),
-            s(1, "com.applemusic", playing = true, canRepeat = true),
+            s(0, "com.alexa").copy(isPlaying = false, canSetRepeat = false),
+            s(1, "com.applemusic").copy(isPlaying = true, canSetRepeat = true),
         )
         assertEquals(1, MediaSelection.pickForRepeat(sessions, own))
     }
 
     @Test fun repeatNullWhenNoSessionSupportsIt() {
-        val sessions = listOf(s(0, "com.applemusic", playing = true, canRepeat = false))
+        val sessions = listOf(s(0, "com.applemusic").copy(isPlaying = true, canSetRepeat = false))
         assertNull(MediaSelection.pickForRepeat(sessions, own))
     }
 
     @Test fun repeatNeverTargetsOwnPackage() {
-        assertNull(MediaSelection.pickForRepeat(listOf(s(0, own, playing = true, canRepeat = true)), own))
+        assertNull(MediaSelection.pickForRepeat(listOf(s(0, own).copy(isPlaying = true, canSetRepeat = true)), own))
     }
 
     @Test fun repeatModeParsesCanonicalValuesCaseAndWhitespaceInsensitive() {
