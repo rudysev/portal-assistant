@@ -244,9 +244,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - **Runs on gen1 AND gen2; the wake path differs by device.** On gen1 (API 28) portal-wake owns detection
   and hands off via `ACTION_WAKE` in any app state. On gen2 (API 29+) portal-wake is inert (Android 10
   silences a background mic), so the assistant runs its **own foreground** Vosk detector while on screen
-  (`AssistantService.enterDetection`, the shared `WakeMicEngine` + `WakeMicConfig` +
-  `WakeDetectors.vosk(modelDir)` from portal-commons); a match routes through
-  the same `AssistantService.start(...)`. On gen1 the two apps share the single mic via portal-wake's
+  (**Foreground wake**: `wake/ForegroundWake` owns the detector, the one-time model download, the setup status
+  and the retry/give-up rules behind two ports — `WakeModel` (`WakeModelInstaller`) and `Detector` (`VoskDetector`,
+  the shared `WakeMicEngine` + `WakeDetectors.vosk(modelDir)` from portal-commons) — JVM-tested in
+  `ForegroundWakeTest`; the service only forwards foregrounded/backgrounded, conversation starting/ended and
+  close); a match routes through the same `AssistantService.startConversation(...)`. On gen1 the two apps share the single mic via portal-wake's
   contention/reclaim (no signal). Keep the detector foreground-only and gen2-only — a background mic gets silenced.
 - **Send no "done" signal.** portal-wake reclaims by *detecting* we stopped recording (no `WAKE_DONE`).
   Hold the mic only while the conversation is live, release cleanly when finished. (2.b: keep the
@@ -262,7 +264,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 
 ## Layout
 
-`wake/WakeHandoffReceiver` (trigger entry) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
+`wake/` — `WakeHandoffReceiver` (trigger entry), `ForegroundWake` (gen2 Foreground wake) + its ports
+`WakeModel`/`Detector` and their adapters `WakeModelInstaller`/`VoskDetector`, `WakeSetupStatus` (the model
+setup the idle home shows) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
 one-conversation host; `START_STICKY`, returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
@@ -273,7 +277,7 @@ session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Tran
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
-bar) + `UiVisibility` (foreground flag) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
+bar) + `UiVisibility` (foreground flag, read only for the orange bar) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
 shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetector` / `WakeDetectors.vosk()` for the
@@ -287,7 +291,7 @@ gen2 foreground detector). Two plugin contracts are **not** shared deps — we m
 ```bash
 git submodule update --init --recursive   # from the portal-apps workspace: pull commons + the apps
 # The gen2 "hey jarvis" Vosk model is NOT bundled — the app downloads it at runtime on first gen2 use
-#   (system/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
+#   (wake/WakeModelInstaller → filesDir), so the APK stays lean and gen1 ships no dead weight. Nothing to
 #   place at build time. gen1 is unaffected (it uses portal-wake, which bundles its own model).
 ./gradlew testDebugUnitTest assembleDebug    # needs a local JDK 21 and the Android SDK (JAVA_HOME / ANDROID_HOME)
 ./setup.sh   # install + grant mic + draw-over-apps + launch once (clears the "stopped" state)
