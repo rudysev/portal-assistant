@@ -45,7 +45,8 @@ step‑by‑step instructions — including how the API key works and how to cha
 > **Gen 2** (Android 10) while Jarvis is on screen; on **Gen 1** (Android 9) it needs the companion
 > **portal-wake** app — details under [Talking to it](#talking-to-it).
 
-Developers building from source: see the build/run notes in `CLAUDE.md` and use `./setup.sh`.
+Developers building from source: see the build/run notes in `CLAUDE.md` and use `./setup.sh`. Turn on the
+repo's git hooks once per clone with `git config core.hooksPath .githooks`.
 
 ### Local server backend
 

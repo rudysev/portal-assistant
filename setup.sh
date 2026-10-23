@@ -71,12 +71,6 @@ if [[ "$KEY_ONLY" == "1" ]]; then
 fi
 
 # ---- full setup --------------------------------------------------------------
-# Developer convenience: when run from a git clone of this repo, enable its committed hooks (.githooks/).
-if command -v git >/dev/null 2>&1 \
-  && [[ "$(git -C "$SETUP_DIR" rev-parse --show-toplevel 2>/dev/null)" == "$SETUP_DIR" ]]; then
-  git -C "$SETUP_DIR" config core.hooksPath .githooks
-fi
-
 if [[ ! -f "$APK" ]]; then
   echo "APK not found at $APK -- run: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleDebug" >&2
   exit 1
