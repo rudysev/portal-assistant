@@ -29,6 +29,15 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
   }
+  // Any lint warning fails the build. No baseline: suppress inline only, with a reason.
+  lint {
+    warningsAsErrors = true
+    abortOnError = true
+    checkReleaseBuilds = true
+    // Dependency-freshness checks query Maven/Google at lint time, so the result changes whenever upstream ships a
+    // release, not when this code changes. Dependency updates are deliberate (Renovate/Dependabot are out of scope).
+    disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
+  }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
@@ -43,6 +52,10 @@ kotlin {
   // Keep the build warning-free: any compiler warning fails compilation.
   compilerOptions { allWarningsAsErrors.set(true) }
 }
+
+// `check` lints only the default (debug) variant. Lint release too, so release-variant problems fail pre-push and CI
+// rather than waiting for lintVital, which only runs on assembleRelease (checkReleaseBuilds) and nothing builds that.
+tasks.check { dependsOn("lintRelease") }
 
 dependencies {
   // Shared utilities (DebugLog/PcmLevel/PcmCaptureSession/PcmCaptureFormat); composite-build substituted from ./commons.

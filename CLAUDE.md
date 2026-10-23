@@ -317,6 +317,14 @@ address nudge instead. (Note: clipboard "Paste" was dropped — Android clipboar
 key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
 be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a turn directly (foreground).
 
+## Android Lint
+
+`check` runs Android Lint on the debug and release variants with `warningsAsErrors` and `abortOnError`, so any
+warning fails it (and so pre-push and CI). There is no `lint-baseline.xml`: suppress inline only (`@SuppressLint`,
+`tools:ignore`, `//noinspection`), each with a reason comment. The dependency-freshness checks
+(`AndroidGradlePluginVersion`, `GradleDependency`, `NewerVersionAvailable`) are disabled, because they query the
+network and fail whenever upstream ships a release. Report: `app/build/reports/lint-results-debug.html`.
+
 ## Hooks
 
 `git config core.hooksPath .githooks` (done by `./setup.sh`). `pre-commit` runs the `ktlint` CLI on staged
