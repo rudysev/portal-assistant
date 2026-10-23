@@ -1,4 +1,4 @@
-package com.portal.assistant.conversation.backend.local
+package com.portal.assistant.local
 
 import org.json.JSONArray
 import org.json.JSONObject

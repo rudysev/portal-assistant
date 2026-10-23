@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.gemini.GeminiSpeaker
+import com.portal.assistant.local.LocalVoiceHost
 import com.portal.commons.DebugLog
 import java.io.File
 

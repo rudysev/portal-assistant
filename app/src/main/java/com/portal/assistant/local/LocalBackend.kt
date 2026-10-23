@@ -1,4 +1,4 @@
-package com.portal.assistant.conversation.backend.local
+package com.portal.assistant.local
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
@@ -7,7 +7,6 @@ import com.portal.assistant.conversation.backend.LocalTlsMode
 import com.portal.assistant.conversation.backend.LocalWireOptions
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.VoiceBackendFactory
-import com.portal.assistant.system.LocalVoiceHost
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
 import okhttp3.Request
