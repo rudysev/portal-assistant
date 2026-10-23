@@ -76,7 +76,7 @@ prompt_for_key() {
 INSTR
   local reply rc
   while true; do
-    printf "\n  Paste your key and press Enter ${D:-}(or just Enter to skip)${N:-}: "
+    printf '\n  Paste your key and press Enter %s(or just Enter to skip)%s: ' "${D:-}" "${N:-}"
     read -r reply || reply=""
     reply="$(printf '%s' "$reply" | tr -d '[:space:]')"
     if [ -z "$reply" ]; then
