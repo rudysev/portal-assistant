@@ -275,11 +275,9 @@ class SpeakerPreviewTest {
     }
 
     /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
-    private fun configOf(speaker: GeminiSpeaker.Speaker?) =
-        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
+    private fun configOf(speaker: GeminiSpeaker.Speaker?) = SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
 
-    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject =
-        JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
+    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject = JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
 
     @Test fun previewSessionRunsOnTheSharedTransport() {
         assertTrue(GeminiBackend.Factory.create(configOf(charon), Silent) is WebSocketVoiceBackend)

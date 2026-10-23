@@ -213,8 +213,7 @@ private fun stallActions(d: StallDecision): List<Action> = when (d) {
 }
 
 /** Nothing playing and no tools running — the only SPEAKING condition that may (re)arm the stall. */
-private fun isDeadAir(state: ConversationState): Boolean =
-    state.playbackIdle && state.toolsInFlight.isEmpty()
+private fun isDeadAir(state: ConversationState): Boolean = state.playbackIdle && state.toolsInFlight.isEmpty()
 
 /**
  * The transition function. [multiTurn] = false ends after the first answer (Phase 2.a); true re-opens

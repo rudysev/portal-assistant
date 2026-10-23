@@ -205,8 +205,7 @@ class ConversationOpeningTest {
 
     private val seattle = DeviceLocation("Seattle", "Washington", "United States", lat = 47.6062, lon = -122.3321)
 
-    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening =
-        ConversationOpening.decide(trigger, inputs) as Opening
+    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening = ConversationOpening.decide(trigger, inputs) as Opening
 
     private val allTriggers = listOf(Trigger.WakeWord("jarvis"), Trigger.MicTap, Trigger.SuggestionChip("What's the weather?"))
 

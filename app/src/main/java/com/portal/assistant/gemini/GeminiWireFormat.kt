@@ -173,8 +173,7 @@ class GeminiWireFormat(
     override fun decode(bytes: ByteArray): List<BackendEvent> = decode(String(bytes, Charsets.UTF_8))
 
     /** Gemini says why it ends a session in the close reason (e.g. a rejected API key); a normal close says nothing. */
-    override fun closeMessage(code: Int, reason: String): String? =
-        reason.takeIf { code != NORMAL_CLOSURE && it.isNotBlank() }
+    override fun closeMessage(code: Int, reason: String): String? = reason.takeIf { code != NORMAL_CLOSURE && it.isNotBlank() }
 
     private fun JSONObject.toFrame() = Frame.Text(toString())
 

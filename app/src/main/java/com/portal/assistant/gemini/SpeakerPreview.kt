@@ -225,17 +225,15 @@ object SpeakerPreview {
     }
 
     /** Preview [id] couldn't play — stop it and flag [speaker]'s row. */
-    private fun fail(state: State, id: Long, speaker: GeminiSpeaker.Speaker?) =
-        Decision(state.copy(status = Status.Failed(speaker)), listOf(Action.Stop(id)))
+    private fun fail(state: State, id: Long, speaker: GeminiSpeaker.Speaker?) = Decision(state.copy(status = Status.Failed(speaker)), listOf(Action.Stop(id)))
 
     /** Preview [p] played to the end — keep its clip (unless it was already a replay) and free the slot. */
-    private fun finish(state: State, p: Status.Playing): Decision =
-        if (p.speaker in state.cached) {
-            Decision(state.copy(status = Status.Idle), listOf(Action.Stop(p.id)))
-        } else {
-            Decision(
-                state.copy(status = Status.Idle, cached = state.cached + p.speaker),
-                listOf(Action.KeepClip(p.id, p.speaker), Action.Stop(p.id)),
-            )
-        }
+    private fun finish(state: State, p: Status.Playing): Decision = if (p.speaker in state.cached) {
+        Decision(state.copy(status = Status.Idle), listOf(Action.Stop(p.id)))
+    } else {
+        Decision(
+            state.copy(status = Status.Idle, cached = state.cached + p.speaker),
+            listOf(Action.KeepClip(p.id, p.speaker), Action.Stop(p.id)),
+        )
+    }
 }
