@@ -131,6 +131,8 @@ class ExternalToolProvider(context: Context) {
         fun query(context: Context): List<DiscoveredProvider> = runCatching {
             val pm = context.applicationContext.packageManager
 
+            // DEPRECATION: the PackageInfoFlags overload is API 33+ and minSdk is 28. QueryPermissionsNeeded:
+            // targetSdk 29 predates package-visibility filtering (targets 30+), so every provider is visible.
             @Suppress("DEPRECATION", "QueryPermissionsNeeded")
             val pkgs = pm.getInstalledPackages(PackageManager.GET_PROVIDERS or PackageManager.GET_META_DATA)
             pkgs.flatMap { it.providers.orEmpty().asIterable() }.mapNotNull { prov ->

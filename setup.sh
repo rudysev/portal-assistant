@@ -17,7 +17,7 @@ set -euo pipefail
 # Device contract (PKG, RECEIVER, STANDBY_ACTION, NOTIF_LISTENER, EXTDIR) is shared with the one-click
 # installers via provisioning/config.env — one source of truth for these literals.
 SETUP_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=provisioning/config.env disable=SC1091
+# shellcheck source=provisioning/config.env
 . "$SETUP_DIR/provisioning/config.env"
 
 # setup-specific: this dev tool installs the locally-built debug APK via hzdb (not a downloaded release).
@@ -55,7 +55,7 @@ app_installed() { $ADB shell "pm path $PKG" >/dev/null 2>&1; }
 # / the verify endpoint) live in keyprov.sh, shared with provisioning/install.sh so the key contract has a
 # single source. It calls adb through adb_x() (defined above) and falls back to plain echo output here
 # (this dev tool defines no styled step/ok/warn/die).
-# shellcheck source=provisioning/keyprov.sh disable=SC1091
+# shellcheck source=provisioning/keyprov.sh
 . "$SETUP_DIR/provisioning/keyprov.sh"
 
 # ---- key-only path -----------------------------------------------------------
