@@ -45,14 +45,16 @@ private fun speakingStall(state: ConversationState, event: Event): StallDecision
     return when (event) {
         Event.PlaybackBusy -> StallDecision.Cancel
 
-        Event.ModelActivity -> armIf(isDeadAir(state))
+        // Dead air: the model is still talking, yet nothing plays and no tools run.
+        Event.ModelActivity -> armIf(nothingInFlight(state))
 
         // This event sets playbackIdle=true; turn ends when turnComplete && no tools.
         Event.PlaybackIdle -> if (state.turnComplete && noTools) StallDecision.Cancel else armIf(noTools)
 
-        Event.TurnComplete -> cancelIf(isDeadAir(state))
+        // The model is done, so the turn ends iff nothing plays and no tools run.
+        Event.TurnComplete -> cancelIf(nothingInFlight(state))
 
-        // the turn ends: idle + no tools
+        // A barge-in flushes playback and tools (idle + no tools): dead air until the model resumes.
         Event.Interrupted -> StallDecision.Arm
 
         Event.StallTimeout -> cancelIf(noTools)
@@ -84,5 +86,8 @@ internal fun stallActions(d: StallDecision): List<Action> = when (d) {
     StallDecision.None -> emptyList()
 }
 
-/** Nothing playing and no tools running — the only SPEAKING condition that may (re)arm the stall. */
-private fun isDeadAir(state: ConversationState): Boolean = state.playbackIdle && state.toolsInFlight.isEmpty()
+/**
+ * Nothing playing and no tools running. In SPEAKING that is dead air while the model is still talking (the only
+ * condition that may (re)arm the stall), and the turn end once its turn is complete.
+ */
+private fun nothingInFlight(state: ConversationState): Boolean = state.playbackIdle && state.toolsInFlight.isEmpty()
