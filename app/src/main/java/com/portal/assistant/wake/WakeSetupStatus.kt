@@ -12,7 +12,7 @@ sealed interface ModelSetup {
     /** The one-time model download is in flight; [progress] is 0f–1f. */
     data class Downloading(val progress: Float) : ModelSetup
 
-    /** Setup didn't finish (a failed download, or a model that won't load); tap-to-talk still works. */
+    /** Setup didn't finish (a failed download, or a model that won't load); a Mic tap still works. */
     data object Failed : ModelSetup
 }
 

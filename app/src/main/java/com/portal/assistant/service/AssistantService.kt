@@ -46,7 +46,7 @@ class AssistantService : Service() {
 
     private var engine: AssistantEngine? = null
 
-    // Gen2 hands-free "hey jarvis" while the app is on screen (gen1 is portal-wake's). This service only forwards
+    // Foreground wake: gen2 "hey jarvis" while the app is on screen (gen1 is portal-wake's). This service only forwards
     // what happened; the module owns the detector, the model download and the retry rules.
     private lateinit var foregroundWake: ForegroundWake
 
