@@ -116,8 +116,7 @@ detekt {
 }
 
 // `check` runs the type-resolving tasks (detektMain/detektTest: main and test classes, every variant) instead of the
-// plugin's default `detekt` task, which analyses the same sources without type resolution.
-tasks.check {
-  setDependsOn(dependsOn.filterNot { it is TaskProvider<*> && it.name == "detekt" })
-  dependsOn("detektMain", "detektTest")
-}
+// plugin's default `detekt` task, which analyses the same sources without type resolution. `detekt` is disabled
+// rather than unhooked from `check`, so this holds however the plugin wires it.
+tasks.named("detekt") { enabled = false }
+tasks.check { dependsOn("detektMain", "detektTest") }
