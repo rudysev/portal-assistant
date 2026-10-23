@@ -19,6 +19,9 @@ junit = "4.13.2"
 dependencyAnalysis = "3.18.0"
 
 [libraries]
+# portal-commons modules: no version, because includeBuild("../portal-commons") substitutes them from source.
+portal-commons = { group = "com.portal", name = "commons" }
+portal-commons-android = { group = "com.portal", name = "commons-android" }
 androidx-core = { group = "androidx.core", name = "core", version.ref = "core" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
 androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }

@@ -46,9 +46,9 @@ kotlin {
 
 dependencies {
   // Shared utilities (DebugLog/PcmLevel/PcmCaptureSession/PcmCaptureFormat); composite-build substituted from ./commons.
-  implementation("com.portal:commons")
+  implementation(libs.portal.commons)
   // Shared Android shells (AudioRecordPcmDevice); composite-build substituted from ./commons-android.
-  implementation("com.portal:commons-android")
+  implementation(libs.portal.commons.android)
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity)
   implementation(libs.androidx.activity.compose)
