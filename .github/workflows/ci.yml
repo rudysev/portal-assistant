@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [portal-commons-green]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portal-assistant
+    steps:
+      # settings.gradle.kts does includeBuild("../portal-commons"), so commons is checked out as a sibling.
+      - uses: actions/checkout@v7
+        with:
+          path: portal-assistant
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/portal-commons
+          ref: main
+          path: portal-commons
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - run: ./gradlew test assembleDebug

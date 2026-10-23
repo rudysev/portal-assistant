@@ -316,6 +316,12 @@ address nudge instead. (Note: clipboard "Paste" was dropped — Android clipboar
 key on a laptop can't reach the Portal.) Needs `portal-wake` installed/running to
 be triggered by "hey jarvis" — or tap **Tap to talk** in the app to start a turn directly (foreground).
 
+## CI
+
+`.github/workflows/ci.yml` runs `./gradlew test assembleDebug` on every push to `main`, on `workflow_dispatch`, and
+when a green `portal-commons` run dispatches `portal-commons-green`. It checks out `portal-assistant` and
+`portal-commons@main` side by side so that `includeBuild("../portal-commons")` resolves.
+
 ## Known limitations
 
 - **First-query clip**: the connect buffer (in `MicGate`) now recovers speech
