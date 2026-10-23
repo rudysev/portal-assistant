@@ -46,6 +46,7 @@ dependencies {
   // Shared Android shells (AudioRecordPcmDevice); composite-build substituted from ./commons-android.
   implementation("com.portal:commons-android")
   implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.activity)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.media)
   implementation(libs.androidx.compose.material3)
@@ -53,9 +54,10 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  // NotificationCompat/ContextCompat; the app uses none of core-ktx's Kotlin extensions.
+  implementation(libs.androidx.core)
+  implementation(libs.androidx.lifecycle.common)
+  implementation(libs.androidx.lifecycle.viewmodel)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.kotlinx.coroutines.android)
   // Gemini Live API WebSocket transport (GMS-free; Portal has no built-in WebSocket).
