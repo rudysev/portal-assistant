@@ -4,8 +4,9 @@
 set -eu
 
 # Must match the ktlint that kotlinter bundles (org.jmailen.kotlinter 5.7.0 -> ktlint 1.8.0), so the hook and
-# `./gradlew lintKotlin` agree. Bump both together.
+# `./gradlew lintKotlin` agree. Bump both together. Homebrew can't pin a version, so the hint names the release binary.
 KTLINT_VERSION=1.8.0
+KTLINT_BIN="https://github.com/pinterest/ktlint/releases/download/$KTLINT_VERSION/ktlint"
 
 # Must match the detekt Gradle plugin (dev.detekt) that `./gradlew check` runs. Bump both together. Homebrew only
 # ships detekt 1.x, so the CLI comes from the GitHub release zip.
@@ -28,25 +29,53 @@ quoted() {
   tr '\0' '\n' | while IFS= read -r f; do printf " '%s'" "$f"; done
 }
 
+# Lint what is about to be committed, not the working tree: a partially staged file (`git add -p`) is checked as
+# staged. The index is exported to a scratch tree at the same repo-relative paths: the staged files, the tool configs
+# (.editorconfig, .shellcheckrc, config/detekt/) and every tracked shell script and *.env, so sourced files resolve.
+# The tools run from inside it.
+tmp=${TMPDIR:-/tmp}
+STAGE=$(mktemp -d "${tmp%/}/pre-commit.XXXXXX")
+trap 'rm -rf "$STAGE" "$STAGE.out"' EXIT
+# The physical path, so the prefix stripped from tool output matches however a tool resolves it.
+STAGE=$(cd "$STAGE" && pwd -P)
+{
+  staged_kotlin
+  staged_shell
+  git ls-files -z -- '.editorconfig' '*/.editorconfig' '.shellcheckrc' '*/.shellcheckrc' 'config/detekt/*' \
+    '*.sh' '*.command' '*.env' '.githooks/*'
+} | git checkout-index -f -z --stdin --prefix="$STAGE/"
+
+# Runs a tool inside the scratch tree, printing its output with the scratch prefix stripped so paths read as
+# repo-relative. Returns the tool's exit status.
+in_stage() {
+  rc=0
+  (cd "$STAGE" && "$@") >"$STAGE.out" 2>&1 || rc=$?
+  sed "s|$STAGE/||g" "$STAGE.out"
+  return "$rc"
+}
+
 lint_kotlin() {
   [ -n "$(staged_kotlin | tr -d '\0')" ] || return 0
 
   if ! command -v ktlint >/dev/null 2>&1; then
-    echo "pre-commit: ktlint not found. Install it with: brew install ktlint" >&2
+    echo "pre-commit: ktlint not found. Install ktlint $KTLINT_VERSION: download" >&2
+    echo "  $KTLINT_BIN" >&2
+    echo "make it executable and put it on your PATH (brew install ktlint can't pin the version)." >&2
     return 1
   fi
 
   found=$(ktlint --version | sed 's/^ktlint version //')
   if [ "$found" != "$KTLINT_VERSION" ]; then
     echo "pre-commit: ktlint $found is installed, but this repo pins $KTLINT_VERSION (kotlinter)." >&2
-    echo "Install ktlint $KTLINT_VERSION so the hook matches ./gradlew lintKotlin." >&2
+    echo "Install ktlint $KTLINT_VERSION from $KTLINT_BIN (make it executable, put it on your PATH ahead of" >&2
+    echo "Homebrew's) so the hook matches ./gradlew lintKotlin." >&2
     return 1
   fi
 
   # ktlint reads the patterns (here: literal paths) from stdin; --patterns-from-stdin='' means NUL-delimited.
-  if ! staged_kotlin | ktlint --relative --patterns-from-stdin=''; then
+  if ! staged_kotlin | in_stage ktlint --relative --patterns-from-stdin=''; then
     echo >&2
-    echo "pre-commit: ktlint found style violations (commit rejected). Fix them with either:" >&2
+    echo "pre-commit: ktlint found style violations in the staged files (commit rejected). Fix them with either:" >&2
     echo "  ./gradlew formatKotlin" >&2
     printf '  ktlint -F%s\n' "$(staged_kotlin | quoted)" >&2
     echo "then re-stage the files and commit again." >&2
@@ -77,10 +106,10 @@ lint_detekt() {
   inputs=$(staged_kotlin | tr '\0' ':')
   inputs=${inputs%:}
   # shellcheck disable=SC2086 # DETEKT_ARGS is a fixed list of flags, split on purpose.
-  if ! detekt-cli $DETEKT_ARGS --input "$inputs"; then
+  if ! in_stage detekt-cli $DETEKT_ARGS --input "$inputs"; then
     echo >&2
-    echo "pre-commit: detekt found problems (commit rejected). Fix them by hand (detekt doesn't auto-fix), re-stage" >&2
-    echo "the files and commit again. Re-check with:" >&2
+    echo "pre-commit: detekt found problems in the staged files (commit rejected). Fix them by hand (detekt doesn't" >&2
+    echo "auto-fix), re-stage the files and commit again. Re-check with:" >&2
     echo "  detekt-cli $DETEKT_ARGS --input '$inputs'" >&2
     return 1
   fi
@@ -95,10 +124,10 @@ lint_shell() {
   fi
 
   # Settings (follow sourced files, resolved from each script's directory) come from .shellcheckrc.
-  if ! staged_shell | xargs -0 shellcheck; then
+  if ! staged_shell | in_stage xargs -0 shellcheck; then
     echo >&2
-    echo "pre-commit: shellcheck found problems (commit rejected). Fix them by hand (each finding links its wiki" >&2
-    echo "page), re-stage the files and commit again. Re-check with:" >&2
+    echo "pre-commit: shellcheck found problems in the staged files (commit rejected). Fix them by hand (each finding" >&2
+    echo "links its wiki page), re-stage the files and commit again. Re-check with:" >&2
     printf '  shellcheck%s\n' "$(staged_shell | quoted)" >&2
     return 1
   fi
