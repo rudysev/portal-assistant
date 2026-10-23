@@ -162,9 +162,8 @@ class VoiceBackendTest {
         assertTrue("Gemini backend should be a WebSocketVoiceBackend", backend is WebSocketVoiceBackend)
     }
 
-    private fun geminiGenerationConfig(config: BackendConfig): JSONObject =
-        JSONObject((GeminiBackend.wireFormat(config).setup() as Frame.Text).text)
-            .getJSONObject("setup").getJSONObject("generationConfig")
+    private fun geminiGenerationConfig(config: BackendConfig): JSONObject = JSONObject((GeminiBackend.wireFormat(config).setup() as Frame.Text).text)
+        .getJSONObject("setup").getJSONObject("generationConfig")
 
     @Test
     fun `Gemini adapter speaks with the chosen speaker`() {

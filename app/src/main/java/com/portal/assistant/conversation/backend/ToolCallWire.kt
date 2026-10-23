@@ -35,6 +35,5 @@ object ToolCallWire {
     }
 
     /** One `{id, name, response}` result element. */
-    fun resultElement(result: ToolResult): JSONObject =
-        JSONObject().put("id", result.id).put("name", result.name).put("response", result.response)
+    fun resultElement(result: ToolResult): JSONObject = JSONObject().put("id", result.id).put("name", result.name).put("response", result.response)
 }

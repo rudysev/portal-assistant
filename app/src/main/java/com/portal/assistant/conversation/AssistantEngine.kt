@@ -222,7 +222,9 @@ class AssistantEngine(
         // (bar add + "overlay shown" log live in RecordingOverlay.show())
         when (val indicator = outcome.indicator) {
             MicGate.Indicator.None -> Unit
+
             MicGate.Indicator.BarAtRest -> overlay.setRecording(!UiVisibility.inForeground)
+
             is MicGate.Indicator.Level -> {
                 ConversationHub.setAudioLevel(indicator.level) // drives the in-app listening visualizer
                 overlay.setRecording(!UiVisibility.inForeground, indicator.level)

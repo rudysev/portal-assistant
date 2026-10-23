@@ -62,14 +62,19 @@ data class Transcript(
      */
     fun on(event: Event): Transcript = when (event) {
         is Event.ListeningStarted -> restartReveal(event.playedBytes).copy(userTurnId = NONE)
+
         is Event.Interrupted -> restartReveal(event.playedBytes)
+
         is Event.UserText -> appendUser(event.delta)
+
         is Event.JarvisText -> if (event.phase == Phase.SPEAKING) appendJarvis(event.delta) else this
+
         is Event.AudioReceived -> if (event.bytes <= 0) {
             this
         } else {
             copy(receivedBytes = receivedBytes + event.bytes).revealAt(event.playedBytes)
         }
+
         is Event.AudioPlayed -> revealAt(event.playedBytes)
     }
 
@@ -155,8 +160,7 @@ data class Transcript(
 
     private fun jarvisIndex(): Int = if (jarvisTurnId == NONE) -1 else turns.indexOfLast { it.id == jarvisTurnId }
 
-    private fun List<Turn>.patched(idx: Int, change: (Turn) -> Turn): List<Turn> =
-        toMutableList().also { it[idx] = change(it[idx]) }
+    private fun List<Turn>.patched(idx: Int, change: (Turn) -> Turn): List<Turn> = toMutableList().also { it[idx] = change(it[idx]) }
 
     private companion object {
         const val NONE = -1L

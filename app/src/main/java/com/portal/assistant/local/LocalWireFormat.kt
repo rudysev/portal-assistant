@@ -79,8 +79,7 @@ class LocalWireFormat(
     }
 
     /** One raw 24 kHz PCM chunk. */
-    override fun decode(bytes: ByteArray): List<BackendEvent> =
-        if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
+    override fun decode(bytes: ByteArray): List<BackendEvent> = if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
 
     /** The host reports its errors as `error` frames; a close reason is never meant for the user. */
     override fun closeMessage(code: Int, reason: String): String? = null

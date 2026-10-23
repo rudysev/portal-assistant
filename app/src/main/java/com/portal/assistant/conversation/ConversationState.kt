@@ -1,6 +1,5 @@
 package com.portal.assistant.conversation
 
-
 /**
  * The conversation as a **pure state machine** — `reduce(state, event) -> (state, actions)` with no
  * Android, no I/O, no threads — so the tricky event orderings are exhaustively unit-testable (the same
@@ -175,13 +174,18 @@ fun stallDecision(state: ConversationState, event: Event): StallDecision = when 
         Event.PlaybackIdle -> when {
             // This event sets playbackIdle=true; turn ends when turnComplete && no tools.
             state.turnComplete && state.toolsInFlight.isEmpty() -> StallDecision.Cancel
+
             state.toolsInFlight.isEmpty() -> StallDecision.Arm
+
             else -> StallDecision.None
         }
 
         Event.TurnComplete ->
-            if (state.playbackIdle && state.toolsInFlight.isEmpty()) StallDecision.Cancel
-            else StallDecision.None
+            if (state.playbackIdle && state.toolsInFlight.isEmpty()) {
+                StallDecision.Cancel
+            } else {
+                StallDecision.None
+            }
 
         Event.Interrupted -> StallDecision.Arm
 
@@ -212,8 +216,7 @@ private fun stallActions(d: StallDecision): List<Action> = when (d) {
 }
 
 /** Nothing playing and no tools running — the only SPEAKING condition that may (re)arm the stall. */
-private fun isDeadAir(state: ConversationState): Boolean =
-    state.playbackIdle && state.toolsInFlight.isEmpty()
+private fun isDeadAir(state: ConversationState): Boolean = state.playbackIdle && state.toolsInFlight.isEmpty()
 
 /**
  * The transition function. [multiTurn] = false ends after the first answer (Phase 2.a); true re-opens

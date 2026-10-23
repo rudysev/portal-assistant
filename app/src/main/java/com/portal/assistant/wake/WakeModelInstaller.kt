@@ -122,7 +122,10 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
                 val entry = zin.nextEntry ?: break
                 // Strip the well-known top dir; entries outside it (e.g. a stray README) are dropped.
                 val rel = entry.name.substringAfter("$ZIP_ROOT/", "")
-                if (rel.isEmpty()) { zin.closeEntry(); continue }
+                if (rel.isEmpty()) {
+                    zin.closeEntry()
+                    continue
+                }
                 val outFile = File(into, rel)
                 // Zip-slip guard: refuse any entry that would escape [into] via "../" traversal.
                 if (!outFile.canonicalFile.path.startsWith(root.path + File.separator)) {

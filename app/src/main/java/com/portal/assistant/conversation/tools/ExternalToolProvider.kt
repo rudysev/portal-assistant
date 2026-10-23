@@ -68,8 +68,7 @@ class ExternalToolProvider(context: Context) {
      * runs every time, so a Settings enable/disable is always honoured without invalidating the cache, and a
      * provider newly installed *and* enabled mid-process self-heals here (absent from the snapshot → re-query).
      */
-    private fun providerSnapshot(enabled: Set<String>): List<DiscoveredProvider> =
-        snapshot(appContext, enabled)
+    private fun providerSnapshot(enabled: Set<String>): List<DiscoveredProvider> = snapshot(appContext, enabled)
 
     private fun callWithTimeout(authority: String, name: String, args: JSONObject): JSONObject {
         val future = callExecutor.submit<JSONObject> {

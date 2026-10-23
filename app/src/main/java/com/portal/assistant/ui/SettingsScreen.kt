@@ -503,8 +503,7 @@ private const val SPEAKER_LIST_CONTEXT_ROWS = 3
 
 /** The Speaker list row the dialog opens scrolled to, so the Chosen speaker is on screen (the list holds 30
  *  and shows ~8 — a later pick would otherwise open hidden). Server default is the pinned row → top. Pure. */
-internal fun speakerListStartIndex(chosen: GeminiSpeaker.Speaker?): Int =
-    (GeminiSpeaker.AVAILABLE.indexOf(chosen) - SPEAKER_LIST_CONTEXT_ROWS).coerceAtLeast(0)
+internal fun speakerListStartIndex(chosen: GeminiSpeaker.Speaker?): Int = (GeminiSpeaker.AVAILABLE.indexOf(chosen) - SPEAKER_LIST_CONTEXT_ROWS).coerceAtLeast(0)
 
 /**
  * The Chosen speaker picker (Gemini only). A read-only field like Model shows [SERVER_DEFAULT_LABEL] or e.g.

@@ -165,16 +165,21 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
         when (tonePlaybackNow) { // bookkeeping for the report only; the rule is suppresses'
             TonePlayback.None ->
                 if (tonePendingDroppedFrames > 0) reportToneDropOnce("then the tone didn't play, so frames are sent again", logLines)
+
             TonePlayback.Pending -> tonePendingDroppedFrames++
+
             is TonePlayback.Started -> {
                 val startedAtMs = tonePlaybackNow.startedAtMs
                 if (dropped) {
                     if (toneWindowDroppedFrames++ == 0) toneWindowDroppedFromMs = capturedFromMs - startedAtMs
                     toneWindowDroppedUntilMs = capturedUntilMs - startedAtMs
                 } else {
-                    val droppedInWindow = if (toneWindowDroppedFrames == 0) "nothing" else
+                    val droppedInWindow = if (toneWindowDroppedFrames == 0) {
+                        "nothing"
+                    } else {
                         "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
-                            "captured ${toneWindowDroppedFromMs}..${toneWindowDroppedUntilMs}ms from the tone's start"
+                            "captured $toneWindowDroppedFromMs..${toneWindowDroppedUntilMs}ms from the tone's start"
+                    }
                     reportToneDropOnce("then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)", logLines)
                 }
             }
@@ -194,18 +199,16 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
      * nothing captured before the cue may be sent, nor the tone and its echo (a frame straddling the window's end
      * goes whole); never for [TonePlayback.None].
      */
-    private fun suppresses(tonePlayback: TonePlayback, frameCapturedFromMs: Long): Boolean =
-        when (tonePlayback) {
-            TonePlayback.None -> false
-            TonePlayback.Pending -> true
-            is TonePlayback.Started -> frameCapturedFromMs < tonePlayback.startedAtMs + ListeningTone.suppressionWindowMs
-        }
+    private fun suppresses(tonePlayback: TonePlayback, frameCapturedFromMs: Long): Boolean = when (tonePlayback) {
+        TonePlayback.None -> false
+        TonePlayback.Pending -> true
+        is TonePlayback.Started -> frameCapturedFromMs < tonePlayback.startedAtMs + ListeningTone.suppressionWindowMs
+    }
 
     /** The single place outbound mic audio is processed: [MIC_GAIN]. */
     private fun withMicGain(pcm: ByteArray, length: Int): ByteArray = PcmGain.amplify(pcm, length, MIC_GAIN)
 
-    private fun flushLine(frames: Int): String =
-        "connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting"
+    private fun flushLine(frames: Int): String = "connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting"
 
     private companion object {
         // Software gain on the sent conversation audio so room-distance speech reaches a level the backend

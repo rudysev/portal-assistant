@@ -1,5 +1,7 @@
 [versions]
 agp = "9.2.1"
+# Bundles ktlint 1.8.0, the version .githooks/pre-commit requires (ADR 0001). Bump both together.
+kotlinter = "5.7.0"
 kotlin = "2.2.10"
 core = "1.10.1"
 lifecycle = "2.8.7"
@@ -49,4 +51,5 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlinter = { id = "org.jmailen.kotlinter", version.ref = "kotlinter" }
 dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependencyAnalysis" }

@@ -250,7 +250,11 @@ class SpeakerPreviewTest {
     @Test fun theDefaultRowKeepsItsOwnClip() {
         val both = reduceAll(
             played.state,
-            Event.Tap(null), Event.Ready(2), Event.Audio(2), Event.TurnComplete(2), Event.PlaybackDrained(2),
+            Event.Tap(null),
+            Event.Ready(2),
+            Event.Audio(2),
+            Event.TurnComplete(2),
+            Event.PlaybackDrained(2),
         )
         assertEquals(Action.KeepClip(2, null), both.actions[both.actions.size - 2])
         assertEquals(listOf(Action.Replay(id = 3, speaker = null)), SpeakerPreview.reduce(both.state, Event.Tap(null)).actions)
@@ -275,11 +279,9 @@ class SpeakerPreviewTest {
     }
 
     /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
-    private fun configOf(speaker: GeminiSpeaker.Speaker?) =
-        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
+    private fun configOf(speaker: GeminiSpeaker.Speaker?) = SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
 
-    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject =
-        JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
+    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject = JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
 
     @Test fun previewSessionRunsOnTheSharedTransport() {
         assertTrue(GeminiBackend.Factory.create(configOf(charon), Silent) is WebSocketVoiceBackend)

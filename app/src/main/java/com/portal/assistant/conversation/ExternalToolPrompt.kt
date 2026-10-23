@@ -18,8 +18,7 @@ object ExternalToolPrompt {
     const val HEADER = "External tools:"
 
     /** Append an external-tools block when [lines] is non-empty. */
-    fun enrich(systemPrompt: String, lines: List<String>): String =
-        if (lines.isEmpty()) systemPrompt else "$systemPrompt\n\n$HEADER\n" + lines.joinToString("\n")
+    fun enrich(systemPrompt: String, lines: List<String>): String = if (lines.isEmpty()) systemPrompt else "$systemPrompt\n\n$HEADER\n" + lines.joinToString("\n")
 
     /** Prompt bullets from a session [parse][com.portal.assistant.conversation.tools.ExternalToolSpec.parse] result. */
     fun lines(tools: ExternalTools): List<String> = tools.promptLines

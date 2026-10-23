@@ -1,5 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlinter)
   alias(libs.plugins.dependency.analysis) // `buildHealth` advice; see the root build
   alias(libs.plugins.kotlin.compose)
 }
@@ -10,8 +11,10 @@ android {
 
   defaultConfig {
     applicationId = "com.portal.assistant"
-    minSdk = 28          // Android 9 — Portal+ ("aloha")
-    targetSdk = 29       // Android 10 — Portal-era behavior
+    minSdk = 28 // Android 9 — Portal+ ("aloha")
+    // Sideloaded onto Portal (no Play Store), so Play's target-API floor doesn't apply; 29 is deliberate.
+    //noinspection ExpiredTargetSdkVersion
+    targetSdk = 29 // Android 10 — Portal-era behavior
     versionCode = 5
     versionName = "2.3"
 

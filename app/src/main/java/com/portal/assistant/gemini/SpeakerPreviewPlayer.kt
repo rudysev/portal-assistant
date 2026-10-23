@@ -75,13 +75,18 @@ class SpeakerPreviewPlayer(
     private fun perform(action: SpeakerPreview.Action) {
         when (action) {
             is SpeakerPreview.Action.Connect -> connect(action.id, action.speaker)
+
             is SpeakerPreview.Action.Replay -> replay(action.id, action.speaker)
+
             is SpeakerPreview.Action.KeepClip -> current(action.id)?.let { s ->
                 clips[action.speaker] = s.clip.toList()
                 DebugLog.log("speaker preview ${s.id} kept clip ${pcmMs(s.clip.sumOf { it.size.toLong() })} ms")
             }
+
             is SpeakerPreview.Action.SendIntro -> current(action.id)?.voiceSession?.sendText(SpeakerPreview.INTRO_TEXT)
+
             is SpeakerPreview.Action.CloseSession -> current(action.id)?.voiceSession?.close()
+
             is SpeakerPreview.Action.Stop -> current(action.id)?.let { s ->
                 DebugLog.log("speaker preview ${s.id} stop (played ${pcmMs(s.player.playedBytes())} ms)")
                 s.player.setOnDrained(null)
@@ -96,7 +101,6 @@ class SpeakerPreviewPlayer(
 
     /** Duration of [bytes] of 24 kHz mono 16-bit PCM, for the debug log. */
     private fun pcmMs(bytes: Long): Long = bytes / 48
-
 
     private fun connect(id: Long, speaker: GeminiSpeaker.Speaker?) {
         DebugLog.log("speaker preview $id start speaker=${speaker?.name ?: "server default"} model=$model")

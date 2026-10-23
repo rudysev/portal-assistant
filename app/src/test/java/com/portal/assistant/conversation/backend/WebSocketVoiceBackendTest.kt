@@ -10,8 +10,8 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import java.io.IOException
 import org.junit.Test
+import java.io.IOException
 
 /**
  * The shared transport's socket lifecycle, driven synchronously: a [FakeWebSocket] records what the transport
@@ -69,23 +69,45 @@ class WebSocketVoiceBackendTest {
 
     private class RecordingListener : VoiceBackend.Listener {
         val events = mutableListOf<String>()
-        override fun onReady() { events += "ready" }
-        override fun onInputTranscript(textDelta: String) { events += "in:$textDelta" }
-        override fun onOutputTranscript(textDelta: String) { events += "out:$textDelta" }
-        override fun onAudio(pcm24k: ByteArray) { events += "audio:${pcm24k.size}" }
-        override fun onTurnComplete() { events += "turnComplete" }
-        override fun onInterrupted() { events += "interrupted" }
-        override fun onModelGenerating() { events += "generating" }
-        override fun onToolCall(calls: List<FunctionCall>) { events += "toolCall:${calls.map { it.name }}" }
-        override fun onToolCancel(ids: List<String>) { events += "toolCancel:$ids" }
-        override fun onServerClosingSoon(graceMs: Long) { events += "closingSoon:$graceMs" }
+        override fun onReady() {
+            events += "ready"
+        }
+        override fun onInputTranscript(textDelta: String) {
+            events += "in:$textDelta"
+        }
+        override fun onOutputTranscript(textDelta: String) {
+            events += "out:$textDelta"
+        }
+        override fun onAudio(pcm24k: ByteArray) {
+            events += "audio:${pcm24k.size}"
+        }
+        override fun onTurnComplete() {
+            events += "turnComplete"
+        }
+        override fun onInterrupted() {
+            events += "interrupted"
+        }
+        override fun onModelGenerating() {
+            events += "generating"
+        }
+        override fun onToolCall(calls: List<FunctionCall>) {
+            events += "toolCall:${calls.map { it.name }}"
+        }
+        override fun onToolCancel(ids: List<String>) {
+            events += "toolCancel:$ids"
+        }
+        override fun onServerClosingSoon(graceMs: Long) {
+            events += "closingSoon:$graceMs"
+        }
         override fun onError(error: BackendError) {
             events += when (error) {
                 is BackendError.Transport -> "transport:${error.detail}"
                 is BackendError.Server -> "server:${error.message}"
             }
         }
-        override fun onClosed() { events += "closed" }
+        override fun onClosed() {
+            events += "closed"
+        }
     }
 
     private val listener = RecordingListener()

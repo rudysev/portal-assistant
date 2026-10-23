@@ -13,8 +13,7 @@ class ExternalToolSpecTest {
         return """{"name":"$name","description":"$desc"$params}"""
     }
 
-    private fun provider(pkg: String, vararg decls: String, summary: String = "Test provider.") =
-        DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]", summary)
+    private fun provider(pkg: String, vararg decls: String, summary: String = "Test provider.") = DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]", summary)
 
     @Test fun enabledProviderContributesItsTools() {
         val p = provider("com.example.lights", decl("com.example.lights.set_light"))
