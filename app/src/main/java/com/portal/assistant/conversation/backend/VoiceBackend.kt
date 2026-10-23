@@ -15,6 +15,10 @@ import org.json.JSONObject
  * PCM** up via [sendAudio] and expects **24 kHz mono 16-bit PCM** back via [Listener.onAudio]. A
  * backend whose model uses other rates must resample on its own side.
  *
+ * **First audio (invariant):** [Listener.onModelGenerating] fires before the first [Listener.onAudio] of every
+ * turn. The engine relies on it — without it, Jarvis's answer plays while the mic keeps sending and the orange bar
+ * stays up. [WebSocketVoiceBackend] guarantees it for every backend on it; any other backend must too.
+ *
  * **Threading:** callbacks may arrive on any thread (e.g. a socket's reader thread); the engine
  * marshals them onto its single orchestration thread, so implementations need not post — just invoke.
  */
@@ -57,7 +61,7 @@ interface VoiceBackend {
         /**
          * The model has started this turn — fired on the first content, including a text-only "thinking"
          * part before any audio (e.g. while it runs a search). Signals the user's turn is over and we're
-         * now waiting on the model.
+         * now waiting on the model. Always before the turn's first [onAudio] (the first-audio invariant above).
          */
         fun onModelGenerating()
 

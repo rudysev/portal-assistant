@@ -10,7 +10,7 @@ data class GeminiWireOptions(
 )
 
 /**
- * Wire/transport knobs for the local voice host. [LocalBackend][com.portal.assistant.local.LocalBackend]
+ * Wire/transport knobs for the local voice host. [LocalBackend.Factory][com.portal.assistant.local.LocalBackend.Factory]
  * reads this slice of [BackendConfig]; other factories ignore it.
  */
 data class LocalWireOptions(

@@ -121,13 +121,16 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   the **single composition point** that picks the concrete backend — deliberately the only file in
   `conversation/` that imports `gemini` (and `local`). Gemini's `LiveClient` implements `VoiceBackend`, wired via
   `gemini/GeminiBackend.Factory`; the opt-in LAN backend is the top-level `local/` package, a sibling of `gemini/`
-  (`LocalBackend` — Pipecat voice host over `wss://`, trust-all TLS, encryption without cert setup — plus its
+  (`LocalBackend` factory object + the pure `LocalWireFormat` on the shared `conversation/backend/WebSocketVoiceBackend`
+  transport (setup gate, first-audio guarantee, failure/close; tool calls via `ToolCallWire`) — Pipecat voice host
+  over `wss://`, trust-all TLS, encryption without cert setup — plus its
   tool-schema mapping `LocalToolMapping` and host address parsing `LocalVoiceHost`). `conversation/backend/` holds
-  no concrete backend: only the seam (incl. the per-backend wire options, slices of `BackendConfig`) and the
-  composition point. `Backends.resolve()` picks the
-  factory + credential (API key vs host URL) per `AppPrefs.voiceBackendKind`; `Backends.warmDns()` pre-resolves
-  the selected host. The reducer + engine never touch `gemini` or `local` directly. Seam contract is unit-tested
-  (`conversation/backend/VoiceBackendTest`, `local/LocalBackendTest`).
+  no concrete backend: only the seam (incl. the per-backend wire options, slices of `BackendConfig`), the shared
+  transport (`BackendEvent`, `WireFormat`, `WebSocketVoiceBackend`, `ToolCallWire`) and the composition point.
+  `Backends.resolve()` picks the factory + credential (API key vs host URL) per `AppPrefs.voiceBackendKind`;
+  `Backends.warmDns()` pre-resolves the selected host. The reducer + engine never touch `gemini` or `local` directly. Seam contract is unit-tested
+  (`conversation/backend/VoiceBackendTest`, `conversation/backend/WebSocketVoiceBackendTest`,
+  `local/LocalWireFormatTest`).
 - `conversation/Trigger.kt` + `conversation/ConversationOpening.kt` — **how a conversation opens**. A closed
   `Trigger` (`WakeWord(wakeId)` / `MicTap` / `SuggestionChip(text)`) is typed end to end; the only untyped hop is
   the Intent into the service (encoded + decoded side by side in `AssistantService`'s companion; an undecodable
@@ -258,7 +261,7 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`) · `gemini/LiveClient` · `local/` (`LocalBackend`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
+`TimerScheduler` + the observable `TimerStore`) · `gemini/LiveClient` · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (idle home +
 `ConversationStatus`/`ListeningOrb`/`AmbientGlow`/`TimerCards`/`NoticeBanner`/suggestion chips), `SettingsScreen`,
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
