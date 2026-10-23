@@ -14,8 +14,7 @@ data class VolumeState(val percent: Int, val muted: Boolean) {
  * The one Android site that touches [AudioManager], controlling the **media** stream ([STREAM]) — the same
  * stream the assistant voice (`USAGE_ASSISTANT`) and the timer chime (`USAGE_MEDIA`) play on, so this is the
  * volume the user perceives. Pure percent↔index math lives in [VolumeMath]; this is the thin shell (same
- * split as [Timers] / [TimerScheduler]). It also exposes [unmuteRing] so `DoNotDisturbController` can restore
- * the ring stream after DnD without a second AudioManager owner — keeping this the single AudioManager site.
+ * split as [Timers] / [TimerScheduler]).
  *
  * AudioManager is synchronous and main-thread-safe, so these run directly on the engine's tool-executor
  * thread — no dispatch hop, no lock (volume itself is system state, not app state). The only instance state
@@ -88,15 +87,6 @@ class VolumeController(context: Context, afterSpeech: AfterSpeech) {
         DebugLog.log("volume mute=true (deferred to turn-end)")
         return VolumeState(current().percent, muted = true) // report intended state; model says "muted"
     }
-
-    /**
-     * Un-mute the **ring** stream. DnD-enable uses `INTERRUPTION_FILTER_NONE` (total silence), which mutes
-     * STREAM_RING as a zen side effect that `INTERRUPTION_FILTER_ALL` doesn't reliably clear — so DnD-disable
-     * calls this to guarantee "DnD off ⇒ the phone can ring". Lives here so [AudioManager] stays owned by this
-     * one site. Best-effort: returns whether the unmute call succeeded, never throws.
-     */
-    fun unmuteRing(): Boolean = runCatching { audioManager.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0) }
-        .isSuccess
 
     /** Drop any pending deferred mute. Call on conversation teardown so it can't fire into the next one. */
     fun dispose() = deferredMute.dispose()

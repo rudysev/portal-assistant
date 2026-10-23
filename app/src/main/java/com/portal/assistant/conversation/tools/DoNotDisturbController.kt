@@ -26,11 +26,7 @@ data class DndState(val enabled: Boolean) {
  * **Requires notification-policy access** (`isNotificationPolicyAccessGranted`, granted in setup.sh). When it's
  * missing we return an error JSON rather than throwing — the model just reports it couldn't.
  */
-class DoNotDisturbController(
-    context: Context,
-    afterSpeech: AfterSpeech,
-    private val volume: VolumeController,
-) {
+class DoNotDisturbController(context: Context, afterSpeech: AfterSpeech) {
 
     private val manager =
         context.applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -57,15 +53,11 @@ class DoNotDisturbController(
         if (!enabled) {
             deferredEnable.cancel() // an explicit disable overrides a pending enable
             manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
-            // Our enable uses INTERRUPTION_FILTER_NONE (total silence), which mutes the ringer-affected
-            // streams as a zen side effect — and FILTER_ALL does NOT reliably un-mute them, so after a DnD
-            // on/off cycle the device can't ring an incoming call. Restore the ring via VolumeController (the
-            // single AudioManager site) so "DnD off ⇒ the phone can ring" always holds. (Only the ring stream —
-            // we never mute it elsewhere; VolumeController's mute targets STREAM_MUSIC.)
-            val ringRestored = volume.unmuteRing()
-            return DndState(false).toJson().also {
-                DebugLog.log(if (ringRestored) "dnd disabled (ring un-muted)" else "dnd disabled (ring un-mute failed)")
-            }
+            // Leave the ringer alone. Our enable (INTERRUPTION_FILTER_NONE) puts the ringer mode into SILENT, and
+            // ZenModeHelper puts the previous ringer mode back on its own, asynchronously, once zen is off. Touching
+            // the ring stream here (an ADJUST_UNMUTE used to) races that restore: AudioService re-writes the SILENT
+            // it read a moment earlier, and the device can no longer ring (device-verified on gen2).
+            return DndState(false).toJson().also { DebugLog.log("dnd disabled") }
         }
         if (isOn()) {
             // Already enabling or on — don't schedule a redundant deferred apply.

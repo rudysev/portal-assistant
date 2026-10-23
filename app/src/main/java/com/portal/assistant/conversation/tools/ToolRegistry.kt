@@ -19,7 +19,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
     private val timerScheduler = TimerScheduler(appContext)
     private val volume = VolumeController(appContext, afterSpeech)
     private val brightness = BrightnessController(appContext)
-    private val dnd = DoNotDisturbController(appContext, afterSpeech, volume)
+    private val dnd = DoNotDisturbController(appContext, afterSpeech)
     private val media = MediaControl(appContext)
     private val appLauncher = AppLauncher(appContext)
     private val external = ExternalToolProvider(appContext)
