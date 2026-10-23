@@ -146,5 +146,5 @@ object ListeningTone {
     }
 
     /** Smooth 0→1 ramp over [progress] in 0..1 (half a cosine period) — gentler than a linear ramp. */
-    private fun raisedCosine(progress: Double): Double = 0.5 - 0.5 * cos(PI * progress)
+    private fun raisedCosine(progress: Double): Double = (1 - cos(PI * progress)) / 2
 }

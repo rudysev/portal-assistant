@@ -81,6 +81,12 @@ private val SUGGESTIONS = listOf(
 // width threshold would never flip to portrait. See [IdleHome].
 private val WIDE_HOME_MIN = 720.dp
 
+// The idle home's ambient glow, scaled by its breathing intensity: peak alpha, and the radius (a fraction of the
+// screen's short side) it grows from and by.
+private const val AMBIENT_GLOW_ALPHA = 0.10f
+private const val AMBIENT_GLOW_RADIUS = 0.42f
+private const val AMBIENT_GLOW_GROWTH = 0.10f
+
 /**
  * The idle home (shown only at rest): an ambient clock/date glance (what a countertop display is *for*), the
  * greeting, and a couple of example prompts that teach what Jarvis can do and ask it on tap. No center brand
@@ -218,7 +224,7 @@ internal fun AmbientGlow(modifier: Modifier = Modifier) {
         ).value
     }
     Canvas(modifier = modifier.fillMaxSize()) {
-        drawAccentGlow(0.10f * intensity, radius = size.minDimension * (0.42f + 0.10f * intensity))
+        drawAccentGlow(AMBIENT_GLOW_ALPHA * intensity, radius = size.minDimension * (AMBIENT_GLOW_RADIUS + AMBIENT_GLOW_GROWTH * intensity))
     }
 }
 

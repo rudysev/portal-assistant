@@ -29,15 +29,17 @@ object PcmGain {
         val out = ByteArray(n)
         var i = 0
         while (i < n) {
-            val sample = (buf[i].toInt() and 0xff) or (buf[i + 1].toInt() shl 8) // signed 16-bit, little-endian
+            val sample = (buf[i].toInt() and BYTE_MASK) or (buf[i + 1].toInt() shl BYTE_BITS) // signed 16-bit, little-endian
             val scaled = (sample * gain).toInt().coerceIn(MIN_16, MAX_16)
-            out[i] = (scaled and 0xff).toByte()
-            out[i + 1] = ((scaled shr 8) and 0xff).toByte()
+            out[i] = (scaled and BYTE_MASK).toByte()
+            out[i + 1] = ((scaled shr BYTE_BITS) and BYTE_MASK).toByte()
             i += 2
         }
         return out
     }
 
+    private const val BYTE_MASK = 0xff
+    private const val BYTE_BITS = 8
     private const val MIN_16 = -32_768
     private const val MAX_16 = 32_767
 }

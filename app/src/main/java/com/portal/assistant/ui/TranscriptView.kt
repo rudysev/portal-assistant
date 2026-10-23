@@ -73,6 +73,8 @@ private const val WORD_FADE_MS = 140
 // so the thinking dots give way even before the first transcript word arrives.
 private const val THINKING_AUDIO_EPS = 0.05f
 
+private const val THINKING_DOTS = 3
+
 @Composable
 internal fun Transcript(turns: List<Turn>, phase: ConversationHub.UiPhase, audioLevel: StateFlow<Float>) {
     val listState = rememberLazyListState()
@@ -227,10 +229,10 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
     ) {
         if (reduceMotion) {
             // Three steady dots still read as "working", without the ripple.
-            repeat(3) { Box(Modifier.size(14.dp).clip(CircleShape).background(Accent.copy(alpha = 0.7f))) }
+            repeat(THINKING_DOTS) { Box(Modifier.size(14.dp).clip(CircleShape).background(Accent.copy(alpha = 0.7f))) }
         } else {
             val transition = rememberInfiniteTransition(label = "thinking")
-            repeat(3) { i ->
+            repeat(THINKING_DOTS) { i ->
                 val alpha by transition.animateFloat(
                     initialValue = 0.25f,
                     targetValue = 1f,

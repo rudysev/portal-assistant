@@ -28,6 +28,8 @@ object ChimeSound {
     private val STRIKE_OFFSETS_SEC = doubleArrayOf(0.0, 1.1) // struck twice
     private const val STRIKE_LEN_SEC = 1.0
     private const val TOTAL_SEC = 2.3
+    private const val MS_PER_SEC = 1000
+    private const val RELEASE_MARGIN_MS = 300 // the track is released this long after the chime ends
 
     /** Plays the chime; [onComplete] runs once it has finished and the track is released (always called). */
     fun play(onComplete: () -> Unit = {}) {
@@ -65,7 +67,7 @@ object ChimeSound {
                 runCatching { track.release() }
                 onComplete()
             },
-            (TOTAL_SEC * 1000).toLong() + 300,
+            (TOTAL_SEC * MS_PER_SEC).toLong() + RELEASE_MARGIN_MS,
         )
     }
 

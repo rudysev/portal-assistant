@@ -33,6 +33,9 @@ object AppMatch {
     private const val CONTAINS_MIN = 4 // a mid-substring match (label contains q) needs a longer q than a prefix
     private const val PICK_THRESHOLD = 60 // exact(100)/prefix(80)/contains(60) auto-pick; weaker → candidates
     private const val MAX_CANDIDATES = 3
+    private const val EXACT_SCORE = 100
+    private const val PREFIX_SCORE = 80
+    private const val CONTAINS_SCORE = 60
 
     fun best(query: String, apps: List<AppEntry>): Result {
         val tokens = tokenize(query).dropWhile { it in FILLER }
@@ -70,16 +73,16 @@ object AppMatch {
     private fun scoreTier(q: String, qTokens: List<String>, app: AppEntry): Pair<String, Int> {
         val label = compact(app.label)
         return when {
-            q == label -> "exact" to 100
+            q == label -> "exact" to EXACT_SCORE
 
             q.length < MIN_QUERY_LEN || label.length < MIN_QUERY_LEN -> "none" to 0
 
-            label.startsWith(q) || q.startsWith(label) -> "prefix" to 80
+            label.startsWith(q) || q.startsWith(label) -> "prefix" to PREFIX_SCORE
 
             // q.contains(label): the whole label is inside the query (label is the anchor, e.g. "googlephotos" ⊃
             // "photos") — safe at any length. label.contains(q): q is a mid-substring of the label — only trust it
             // for a longer q, else a 3-char fragment ("ify") would auto-pick "Spotify".
-            q.contains(label) || (q.length >= CONTAINS_MIN && label.contains(q)) -> "contains" to 60
+            q.contains(label) || (q.length >= CONTAINS_MIN && label.contains(q)) -> "contains" to CONTAINS_SCORE
 
             else -> looseTier(q, qTokens, app.label, label)
         }

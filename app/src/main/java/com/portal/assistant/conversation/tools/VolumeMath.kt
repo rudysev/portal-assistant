@@ -14,15 +14,17 @@ import kotlin.math.roundToInt
  */
 object VolumeMath {
 
+    private const val MAX_PERCENT = 100
+
     /** A 0..100 percent → a 0..maxIndex AudioManager index (rounded, clamped). */
     fun toIndex(percent: Int, maxIndex: Int): Int {
         if (maxIndex <= 0) return 0
-        return (percent.coerceIn(0, 100) / 100.0 * maxIndex).roundToInt().coerceIn(0, maxIndex)
+        return (percent.coerceIn(0, MAX_PERCENT) / MAX_PERCENT.toDouble() * maxIndex).roundToInt().coerceIn(0, maxIndex)
     }
 
     /** A 0..maxIndex AudioManager index → a 0..100 percent (rounded). */
     fun toPercent(index: Int, maxIndex: Int): Int {
         if (maxIndex <= 0) return 0
-        return (index.coerceIn(0, maxIndex) * 100.0 / maxIndex).roundToInt()
+        return (index.coerceIn(0, maxIndex) * MAX_PERCENT.toDouble() / maxIndex).roundToInt()
     }
 }

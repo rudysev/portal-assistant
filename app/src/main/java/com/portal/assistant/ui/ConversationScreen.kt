@@ -72,6 +72,17 @@ import com.portal.assistant.ui.theme.SECONDARY_ALPHA
 import com.portal.assistant.ui.theme.TextSize
 import kotlinx.coroutines.flow.StateFlow
 
+// The background stays flat down to here, then warms toward [BottomGlow] at the bottom edge.
+private const val BOTTOM_GLOW_START = 0.72f
+private val BottomGlow = Color(0xFF1A0F03)
+
+// The status orb: a slow breathing pulse while connecting, then scale and glow that follow the mic level.
+private const val ORB_PULSE_MS = 1100
+private const val CONNECTING_GLOW = 0.35f
+private const val LISTENING_SCALE_BOOST = 0.25f // at full level the orb is 25% larger
+private const val LISTENING_GLOW_MIN = 0.3f
+private const val LISTENING_GLOW_RANGE = 0.5f
+
 /**
  * The foreground chat screen. Renders the live conversation [ConversationHub] publishes: an iOS-assistant
  * layout (user chips + large model text, word-by-word) in our warm-orange identity, voice-only.
@@ -95,8 +106,8 @@ fun ConversationScreen(
             .background(
                 Brush.verticalGradient(
                     0f to MaterialTheme.colorScheme.background,
-                    0.72f to MaterialTheme.colorScheme.background,
-                    1f to Color(0xFF1A0F03), // subtle warm glow along the bottom edge
+                    BOTTOM_GLOW_START to MaterialTheme.colorScheme.background,
+                    1f to BottomGlow, // subtle warm glow along the bottom edge
                 ),
             )
             .padding(horizontal = 32.dp)
@@ -339,16 +350,16 @@ private fun ListeningOrb(phase: ConversationHub.UiPhase, audioLevel: StateFlow<F
             rememberInfiniteTransition(label = "orbPulse").animateFloat(
                 initialValue = 1f,
                 targetValue = 1.06f, // gentle, so the hand-off to the listen scale isn't a visible pop
-                animationSpec = infiniteRepeatable(animation = tween(1100), repeatMode = RepeatMode.Reverse),
+                animationSpec = infiniteRepeatable(animation = tween(durationMillis = ORB_PULSE_MS), repeatMode = RepeatMode.Reverse),
                 label = "pulse",
             ).value
         }
-        glow = 0.35f
+        glow = CONNECTING_GLOW
     } else {
         val level by audioLevel.collectAsStateWithLifecycle()
         val clamped = level.coerceIn(0f, 1f)
-        scale = animateFloatOnFrameClock(1f + clamped * 0.25f).value
-        glow = 0.3f + 0.5f * clamped
+        scale = animateFloatOnFrameClock(1f + clamped * LISTENING_SCALE_BOOST).value
+        glow = LISTENING_GLOW_MIN + LISTENING_GLOW_RANGE * clamped
     }
 
     Canvas(modifier = Modifier.size(200.dp).scale(scale)) {

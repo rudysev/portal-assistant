@@ -5,6 +5,7 @@ import com.portal.commons.DebugLog
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.io.IOException
+import java.net.HttpURLConnection
 
 /**
  * One-shot validation of a user-supplied Gemini API key (BYOD — Settings → API key). The Live API is a
@@ -16,6 +17,12 @@ import java.io.IOException
  * [classify]; [validate] is the thin I/O around it (mirrors the codebase's pure-core + thin-shell pattern).
  */
 object GeminiKeyCheck {
+
+    private val INVALID_KEY_CODES = setOf(
+        HttpURLConnection.HTTP_BAD_REQUEST,
+        HttpURLConnection.HTTP_UNAUTHORIZED,
+        HttpURLConnection.HTTP_FORBIDDEN,
+    )
 
     private const val MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -33,8 +40,8 @@ object GeminiKeyCheck {
     /** Map an HTTP status to a verdict. 2xx = valid; auth/bad-request = invalid; anything else (5xx,
      *  unexpected) is treated as a transient error so a flaky server never discards a good key. Pure. */
     fun classify(code: Int): Result = when {
-        code in 200..299 -> Result.Valid
-        code == 400 || code == 401 || code == 403 -> Result.Invalid
+        code in HttpURLConnection.HTTP_OK until HttpURLConnection.HTTP_MULT_CHOICE -> Result.Valid
+        code in INVALID_KEY_CODES -> Result.Invalid
         else -> Result.NetworkError
     }
 

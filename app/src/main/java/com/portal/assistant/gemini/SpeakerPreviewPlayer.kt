@@ -100,7 +100,7 @@ class SpeakerPreviewPlayer(
     private fun current(id: Long): Session? = session?.takeIf { it.id == id }
 
     /** Duration of [bytes] of 24 kHz mono 16-bit PCM, for the debug log. */
-    private fun pcmMs(bytes: Long): Long = bytes / 48
+    private fun pcmMs(bytes: Long): Long = bytes / PCM_BYTES_PER_MS
 
     private fun connect(id: Long, speaker: GeminiSpeaker.Speaker?) {
         DebugLog.log("speaker preview $id start speaker=${speaker?.name ?: "server default"} model=$model")
@@ -156,3 +156,5 @@ class SpeakerPreviewPlayer(
         override fun onServerClosingSoon(graceMs: Long) = Unit
     }
 }
+
+private const val PCM_BYTES_PER_MS = 48 // 24 kHz mono 16-bit: 24 samples × 2 bytes per ms

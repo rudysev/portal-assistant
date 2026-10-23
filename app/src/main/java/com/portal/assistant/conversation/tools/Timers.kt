@@ -2,6 +2,7 @@ package com.portal.assistant.conversation.tools
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 /** One scheduled timer. Pure data — id doubles as the AlarmManager PendingIntent requestCode. */
@@ -49,7 +50,7 @@ object Timers {
     }
 
     /** Whole seconds until [entry] fires, never negative. */
-    fun remainingSec(entry: TimerEntry, nowMs: Long): Long = max(0L, (entry.fireAtMs - nowMs) / 1000L)
+    fun remainingSec(entry: TimerEntry, nowMs: Long): Long = max(0L, TimeUnit.MILLISECONDS.toSeconds(entry.fireAtMs - nowMs))
 
     /** Entries that haven't fired yet (drops elapsed ones defensively). */
     fun active(list: List<TimerEntry>, nowMs: Long): List<TimerEntry> = list.filter { it.fireAtMs > nowMs }

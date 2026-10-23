@@ -187,6 +187,7 @@ class GeminiWireFormat(
 
     companion object {
         private const val NORMAL_CLOSURE = 1000
+        private const val MS_PER_SEC = 1000
 
         // Server-side VAD tuning. The silence window dictates how long the user must remain silent before
         // the model considers their turn "complete" and starts generating its response. 600 ms stays safe for
@@ -196,6 +197,6 @@ class GeminiWireFormat(
         const val VAD_SILENCE_DURATION_MS = 600
 
         /** Parse a protobuf Duration string like "9.5s" to millis; 0 if unparseable. */
-        fun parseDurationMs(durationText: String): Long = (durationText.trim().removeSuffix("s").toDoubleOrNull()?.times(1000))?.toLong() ?: 0L
+        fun parseDurationMs(durationText: String): Long = (durationText.trim().removeSuffix("s").toDoubleOrNull()?.times(MS_PER_SEC))?.toLong() ?: 0L
     }
 }

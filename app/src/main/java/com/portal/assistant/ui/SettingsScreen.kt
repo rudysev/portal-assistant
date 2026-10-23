@@ -123,13 +123,15 @@ fun SettingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         if (place.isNotEmpty()) return@LaunchedEffect
         LocationProvider.refreshIfStale(context) // no-op if already running; ensures a retry on failure
-        for (i in 1..20) {
-            delay(500)
-            if (place.isNotEmpty()) break // user typed; don't overwrite
-            val detected = LocationProvider.detectedLabel(context) ?: continue
+        var detected: String? = null
+        var polls = 0
+        while (detected == null && polls++ < GEO_POLLS && place.isEmpty()) {
+            delay(GEO_POLL_MS)
+            if (place.isEmpty()) detected = LocationProvider.detectedLabel(context) // user typed: don't overwrite
+        }
+        if (detected != null) {
             place = detected
             savedPlace = detected // a detected fill is the baseline, not an unsaved edit
-            break
         }
     }
 
@@ -493,6 +495,10 @@ private fun backendLabel(kind: AppPrefs.VoiceBackendKind): String = when (kind) 
 }
 
 /** What the Speaker field and the dialog's pinned top row show for Server default (no Speaker chosen). */
+// The location field waits up to GEO_POLLS × GEO_POLL_MS (10 s) for an in-flight geolocation.
+private const val GEO_POLLS = 20
+private const val GEO_POLL_MS = 500L
+
 private const val SERVER_DEFAULT_LABEL = "Default"
 
 /** The Voice dialog's hint line when previews are available (no paused / missing-key hint to show). */

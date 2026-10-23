@@ -191,12 +191,14 @@ class WebSocketVoiceBackend(
 
     companion object {
         private const val NORMAL_CLOSURE = 1000
+        private const val PING_INTERVAL_SEC = 20L
+        private const val CONNECT_TIMEOUT_SEC = 15L
 
         /** [base] (its TLS trust) with the socket settings every voice backend shares. */
         fun socketClient(base: OkHttpClient): OkHttpClient = base.newBuilder()
-            .pingInterval(20, TimeUnit.SECONDS)
+            .pingInterval(PING_INTERVAL_SEC, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS) // keep the socket open
-            .connectTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
             .build()
     }
 }

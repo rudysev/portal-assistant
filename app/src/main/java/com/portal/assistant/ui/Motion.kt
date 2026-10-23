@@ -61,10 +61,12 @@ fun rememberReduceMotion(): Boolean {
 /** One full turn of [LoadingSpinner]. */
 internal const val SPINNER_PERIOD_MS = 1_000L
 
+private const val FULL_TURN_DEGREES = 360f
+
 /** The spinner's angle [elapsedNanos] after it started — always in [0, 360). */
 internal fun spinnerDegrees(elapsedNanos: Long): Float {
     val periodNanos = SPINNER_PERIOD_MS * 1_000_000L
-    return (elapsedNanos % periodNanos) * 360f / periodNanos
+    return (elapsedNanos % periodNanos) * FULL_TURN_DEGREES / periodNanos
 }
 
 /**
