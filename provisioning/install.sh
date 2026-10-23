@@ -17,7 +17,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"   # absolute path to this script — survives the cd below (for --help)
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || exit 1
 
 # ----- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; N=$'\033[0m'; else B=; G=; Y=; R=; D=; N=; fi
@@ -159,6 +159,9 @@ install_app() {
         ok "Downloaded $name"
       fi
     else
+      # APK_GLOB (config.env, apks/*.apk) must stay unquoted so it expands, and ls -t is the portable way to pick
+      # the newest APK in apks/. Only the first line of output is used, and APK file names have no newlines.
+      # shellcheck disable=SC2012,SC2086
       apk="$(ls -t $APK_GLOB 2>/dev/null | head -1)"
       [ -n "$apk" ] || die "No cached APK in apks/ and couldn't reach GitHub to download one. Connect to the internet, drop a Jarvis APK in apks/, or use --local."
       warn "Couldn't reach GitHub — installing the cached APK ($(basename "$apk")); it may not be the latest."
@@ -166,18 +169,18 @@ install_app() {
   fi
   step "Installing Jarvis ($(basename "$apk"))"
   # -r keep data on update, -d allow downgrade/same-version reinstall, -g pre-grant runtime perms.
-  a install -r -d -g "$apk" >/dev/null 2>&1 && ok "Installed $PKG" || die "Install failed."
+  if a install -r -d -g "$apk" >/dev/null 2>&1; then ok "Installed $PKG"; else die "Install failed."; fi
 }
 
 # ----- permissions -----------------------------------------------------------
 grant_permissions() {
   step "Granting permissions"
-  a shell pm grant "$PKG" android.permission.RECORD_AUDIO >/dev/null 2>&1 && ok "Microphone" || warn "Couldn't grant the microphone — Jarvis can't hear you until you grant it (Settings > Apps > Jarvis > Permissions)."
-  a shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1 && ok "Draw-over-apps (the orange recording bar)" || warn "Couldn't grant draw-over-apps — the orange listening bar won't show."
+  if a shell pm grant "$PKG" android.permission.RECORD_AUDIO >/dev/null 2>&1; then ok "Microphone"; else warn "Couldn't grant the microphone — Jarvis can't hear you until you grant it (Settings > Apps > Jarvis > Permissions)."; fi
+  if a shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; then ok "Draw-over-apps (the orange recording bar)"; else warn "Couldn't grant draw-over-apps — the orange listening bar won't show."; fi
   # Optional power-user grants — Jarvis runs without them; they just unlock a few tools.
-  a shell cmd notification allow_listener "$NOTIF_LISTENER" >/dev/null 2>&1 && ok "Notification access (media controls)" || warn "Media-control tool unavailable until you grant notification access on-device."
-  a shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1 && ok "Write settings (screen brightness)" || true
-  a shell cmd notification allow_dnd "$PKG" >/dev/null 2>&1 && ok "Do Not Disturb access" || true
+  if a shell cmd notification allow_listener "$NOTIF_LISTENER" >/dev/null 2>&1; then ok "Notification access (media controls)"; else warn "Media-control tool unavailable until you grant notification access on-device."; fi
+  if a shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1; then ok "Write settings (screen brightness)"; fi
+  if a shell cmd notification allow_dnd "$PKG" >/dev/null 2>&1; then ok "Do Not Disturb access"; fi
 }
 
 # ----- Gemini API key --------------------------------------------------------
@@ -192,7 +195,7 @@ launch_app() {
   # Launch once so onCreate imports the staged key and Android clears the "stopped"
   # state (so BOOT_COMPLETED is delivered after a reboot).
   step "Opening Jarvis once (imports your key, enables auto-start on reboot)"
-  a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1 && ok "Launched" || warn "Couldn't launch — open Jarvis from the app grid once."
+  if a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1; then ok "Launched"; else warn "Couldn't launch — open Jarvis from the app grid once."; fi
 }
 
 start_standby() {
@@ -241,7 +244,7 @@ do_uninstall() {
   wait_for_device
   step "Stopping and removing Jarvis"
   a shell am force-stop "$PKG" >/dev/null 2>&1
-  a uninstall "$PKG" >/dev/null 2>&1 && ok "Uninstalled $PKG" || warn "Jarvis was not installed."
+  if a uninstall "$PKG" >/dev/null 2>&1; then ok "Uninstalled $PKG"; else warn "Jarvis was not installed."; fi
   printf "\n%s✓ Done. Jarvis removed.%s\n" "$G$B" "$N"
 }
 

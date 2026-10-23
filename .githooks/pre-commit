@@ -1,6 +1,6 @@
 #!/bin/sh
-# pre-commit: fast checks on staged files only. Rejects the commit on findings; never auto-fixes.
-# Enable with `git config core.hooksPath .githooks`. Skip deliberately with `git commit --no-verify`.
+# pre-commit: fast checks on staged files only (ktlint, shellcheck). Rejects the commit on findings; never
+# auto-fixes. Enable with `git config core.hooksPath .githooks`. Skip deliberately with `git commit --no-verify`.
 set -eu
 
 # Must match the ktlint that kotlinter bundles (org.jmailen.kotlinter 5.7.0 -> ktlint 1.8.0), so the hook and
@@ -9,35 +9,65 @@ KTLINT_VERSION=1.8.0
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Staged (added/copied/modified/renamed) Kotlin files, NUL-delimited so odd names survive.
+# Staged (added/copied/modified/renamed) files matching the given pathspecs, NUL-delimited so odd names survive.
 staged() {
-  git diff --cached --name-only --diff-filter=ACMR -z -- '*.kt' '*.kts'
+  git diff --cached --name-only --diff-filter=ACMR -z -- "$@"
+}
+staged_kotlin() { staged '*.kt' '*.kts'; }
+# Shell scripts: *.sh, the macOS double-click *.command launchers and these hooks. (gradlew is generated.)
+staged_shell() { staged '*.sh' '*.command' '.githooks/*'; }
+
+# Turns a NUL-delimited file list on stdin into " 'a' 'b'" for a copy-pasteable command line.
+quoted() {
+  tr '\0' '\n' | while IFS= read -r f; do printf " '%s'" "$f"; done
 }
 
-if [ -z "$(staged | tr -d '\0')" ]; then
-  exit 0
-fi
+lint_kotlin() {
+  [ -n "$(staged_kotlin | tr -d '\0')" ] || return 0
 
-if ! command -v ktlint >/dev/null 2>&1; then
-  echo "pre-commit: ktlint not found. Install it with: brew install ktlint" >&2
-  exit 1
-fi
+  if ! command -v ktlint >/dev/null 2>&1; then
+    echo "pre-commit: ktlint not found. Install it with: brew install ktlint" >&2
+    return 1
+  fi
 
-found=$(ktlint --version | sed 's/^ktlint version //')
-if [ "$found" != "$KTLINT_VERSION" ]; then
-  echo "pre-commit: ktlint $found is installed, but this repo pins $KTLINT_VERSION (kotlinter)." >&2
-  echo "Install ktlint $KTLINT_VERSION so the hook matches ./gradlew lintKotlin." >&2
-  exit 1
-fi
+  found=$(ktlint --version | sed 's/^ktlint version //')
+  if [ "$found" != "$KTLINT_VERSION" ]; then
+    echo "pre-commit: ktlint $found is installed, but this repo pins $KTLINT_VERSION (kotlinter)." >&2
+    echo "Install ktlint $KTLINT_VERSION so the hook matches ./gradlew lintKotlin." >&2
+    return 1
+  fi
 
-# ktlint reads the patterns (here: literal paths) from stdin; --patterns-from-stdin='' means NUL-delimited.
-if ! staged | ktlint --relative --patterns-from-stdin=''; then
-  echo >&2
-  echo "pre-commit: ktlint found style violations (commit rejected). Fix them with either:" >&2
-  echo "  ./gradlew formatKotlin" >&2
-  printf '  ktlint -F' >&2
-  staged | tr '\0' '\n' | while IFS= read -r f; do printf " '%s'" "$f" >&2; done
-  echo >&2
-  echo "then re-stage the files and commit again." >&2
-  exit 1
-fi
+  # ktlint reads the patterns (here: literal paths) from stdin; --patterns-from-stdin='' means NUL-delimited.
+  if ! staged_kotlin | ktlint --relative --patterns-from-stdin=''; then
+    echo >&2
+    echo "pre-commit: ktlint found style violations (commit rejected). Fix them with either:" >&2
+    echo "  ./gradlew formatKotlin" >&2
+    printf '  ktlint -F%s\n' "$(staged_kotlin | quoted)" >&2
+    echo "then re-stage the files and commit again." >&2
+    return 1
+  fi
+}
+
+lint_shell() {
+  [ -n "$(staged_shell | tr -d '\0')" ] || return 0
+
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "pre-commit: shellcheck not found. Install it with: brew install shellcheck" >&2
+    return 1
+  fi
+
+  # Settings (follow sourced files, resolved from each script's directory) come from .shellcheckrc.
+  if ! staged_shell | xargs -0 shellcheck; then
+    echo >&2
+    echo "pre-commit: shellcheck found problems (commit rejected). Fix them by hand (each finding links its wiki" >&2
+    echo "page), re-stage the files and commit again. Re-check with:" >&2
+    printf '  shellcheck%s\n' "$(staged_shell | quoted)" >&2
+    return 1
+  fi
+}
+
+# Run both so one commit reports every finding.
+status=0
+lint_kotlin || status=1
+lint_shell || status=1
+exit "$status"
