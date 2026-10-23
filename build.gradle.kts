@@ -14,6 +14,11 @@ val lintKotlinScripts by tasks.registering(org.jmailen.gradle.kotlinter.tasks.Li
   source(fileTree(rootDir) { include("*.gradle.kts", "*/*.gradle.kts") })
 }
 tasks.check { dependsOn(lintKotlinScripts) }
+val formatKotlinScripts by tasks.registering(org.jmailen.gradle.kotlinter.tasks.FormatTask::class) {
+  source(fileTree(rootDir) { include("*.gradle.kts", "*/*.gradle.kts") })
+}
+// The root has no formatKotlin of its own, so `./gradlew formatKotlin` also fixes the Gradle scripts.
+tasks.register("formatKotlin") { dependsOn(formatKotlinScripts) }
 
 dependencyAnalysis {
   issues {
