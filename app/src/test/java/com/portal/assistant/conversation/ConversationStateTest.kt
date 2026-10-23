@@ -111,7 +111,7 @@ class ConversationStateTest {
     @Test fun noAudioTurnEndsImmediatelyOnTurnComplete() {
         // Model takes the turn but never emits audio (e.g. an empty/aborted turn): playbackIdle stays
         // true, so turnComplete alone ends it.
-        var s = ConversationState(phase = Phase.SPEAKING) // playbackIdle defaults true
+        val s = ConversationState(phase = Phase.SPEAKING) // playbackIdle defaults true
         val d = reduce(s, Event.TurnComplete, false)
         assertEquals(Phase.ENDED, d.state.phase)
         assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions)
@@ -226,7 +226,7 @@ class ConversationStateTest {
     @Test fun interruptedFlushesAndStaysSpeaking() {
         // A turn that was about to end gets interrupted/revised: reset and keep waiting; the
         // flush-induced drain must NOT end the turn.
-        var s = ConversationState(phase = Phase.SPEAKING, turnComplete = true, playbackIdle = false)
+        val s = ConversationState(phase = Phase.SPEAKING, turnComplete = true, playbackIdle = false)
         val d = reduce(s, Event.Interrupted, false)
         assertEquals(Phase.SPEAKING, d.state.phase)
         assertEquals(false, d.state.turnComplete)
@@ -299,7 +299,7 @@ class ConversationStateTest {
     }
 
     @Test fun multiTurnEndsOnFollowUpSilence() {
-        var s = ConversationState(phase = Phase.LISTENING) // after a re-listen
+        val s = ConversationState(phase = Phase.LISTENING) // after a re-listen
         val d = reduce(s, Event.NoSpeechTimeout, multiTurn = true)
         assertEquals(Phase.ENDED, d.state.phase)
         assertEquals(listOf(Action.End), d.actions)
