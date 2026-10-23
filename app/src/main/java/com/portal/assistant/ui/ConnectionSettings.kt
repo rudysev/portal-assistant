@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -120,9 +121,8 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
     // The Activity's scope, not a composition scope: navigating back (the section leaves composition) mid-
     // verify must NOT cancel the save, or a verified key would silently never persist.
     val scope = LocalLifecycleOwner.current.lifecycleScope
-    val errorColor = MaterialTheme.colorScheme.error
     // Pre-fill with the stored key so it's visible (masked) — confirms the app has it loaded.
-    val form = remember { ApiKeyForm(saved = AppPrefs.apiKey(context).orEmpty(), subtle = subtle) }
+    val form = remember { ApiKeyForm(saved = AppPrefs.apiKey(context).orEmpty()) }
 
     Column {
         ApiKeyHeading(subtle)
@@ -141,7 +141,7 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
                     scope.launch {
                         form.startCheck()
                         val result = withContext(ioDispatcher) { GeminiKeyCheck.validate(candidate) }
-                        form.checked(result, candidate, errorColor) { AppPrefs.setApiKey(context, candidate) }
+                        form.checked(result, candidate) { AppPrefs.setApiKey(context, candidate) }
                     }
                 },
                 enabled = form.draft.isNotBlank() && form.draft != form.saved && !form.checking,
@@ -162,13 +162,16 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
 
         form.message?.let {
             Spacer(Modifier.size(8.dp))
-            Text(it, color = form.messageColor, fontSize = TextSize.Body)
+            Text(it, color = form.messageTone.color(subtle), fontSize = TextSize.Body)
         }
     }
 }
 
-/** [ApiKeySection]'s form state: the stored and edited key, the check in flight, and the message under it. */
-private class ApiKeyForm(saved: String, private val subtle: Color) {
+/**
+ * [ApiKeySection]'s form state: the stored and edited key, the check in flight, and the message under it. It
+ * holds the message's [MessageTone], not a color: the theme maps that when the section draws.
+ */
+private class ApiKeyForm(saved: String) {
     var saved by mutableStateOf(saved)
         private set
     var draft by mutableStateOf(saved)
@@ -178,7 +181,7 @@ private class ApiKeyForm(saved: String, private val subtle: Color) {
         private set
     var message by mutableStateOf<String?>(null)
         private set
-    var messageColor by mutableStateOf(subtle)
+    var messageTone by mutableStateOf(MessageTone.NEUTRAL)
         private set
     var showSaveAnyway by mutableStateOf(false)
         private set
@@ -196,7 +199,7 @@ private class ApiKeyForm(saved: String, private val subtle: Color) {
     }
 
     /** The check of [candidate] came back [result]; a valid key is stored through [store]. */
-    fun checked(result: GeminiKeyCheck.Result, candidate: String, errorColor: Color, store: () -> Unit) {
+    fun checked(result: GeminiKeyCheck.Result, candidate: String, store: () -> Unit) {
         checking = false
         if (result == GeminiKeyCheck.Result.Valid) {
             store()
@@ -204,10 +207,10 @@ private class ApiKeyForm(saved: String, private val subtle: Color) {
             reveal = false
         }
         message = keyCheckMessage(result)
-        messageColor = when (result) {
-            GeminiKeyCheck.Result.Valid -> OK_COLOR
-            GeminiKeyCheck.Result.Invalid -> errorColor
-            GeminiKeyCheck.Result.NetworkError -> subtle
+        messageTone = when (result) {
+            GeminiKeyCheck.Result.Valid -> MessageTone.OK
+            GeminiKeyCheck.Result.Invalid -> MessageTone.ERROR
+            GeminiKeyCheck.Result.NetworkError -> MessageTone.NEUTRAL
         }
         showSaveAnyway = result == GeminiKeyCheck.Result.NetworkError
     }
@@ -218,8 +221,20 @@ private class ApiKeyForm(saved: String, private val subtle: Color) {
         reveal = false
         showSaveAnyway = false
         message = "Key saved (not verified)."
-        messageColor = subtle
+        messageTone = MessageTone.NEUTRAL
     }
+}
+
+/** How a form message reads: a success, an error, or plain information. */
+private enum class MessageTone { OK, ERROR, NEUTRAL }
+
+/** The color [MessageTone] draws in; [subtle] is the section's secondary text color. */
+@Composable
+@ReadOnlyComposable
+private fun MessageTone.color(subtle: Color): Color = when (this) {
+    MessageTone.OK -> OK_COLOR
+    MessageTone.ERROR -> MaterialTheme.colorScheme.error
+    MessageTone.NEUTRAL -> subtle
 }
 
 /** What a key check tells the user. */
