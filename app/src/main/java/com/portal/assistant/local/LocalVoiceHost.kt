@@ -2,8 +2,8 @@ package com.portal.assistant.local
 
 /**
  * The single entry point for local voice host addresses — Settings
- * ([AppPrefs][com.portal.assistant.system.AppPrefs]), DNS pre-warm ([dnsName]), and the wire client all go
- * through here.
+ * ([AppPrefs][com.portal.assistant.system.AppPrefs]) canonicalizes through here before storing, so the stored
+ * address the transport dials is already valid; DNS pre-warm uses [dnsName].
  *
  * Accepts **`host:port`** (the Settings-friendly form) or an explicit **`wss://host:port`**, always
  * normalizing to a canonical `wss://` URL. The LAN transport uses [com.portal.assistant.util.Http.lanVoice]

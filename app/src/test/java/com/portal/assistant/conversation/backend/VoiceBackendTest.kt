@@ -5,6 +5,7 @@ import com.portal.assistant.conversation.ToolResult
 import com.portal.assistant.gemini.GeminiBackend
 import com.portal.assistant.gemini.LiveClient
 import com.portal.assistant.local.LocalBackend
+import com.portal.assistant.util.Http
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -215,21 +216,30 @@ class VoiceBackendTest {
     }
 
     @Test
-    fun `Local adapter maps neutral config onto a LocalBackend`() {
+    fun `Local adapter runs the local wire format on the shared transport`() {
         val backend = LocalBackend.Factory.create(
             BackendConfig(credential = "wss://192.168.1.5:8080", model = "ignored", systemPrompt = "p"),
             RecordingListener(),
         )
-        assertTrue("Local backend should be a LocalBackend", backend is LocalBackend)
+        assertTrue("Local backend should be a WebSocketVoiceBackend", backend is WebSocketVoiceBackend)
     }
 
     @Test
-    fun `Local adapter tolerates a null credential`() {
+    fun `Local adapter turns a null credential into one error on connect, not a crash`() {
+        val listener = RecordingListener()
         val backend = LocalBackend.Factory.create(
             BackendConfig(credential = null, model = "m", systemPrompt = "p"),
-            RecordingListener(),
+            listener,
         )
-        assertTrue(backend is LocalBackend)
+        backend.connect()
+        assertEquals(1, listener.events.size)
+        assertTrue(listener.events.single().startsWith("error:Local connection failed: "))
+    }
+
+    @Test
+    fun `Local adapter picks the TLS trust from the local wire options`() {
+        assertSame(Http.lanVoice, LocalBackend.tlsClient(LocalWireOptions(LocalTlsMode.TRUST_SELF_SIGNED)))
+        assertSame(Http.shared, LocalBackend.tlsClient(LocalWireOptions(LocalTlsMode.SYSTEM)))
     }
 
     @Test

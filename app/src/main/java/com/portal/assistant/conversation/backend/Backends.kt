@@ -4,7 +4,6 @@ import android.content.Context
 import com.portal.assistant.BuildConfig
 import com.portal.assistant.gemini.GeminiBackend
 import com.portal.assistant.local.LocalBackend
-import com.portal.assistant.local.LocalVoiceHost
 import com.portal.assistant.system.AppPrefs
 import java.util.concurrent.Executors
 
@@ -87,7 +86,7 @@ object Backends {
     /**
      * Pre-resolve DNS for whichever backend is selected — best-effort, off the hot path. Call after the user
      * changes backend or local host in Settings (and from service prewarm at boot) so the next connect doesn't
-     * wait on lookup. Hostnames come from each backend's own wire layer ([GeminiBackend.dnsHost], [LocalVoiceHost]).
+     * wait on lookup. Hostnames come from each backend's own factory object ([GeminiBackend.dnsHost], [LocalBackend.dnsHost]).
      */
     fun warmDns(context: Context) {
         val appContext = context.applicationContext
@@ -102,7 +101,7 @@ object Backends {
     /** DNS hostname to pre-warm for the selected backend, or null when there is nothing to look up. */
     internal fun dnsHostFor(context: Context): String? = when (AppPrefs.voiceBackendKind(context)) {
         AppPrefs.VoiceBackendKind.LOCAL ->
-            AppPrefs.localVoiceHost(context)?.let { LocalVoiceHost.dnsName(it) }
+            AppPrefs.localVoiceHost(context)?.let { LocalBackend.dnsHost(it) }
 
         AppPrefs.VoiceBackendKind.GEMINI ->
             GeminiBackend.dnsHost()
