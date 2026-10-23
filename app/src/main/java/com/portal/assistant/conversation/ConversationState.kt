@@ -181,8 +181,11 @@ fun stallDecision(state: ConversationState, event: Event): StallDecision = when 
         }
 
         Event.TurnComplete ->
-            if (state.playbackIdle && state.toolsInFlight.isEmpty()) StallDecision.Cancel
-            else StallDecision.None
+            if (state.playbackIdle && state.toolsInFlight.isEmpty()) {
+                StallDecision.Cancel
+            } else {
+                StallDecision.None
+            }
 
         Event.Interrupted -> StallDecision.Arm
 

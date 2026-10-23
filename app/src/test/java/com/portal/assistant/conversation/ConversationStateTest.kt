@@ -554,7 +554,10 @@ class ConversationStateTest {
 
     @Test fun stallDecision_connectingAndEndedAreNone() {
         for (e in listOf(
-            Event.Ready, Event.ModelActivity, Event.PlaybackBusy, Event.StallTimeout,
+            Event.Ready,
+            Event.ModelActivity,
+            Event.PlaybackBusy,
+            Event.StallTimeout,
             Event.ToolCallReceived(listOf(fc("c1"))),
         )) {
             assertStall(ConversationState(phase = Phase.CONNECTING), e, StallDecision.None)

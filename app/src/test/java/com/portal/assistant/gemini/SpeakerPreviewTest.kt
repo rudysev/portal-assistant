@@ -250,7 +250,11 @@ class SpeakerPreviewTest {
     @Test fun theDefaultRowKeepsItsOwnClip() {
         val both = reduceAll(
             played.state,
-            Event.Tap(null), Event.Ready(2), Event.Audio(2), Event.TurnComplete(2), Event.PlaybackDrained(2),
+            Event.Tap(null),
+            Event.Ready(2),
+            Event.Audio(2),
+            Event.TurnComplete(2),
+            Event.PlaybackDrained(2),
         )
         assertEquals(Action.KeepClip(2, null), both.actions[both.actions.size - 2])
         assertEquals(listOf(Action.Replay(id = 3, speaker = null)), SpeakerPreview.reduce(both.state, Event.Tap(null)).actions)

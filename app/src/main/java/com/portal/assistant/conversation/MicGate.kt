@@ -174,9 +174,12 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
                     if (toneWindowDroppedFrames++ == 0) toneWindowDroppedFromMs = capturedFromMs - startedAtMs
                     toneWindowDroppedUntilMs = capturedUntilMs - startedAtMs
                 } else {
-                    val droppedInWindow = if (toneWindowDroppedFrames == 0) "nothing" else
+                    val droppedInWindow = if (toneWindowDroppedFrames == 0) {
+                        "nothing"
+                    } else {
                         "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
                             "captured ${toneWindowDroppedFromMs}..${toneWindowDroppedUntilMs}ms from the tone's start"
+                    }
                     reportToneDropOnce("then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)", logLines)
                 }
             }

@@ -93,9 +93,12 @@ class TranscriptTest {
 
     @Test fun fullMultiTurnConversation() {
         val t = Transcript().after(
-            ListeningStarted(0), UserText("weather?"),
-            JarvisText("It's ", SPEAKING), JarvisText("sunny.", SPEAKING),
-            ListeningStarted(0), UserText("tomorrow?"),
+            ListeningStarted(0),
+            UserText("weather?"),
+            JarvisText("It's ", SPEAKING),
+            JarvisText("sunny.", SPEAKING),
+            ListeningStarted(0),
+            UserText("tomorrow?"),
             JarvisText("Rain.", SPEAKING),
         )
         assertEquals(

@@ -35,7 +35,10 @@ class ForegroundWakeTest {
         },
         io = io,
         main = main,
-        onWake = { wakeId -> wakes += wakeId; events += "onWake($wakeId)" },
+        onWake = { wakeId ->
+            wakes += wakeId
+            events += "onWake($wakeId)"
+        },
         onSetup = { setups += it },
     )
 
@@ -134,12 +137,16 @@ class ForegroundWakeTest {
         online = false
         val wake = foregroundWake()
 
-        repeat(5) { wake.backgrounded(); wake.foregrounded() } // more offline visits than the retry limit
+        repeat(5) {
+            wake.backgrounded()
+            wake.foregrounded()
+        } // more offline visits than the retry limit
         assertTrue(io.isEmpty())
         assertTrue(setups.isEmpty())
 
         online = true
-        repeat(3) { // two failures and a success still fit: no offline visit was counted
+        repeat(3) {
+            // two failures and a success still fit: no offline visit was counted
             wake.backgrounded()
             wake.foregrounded()
             io.runAll()
@@ -175,7 +182,8 @@ class ForegroundWakeTest {
     @Test fun aSuccessfulDownloadResetsTheFailureCount() {
         model.failNext(2)
         val wake = foregroundWake()
-        repeat(3) { // fail, fail, succeed
+        repeat(3) {
+            // fail, fail, succeed
             wake.backgrounded()
             wake.foregrounded()
             io.runAll()

@@ -20,7 +20,10 @@ class WakeModelInstallerTest {
     private lateinit var installer: WakeModelInstaller
 
     @Before fun setup() {
-        filesDir = File.createTempFile("wmi", "").apply { delete(); mkdirs() }
+        filesDir = File.createTempFile("wmi", "").apply {
+            delete()
+            mkdirs()
+        }
         installer = WakeModelInstaller(filesDir)
     }
 
@@ -76,7 +79,8 @@ class WakeModelInstallerTest {
         assertEquals("cfg", File(into, "conf/mfcc.conf").readText())
     }
 
-    @Test(expected = SecurityException::class) fun unpack_rejectsZipSlip() {
+    @Test(expected = SecurityException::class)
+    fun unpack_rejectsZipSlip() {
         val zip = makeZip(files = mapOf("$ZIP_ROOT/../evil.txt" to "pwned"))
         installer.unpack(zip, File(filesDir, "out"))
     }
@@ -85,7 +89,10 @@ class WakeModelInstallerTest {
     private fun makeZip(dirs: List<String> = emptyList(), files: Map<String, String> = emptyMap()): File {
         val zip = File(filesDir, "model.zip")
         ZipOutputStream(zip.outputStream()).use { zos ->
-            dirs.forEach { zos.putNextEntry(ZipEntry(it)); zos.closeEntry() }
+            dirs.forEach {
+                zos.putNextEntry(ZipEntry(it))
+                zos.closeEntry()
+            }
             files.forEach { (name, content) ->
                 zos.putNextEntry(ZipEntry(name))
                 zos.write(content.toByteArray())
