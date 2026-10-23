@@ -39,6 +39,8 @@ class VoskDetector(
     private companion object {
         /** "hey jarvis" at the strict floor, matching portal-wake's built-in jarvis default so accuracy is identical.
          *  Non-null: the phrase is a valid two-word phrase. */
-        val WAKE_WORD = WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)!!
+        val WAKE_WORD = checkNotNull(WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)) {
+            "built-in phrase \"hey jarvis\""
+        }
     }
 }
