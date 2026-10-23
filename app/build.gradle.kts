@@ -10,6 +10,8 @@ android {
   defaultConfig {
     applicationId = "com.portal.assistant"
     minSdk = 28 // Android 9 — Portal+ ("aloha")
+    // Sideloaded onto Portal (no Play Store), so Play's target-API floor doesn't apply; 29 is deliberate.
+    //noinspection ExpiredTargetSdkVersion
     targetSdk = 29 // Android 10 — Portal-era behavior
     versionCode = 5
     versionName = "2.3"
