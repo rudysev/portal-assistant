@@ -178,7 +178,7 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
                         "nothing"
                     } else {
                         "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
-                            "captured ${toneWindowDroppedFromMs}..${toneWindowDroppedUntilMs}ms from the tone's start"
+                            "captured $toneWindowDroppedFromMs..${toneWindowDroppedUntilMs}ms from the tone's start"
                     }
                     reportToneDropOnce("then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)", logLines)
                 }

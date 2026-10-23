@@ -10,8 +10,8 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import java.io.IOException
 import org.junit.Test
+import java.io.IOException
 
 /**
  * The shared transport's socket lifecycle, driven synchronously: a [FakeWebSocket] records what the transport

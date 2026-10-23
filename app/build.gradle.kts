@@ -9,8 +9,8 @@ android {
 
   defaultConfig {
     applicationId = "com.portal.assistant"
-    minSdk = 28          // Android 9 — Portal+ ("aloha")
-    targetSdk = 29       // Android 10 — Portal-era behavior
+    minSdk = 28 // Android 9 — Portal+ ("aloha")
+    targetSdk = 29 // Android 10 — Portal-era behavior
     versionCode = 5
     versionName = "2.3"
 
