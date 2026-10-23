@@ -179,8 +179,8 @@ grant_permissions() {
   if a shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; then ok "Draw-over-apps (the orange recording bar)"; else warn "Couldn't grant draw-over-apps — the orange listening bar won't show."; fi
   # Optional power-user grants — Jarvis runs without them; they just unlock a few tools.
   if a shell cmd notification allow_listener "$NOTIF_LISTENER" >/dev/null 2>&1; then ok "Notification access (media controls)"; else warn "Media-control tool unavailable until you grant notification access on-device."; fi
-  a shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1 && ok "Write settings (screen brightness)" || true
-  a shell cmd notification allow_dnd "$PKG" >/dev/null 2>&1 && ok "Do Not Disturb access" || true
+  if a shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1; then ok "Write settings (screen brightness)"; fi
+  if a shell cmd notification allow_dnd "$PKG" >/dev/null 2>&1; then ok "Do Not Disturb access"; fi
 }
 
 # ----- Gemini API key --------------------------------------------------------
