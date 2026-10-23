@@ -32,9 +32,7 @@ class ForegroundWakeTest {
         micPermitted = { micPermitted },
         online = { online },
         model = model,
-        detectors = { dir, onWake, onUnavailable, onCaptureLost ->
-            FakeDetector(dir, onWake, onUnavailable, onCaptureLost, events).also { detectors += it }
-        },
+        detectors = { dir, listener -> FakeDetector(dir, listener, events).also { detectors += it } },
         io = io,
         main = main,
         later = later,
@@ -377,9 +375,7 @@ class ForegroundWakeTest {
     /** Records what [ForegroundWake] asks of it; the test fires its wake or reports it unavailable. */
     private class FakeDetector(
         val dir: File,
-        private val onWake: (String) -> Unit,
-        private val onUnavailable: () -> Unit,
-        private val onCaptureLost: (CaptureLoss) -> Unit,
+        private val listener: Detector.Listener,
         private val events: MutableList<String>,
     ) : Detector {
         var starts = 0
@@ -399,11 +395,11 @@ class ForegroundWakeTest {
             closed = true
         }
 
-        fun hears(wakeId: String) = onWake(wakeId)
+        fun hears(wakeId: String) = listener.onWake(wakeId)
 
-        fun reportsUnavailable() = onUnavailable()
+        fun reportsUnavailable() = listener.onUnavailable()
 
-        fun loses(loss: CaptureLoss) = onCaptureLost(loss)
+        fun loses(loss: CaptureLoss) = listener.onCaptureLost(loss)
     }
 
     /** Records each delay and runs the delayed tasks only when the test says so. */

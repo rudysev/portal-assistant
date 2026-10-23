@@ -72,9 +72,7 @@ class AssistantService : Service() {
             },
             online = { NetworkStatus.isOnline(this) },
             model = WakeModelInstaller(filesDir),
-            detectors = { modelDir, onWake, onUnavailable, onCaptureLost ->
-                VoskDetector(applicationContext, modelDir, onWake, onUnavailable, onCaptureLost)
-            },
+            detectors = { modelDir, listener -> VoskDetector(applicationContext, modelDir, listener) },
             io = { task ->
                 Thread(task).apply {
                     isDaemon = true

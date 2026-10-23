@@ -31,12 +31,7 @@ class ForegroundWake(
     private val micPermitted: () -> Boolean,
     private val online: () -> Boolean,
     private val model: WakeModel,
-    private val detectors: (
-        modelDir: File,
-        onWake: (wakeId: String) -> Unit,
-        onUnavailable: () -> Unit,
-        onCaptureLost: (CaptureLoss) -> Unit,
-    ) -> Detector,
+    private val detectors: (modelDir: File, listener: Detector.Listener) -> Detector,
     private val io: Executor,
     private val main: Executor,
     later: (delayMs: Long, task: Runnable) -> Unit,
@@ -52,6 +47,16 @@ class ForegroundWake(
     private var reloadTried = false // the delete + re-download recovery runs once per process
     private var gaveUp = false
     private val dropRetry = CaptureDropRetry(later)
+
+    // Every report hops to main.
+    private val listener = object : Detector.Listener {
+        override fun onWake(wakeId: String) = main.execute { heard(wakeId) }
+
+        override fun onUnavailable() = main.execute { modelFailedToLoad() }
+
+        override fun onCaptureLost(loss: CaptureLoss) =
+            main.execute { if (!closed) dropRetry.lost(loss) { if (mayArm) startDetector() } }
+    }
 
     private val mayArm get() = supported && !closed && !gaveUp && onScreen && !inConversation
 
@@ -101,12 +106,7 @@ class ForegroundWake(
     }
 
     private fun startDetector() {
-        val armed = detector ?: detectors(
-            model.dir,
-            { wakeId -> main.execute { heard(wakeId) } },
-            { main.execute { modelFailedToLoad() } },
-            { loss -> main.execute { if (!closed) dropRetry.lost(loss) { if (mayArm) startDetector() } } },
-        ).also { detector = it }
+        val armed = detector ?: detectors(model.dir, listener).also { detector = it }
         dropRetry.captureChanged()
         armed.start()
     }
