@@ -147,12 +147,12 @@ class SpeakerPreviewPlayer(
         override fun onClosed() = post(SpeakerPreview.Event.Disconnected(id))
 
         // A one-sentence intro with no function declarations — nothing else matters here.
-        override fun onInputTranscript(textDelta: String) {}
-        override fun onOutputTranscript(textDelta: String) {}
-        override fun onInterrupted() {}
-        override fun onModelGenerating() {}
-        override fun onToolCall(calls: List<FunctionCall>) {}
-        override fun onToolCancel(ids: List<String>) {}
-        override fun onServerClosingSoon(graceMs: Long) {}
+        override fun onInputTranscript(textDelta: String) = Unit
+        override fun onOutputTranscript(textDelta: String) = Unit
+        override fun onInterrupted() = Unit
+        override fun onModelGenerating() = Unit
+        override fun onToolCall(calls: List<FunctionCall>) = Unit
+        override fun onToolCancel(ids: List<String>) = Unit
+        override fun onServerClosingSoon(graceMs: Long) = Unit
     }
 }

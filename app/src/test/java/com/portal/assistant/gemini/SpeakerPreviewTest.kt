@@ -264,18 +264,18 @@ class SpeakerPreviewTest {
     // ---- the preview session --------------------------------------------------------------------------
 
     private object Silent : VoiceBackend.Listener {
-        override fun onReady() {}
-        override fun onInputTranscript(textDelta: String) {}
-        override fun onOutputTranscript(textDelta: String) {}
-        override fun onAudio(pcm24k: ByteArray) {}
-        override fun onTurnComplete() {}
-        override fun onInterrupted() {}
-        override fun onModelGenerating() {}
-        override fun onToolCall(calls: List<FunctionCall>) {}
-        override fun onToolCancel(ids: List<String>) {}
-        override fun onServerClosingSoon(graceMs: Long) {}
-        override fun onError(error: BackendError) {}
-        override fun onClosed() {}
+        override fun onReady() = Unit
+        override fun onInputTranscript(textDelta: String) = Unit
+        override fun onOutputTranscript(textDelta: String) = Unit
+        override fun onAudio(pcm24k: ByteArray) = Unit
+        override fun onTurnComplete() = Unit
+        override fun onInterrupted() = Unit
+        override fun onModelGenerating() = Unit
+        override fun onToolCall(calls: List<FunctionCall>) = Unit
+        override fun onToolCancel(ids: List<String>) = Unit
+        override fun onServerClosingSoon(graceMs: Long) = Unit
+        override fun onError(error: BackendError) = Unit
+        override fun onClosed() = Unit
     }
 
     /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
