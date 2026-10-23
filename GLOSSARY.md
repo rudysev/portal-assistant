@@ -81,6 +81,12 @@ _Avoid_: Plan, setup, start
 The trigger of saying "hey jarvis". Always starts a fresh conversation.
 _Avoid_: Hotword, wake (on its own)
 
+**Foreground wake**:
+Jarvis listening for the wake word itself, only on a Portal gen2 and only while the app is on screen — there, a
+background mic is silenced, so portal-wake can't hand off. It needs a one-time download of the wake model first,
+and stays off for the rest of the session if that model can't be set up.
+_Avoid_: Wake detector, hotword, hands-free mode
+
 **Mic tap**:
 The trigger of tapping the mic in the app. Resumes the on-screen conversation if there is one.
 _Avoid_: Tap-to-talk, tap (on its own)
