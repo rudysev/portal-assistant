@@ -56,7 +56,7 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
             // Atomic-ish swap: only expose the model dir once the unzip fully succeeded (so a crash mid-unzip
             // can't leave a half-model that isInstalled() would accept). staging → dir is a rename on the same fs.
             dir.deleteRecursively()
-            if (!staging.renameTo(dir)) throw IllegalStateException("could not move staged model into place")
+            check(staging.renameTo(dir)) { "could not move staged model into place" }
             check(isInstalled()) { "unpacked model incomplete — truncated/bad archive" }
             onProgress(1f)
             DebugLog.log("wake model installed (${dir.absolutePath})")
@@ -81,7 +81,7 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
             .build()
         client.newCall(req).execute().use { resp ->
             require(resp.isSuccessful) { "HTTP ${resp.code}" }
-            val body = resp.body ?: throw IllegalStateException("empty body")
+            val body = resp.body ?: error("empty body")
             val total = body.contentLength()
             body.byteStream().use { input ->
                 FileOutputStream(dest).use { out ->
@@ -106,7 +106,7 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
                     // Explicit truncation guard: OkHttp throws on a short read only when the server sent a
                     // Content-Length, so make that check visible and cover the known-length case here. (When the
                     // length is unknown, the all-dirs isInstalled() check + the caller's bounded retry catch it.)
-                    if (total > 0 && done != total) throw IllegalStateException("truncated download ($done/$total bytes)")
+                    check(total <= 0 || done == total) { "truncated download ($done/$total bytes)" }
                 }
             }
         }
