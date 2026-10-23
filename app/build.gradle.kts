@@ -67,13 +67,18 @@ dependencies {
   implementation(libs.androidx.lifecycle.common)
   implementation(libs.androidx.lifecycle.viewmodel)
   implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.kotlinx.coroutines.core)
+  // Runtime-only: supplies Dispatchers.Main on Android; the code itself only uses kotlinx-coroutines-core APIs.
+  runtimeOnly(libs.kotlinx.coroutines.android)
   // Gemini Live API WebSocket transport (GMS-free; Portal has no built-in WebSocket).
   implementation(libs.okhttp)
+  implementation(libs.okio) // ByteString frames on the WebSocket
 
   testImplementation(libs.junit)
   testImplementation(platform(libs.androidx.compose.bom))
   testImplementation(libs.androidx.compose.animation.core) // FrameClockSpringTest reads Spring.StiffnessMedium
+  testImplementation(libs.kotlinx.coroutines.core)
+  testImplementation(libs.okio)
   // Real org.json for JVM unit tests (android.jar's stubs throw), so the wire formats are testable.
   testImplementation(libs.json)
 
