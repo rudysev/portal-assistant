@@ -9,7 +9,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -51,28 +57,27 @@ internal fun SoundsSection(subtle: Color) {
     val conversation by ConversationHub.session.collectAsState()
     val conversationLive = conversation.phase != ConversationHub.UiPhase.IDLE
 
-    Text("Sounds", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.size(4.dp))
-    Text("Cues Jarvis plays, at the same volume as its voice.", color = subtle, fontSize = TextSize.Body)
-    Spacer(Modifier.size(14.dp))
-    SettingsSwitchRow(
-        title = "Listening tone",
-        subtitle = "Play a soft tone when Jarvis starts listening",
-        checked = toneEnabled,
-        onCheckedChange = { on ->
-            AppPrefs.setListeningToneEnabled(context, on)
-            toneEnabled = on
-            if (ListeningTone.previewsOnSwitch(switchedOn = on, conversationLive = conversationLive)) {
-                ListeningTonePlayer.play(
-                    onStarted = { DebugLog.log("listening tone: preview playing (Settings)") },
-                    onFailed = {}, // the player logs it; a preview has nothing to undo
-                )
-            } else if (on) {
-                DebugLog.log("listening tone: preview skipped (conversation live)")
-            }
-        },
-        subtle = subtle,
-    )
+    Column {
+        SectionHeading("Sounds", "Cues Jarvis plays, at the same volume as its voice.", subtle)
+        SettingsSwitchRow(
+            title = "Listening tone",
+            subtitle = "Play a soft tone when Jarvis starts listening",
+            checked = toneEnabled,
+            onCheckedChange = { on ->
+                AppPrefs.setListeningToneEnabled(context, on)
+                toneEnabled = on
+                if (ListeningTone.previewsOnSwitch(switchedOn = on, conversationLive = conversationLive)) {
+                    ListeningTonePlayer.play(
+                        onStarted = { DebugLog.log("listening tone: preview playing (Settings)") },
+                        onFailed = {}, // the player logs it; a preview has nothing to undo
+                    )
+                } else if (on) {
+                    DebugLog.log("listening tone: preview skipped (conversation live)")
+                }
+            },
+            subtle = subtle,
+        )
+    }
 }
 
 /**
@@ -138,3 +143,56 @@ internal fun settingsButtonColors() = ButtonDefaults.buttonColors(
     disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
     disabledContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
 )
+
+/** A section's title and one-line caption, spaced the same everywhere on the screen. */
+@Composable
+internal fun SectionHeading(title: String, caption: String, subtle: Color) {
+    Column {
+        Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.size(4.dp))
+        Text(caption, color = subtle, fontSize = TextSize.Body)
+        Spacer(Modifier.size(14.dp))
+    }
+}
+
+/** A read-only field that opens a menu of [options]; picking one calls [onSelect] and closes the menu. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun <T> SettingsDropdown(
+    label: String,
+    value: String,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}

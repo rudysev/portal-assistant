@@ -143,48 +143,64 @@ private fun SpeakerDialog(
         onDismissRequest = onDismiss,
         title = { Text("Voice") },
         text = {
-            Column {
-                // Always one line, so a hint appearing (a conversation starting, no key) never resizes the dialog.
-                Text(
-                    previewState.hint?.text ?: PREVIEW_PROMPT,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
-                    fontSize = TextSize.Body,
-                    maxLines = 1,
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-                SpeakerRow(
-                    label = SERVER_DEFAULT_LABEL,
-                    isChosen = chosen == null,
-                    isHighlighted = highlighted == null,
-                    preview = previewState.rowStatus(null),
-                    onClick = {
-                        highlighted = null
-                        preview.tap(null)
-                    },
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                LazyColumn(
-                    state = rememberLazyListState(initialFirstVisibleItemIndex = speakerListStartIndex(chosen)),
-                    modifier = Modifier.heightIn(max = 360.dp),
-                ) {
-                    items(GeminiSpeaker.AVAILABLE, key = { it.name }) { speaker ->
-                        SpeakerRow(
-                            label = speaker.label,
-                            isChosen = chosen == speaker,
-                            isHighlighted = highlighted == speaker,
-                            preview = previewState.rowStatus(speaker),
-                            onClick = {
-                                highlighted = speaker
-                                preview.tap(speaker)
-                            },
-                        )
-                    }
-                }
-            }
+            SpeakerList(
+                chosen = chosen,
+                highlighted = highlighted,
+                previewState = previewState,
+                onPick = { speaker ->
+                    highlighted = speaker
+                    preview.tap(speaker)
+                },
+            )
         },
         confirmButton = { TextButton(onClick = { onUse(highlighted) }) { Text("Use this voice", color = Accent) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Accent) } },
     )
+}
+
+/**
+ * The dialog body: the preview hint, the pinned [SERVER_DEFAULT_LABEL] row (null), then every Speaker, scrolled so
+ * the [chosen] one is on screen. Tapping a row hands it to [onPick].
+ */
+@Composable
+private fun SpeakerList(
+    chosen: GeminiSpeaker.Speaker?,
+    highlighted: GeminiSpeaker.Speaker?,
+    previewState: SpeakerPreview.State,
+    onPick: (GeminiSpeaker.Speaker?) -> Unit,
+) {
+    Column {
+        // Always one line, so a hint appearing (a conversation starting, no key) never resizes the dialog.
+        Text(
+            previewState.hint?.text ?: PREVIEW_PROMPT,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA),
+            fontSize = TextSize.Body,
+            maxLines = 1,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        SpeakerRow(
+            label = SERVER_DEFAULT_LABEL,
+            isChosen = chosen == null,
+            isHighlighted = highlighted == null,
+            preview = previewState.rowStatus(null),
+            onClick = { onPick(null) },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+        LazyColumn(
+            state = rememberLazyListState(initialFirstVisibleItemIndex = speakerListStartIndex(chosen)),
+            modifier = Modifier.heightIn(max = 360.dp),
+        ) {
+            items(GeminiSpeaker.AVAILABLE, key = { it.name }) { speaker ->
+                SpeakerRow(
+                    label = speaker.label,
+                    isChosen = chosen == speaker,
+                    isHighlighted = highlighted == speaker,
+                    preview = previewState.rowStatus(speaker),
+                    onClick = { onPick(speaker) },
+                )
+            }
+        }
+    }
 }
 
 /**

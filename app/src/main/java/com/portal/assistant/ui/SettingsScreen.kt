@@ -16,11 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,6 +47,7 @@ import com.portal.assistant.ui.theme.Dims
 import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.SECONDARY_ALPHA
 import com.portal.assistant.ui.theme.TextSize
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -66,9 +64,134 @@ import kotlinx.coroutines.withContext
  * the prompt with full coordinates until the user explicitly edits and saves — only then does an override
  * take effect. The field cannot be saved blank.
  */
+// ioDispatcher: where the sections' PackageManager and network calls run, off the main thread.
+@Composable
+fun SettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, ioDispatcher: CoroutineDispatcher = Dispatchers.IO) {
+    // Helper/caption text raised to clear AA at viewing distance.
+    val subtle = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA)
+
+    // A form reads best in a constrained, centered column — never run edge-to-edge across the wide Portal
+    // display (the conversation screen caps its measure the same way). The scroll lives on the full-bleed
+    // Box; the content inside is width-capped and centered.
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = Measure.Settings)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .padding(top = 56.dp, bottom = Dims.BottomSafe),
+        ) {
+            SettingsTitle(onBack = onBack, subtle = subtle)
+            BackendSections(subtle = subtle, ioDispatcher = ioDispatcher)
+
+            Spacer(Modifier.size(36.dp))
+            SoundsSection(subtle = subtle)
+
+            Spacer(Modifier.size(36.dp))
+            LocationSection(subtle = subtle)
+
+            Spacer(Modifier.size(36.dp))
+            MusicAppSection(subtle = subtle, ioDispatcher = ioDispatcher)
+
+            Spacer(Modifier.size(36.dp))
+            ExternalToolsSection(subtle = subtle)
+        }
+    }
+}
+
+/** The back arrow, the screen title and the one note on when changes apply. */
+@Composable
+private fun SettingsTitle(onBack: () -> Unit, subtle: Color) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ScreenTitle, fontWeight = FontWeight.SemiBold)
+        }
+
+        // Said once, here — the settings that shape a conversation's opening (backend, key, model, voice, sound,
+        // location, tools) are read once when it starts, so they apply from the next one. The default music app
+        // is read when Jarvis plays music, so it applies right away.
+        Spacer(Modifier.size(6.dp))
+        Text(
+            "Changes take effect on your next conversation; the default music app applies right away.",
+            color = subtle,
+            fontSize = TextSize.Body,
+        )
+    }
+}
+
+/** The backend picker, then what that backend needs: the local host address, or Gemini's model, voice and key. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+private fun BackendSections(subtle: Color, ioDispatcher: CoroutineDispatcher) {
+    val context = LocalContext.current
+    var backend by remember { mutableStateOf(AppPrefs.voiceBackendKind(context)) }
+    Column {
+        Spacer(Modifier.size(28.dp))
+        SectionHeading("Backend", "Where Jarvis runs — Gemini in the cloud, or a local server on your network.", subtle)
+        SettingsDropdown(
+            label = "Backend",
+            value = backendLabel(backend),
+            options = AppPrefs.VoiceBackendKind.entries,
+            optionLabel = ::backendLabel,
+            onSelect = { option ->
+                backend = option
+                AppPrefs.setVoiceBackendKind(context, option)
+                Backends.warmDns(context)
+            },
+        )
+
+        if (backend == AppPrefs.VoiceBackendKind.LOCAL) {
+            Spacer(Modifier.size(28.dp))
+            SectionHeading("Local server", "Where the voice host runs on your network.", subtle)
+            LocalVoiceHostSection(subtle = subtle)
+        }
+
+        if (backend == AppPrefs.VoiceBackendKind.GEMINI) {
+            Spacer(Modifier.size(28.dp))
+            SectionHeading("Model", "Which model Jarvis uses.", subtle)
+            var model by remember { mutableStateOf(AppPrefs.modelId(context)) }
+            SettingsDropdown(
+                label = "Model",
+                value = model,
+                options = GeminiModel.AVAILABLE,
+                optionLabel = { it },
+                onSelect = { id ->
+                    model = id
+                    AppPrefs.setModelId(context, id)
+                },
+            )
+
+            Spacer(Modifier.size(28.dp))
+            SectionHeading("Voice", "Which voice Jarvis speaks with.", subtle)
+            SpeakerSection()
+
+            Spacer(Modifier.size(36.dp))
+            ApiKeySection(subtle = subtle, ioDispatcher = ioDispatcher)
+        }
+    }
+}
+
+/**
+ * The location used for weather and other location-aware answers. Pre-filled from the override, else the
+ * detected label; while geolocation is still in flight it polls briefly for the detected value.
+ */
+@Composable
+private fun LocationSection(subtle: Color) {
     val context = LocalContext.current
     var place by remember {
         mutableStateOf(LocationProvider.override(context) ?: LocationProvider.detectedLabel(context).orEmpty())
@@ -76,8 +199,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     // The last-persisted value — gates the Save button (disabled until the field differs) and re-disables it
     // after a save, so saving gives feedback without leaving the screen.
     var savedPlace by remember { mutableStateOf(place) }
-    // Helper/caption text raised to clear AA at viewing distance.
-    val subtle = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA)
 
     // If geo is still in flight when the screen opens, poll until the result lands (up to 10 s).
     // Stops early if the user starts typing — their input wins over the auto-detected value.
@@ -96,265 +217,96 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    // A form reads best in a constrained, centered column — never run edge-to-edge across the wide Portal
-    // display (the conversation screen caps its measure the same way). The scroll lives on the full-bleed
-    // Box; the content inside is width-capped and centered.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = Measure.Settings)
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp)
-                .padding(top = 56.dp, bottom = Dims.BottomSafe),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-                Spacer(Modifier.size(8.dp))
-                Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ScreenTitle, fontWeight = FontWeight.SemiBold)
-            }
+    Column {
+        SectionHeading("Location", "Used for weather and other location-aware answers.", subtle)
+        OutlinedTextField(
+            value = place,
+            onValueChange = { if (it.length <= 200) place = it },
+            singleLine = true,
+            label = { Text("Location (e.g. New York, NY)") },
+            modifier = Modifier.fillMaxWidth(),
+        )
 
-            // Said once, here — the settings that shape a conversation's opening (backend, key, model, voice, sound,
-            // location, tools) are read once when it starts, so they apply from the next one. The default music app
-            // is read when Jarvis plays music, so it applies right away.
-            Spacer(Modifier.size(6.dp))
-            Text(
-                "Changes take effect on your next conversation; the default music app applies right away.",
-                color = subtle,
-                fontSize = TextSize.Body,
-            )
+        Spacer(Modifier.size(18.dp))
+        Button(
+            onClick = {
+                LocationProvider.setOverride(context, place)
+                savedPlace = place // persist only; the back arrow navigates away
+            },
+            enabled = place.isNotBlank() && place.trim() != savedPlace.trim(),
+            colors = settingsButtonColors(),
+        ) { Text("Save") }
+    }
+}
 
-            Spacer(Modifier.size(28.dp))
-            Text("Backend", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(4.dp))
-            Text("Where Jarvis runs — Gemini in the cloud, or a local server on your network.", color = subtle, fontSize = TextSize.Body)
-            Spacer(Modifier.size(14.dp))
+/** The default music app picker, rendering the same effective default that play routing uses. */
+@Composable
+private fun MusicAppSection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
+    val context = LocalContext.current
+    // Enumerating installed apps + the saved default's install check are PackageManager IPCs — load
+    // them off the main thread so opening Settings on a cold cache can't jank/ANR the UI.
+    // The discovered set and the union (selectable list) — effectiveDefault needs both to render the
+    // same default routing plays.
+    val apps by produceState(emptyList<AppEntry>() to emptyList<AppEntry>()) {
+        value = withContext(ioDispatcher) { PackageCatalog.musicAppChoices(context) }
+    }
+    val discovered = apps.first
+    val selectableApps = apps.second
+    var musicPkg by remember { mutableStateOf<String?>(null) }
+    // Label for a default not (yet) in the loaded list — also resolved off-main below.
+    var savedMusicLabel by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val pkg = withContext(ioDispatcher) { AppPrefs.defaultMusicPkg(context) }
+        musicPkg = pkg
+        savedMusicLabel = pkg?.let { withContext(ioDispatcher) { PackageCatalog.labelFor(context, it) } }
+    }
+    // Render the *effective* default: the explicit pick, else what a bare "play music" resolves to —
+    // the SAME set + rule routing uses (effectiveDefault), so the field never lies. No vague "Auto".
+    val effectivePkg = musicPkg
+        ?: MediaRouting.effectiveDefault(discovered, { selectableApps }, PackageCatalog.SPOTIFY_PKGS)?.pkg
+    val musicLabel = when (effectivePkg) {
+        null -> "Choose a music app"
+        else -> selectableApps.firstOrNull { it.pkg == effectivePkg }?.label ?: savedMusicLabel ?: effectivePkg
+    }
+    Column {
+        SectionHeading("Default music app", "Choose the default app to play music.", subtle)
+        SettingsDropdown(
+            label = "Default music app",
+            value = musicLabel,
+            options = selectableApps,
+            optionLabel = { it.label },
+            onSelect = { entry ->
+                musicPkg = entry.pkg
+                AppPrefs.setDefaultMusicPkg(context, entry.pkg)
+            },
+        )
+    }
+}
 
-            var backendExpanded by remember { mutableStateOf(false) }
-            var backend by remember { mutableStateOf(AppPrefs.voiceBackendKind(context)) }
-            ExposedDropdownMenuBox(
-                expanded = backendExpanded,
-                onExpandedChange = { backendExpanded = it },
-            ) {
-                OutlinedTextField(
-                    value = backendLabel(backend),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Backend") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = backendExpanded) },
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                        .fillMaxWidth(),
+/** The allowlist of installed tool-provider apps; each is off until the user enables it. */
+@Composable
+private fun ExternalToolsSection(subtle: Color) {
+    val context = LocalContext.current
+    var providers by remember { mutableStateOf(ExternalToolProvider.providersForSettings(context)) }
+    Column {
+        SectionHeading("External tools", "Installed apps that add abilities to Jarvis. Off until you enable them.", subtle)
+        if (providers.isEmpty()) {
+            Text("No tool provider apps installed.", color = subtle, fontSize = TextSize.Body)
+        } else {
+            providers.forEach { p ->
+                // Under the app name we say what it actually adds, in plain words — the provider's own
+                // required one-sentence summary (ToolContract.META_SUMMARY) — not the reverse-domain tool
+                // ids, which meant nothing to a user.
+                SettingsSwitchRow(
+                    title = p.label,
+                    subtitle = p.summary,
+                    checked = p.enabled,
+                    onCheckedChange = { on ->
+                        AppPrefs.setProviderEnabled(context, p.pkg, on)
+                        providers = providers.map { if (it.pkg == p.pkg) it.copy(enabled = on) else it }
+                    },
+                    subtle = subtle,
                 )
-                ExposedDropdownMenu(
-                    expanded = backendExpanded,
-                    onDismissRequest = { backendExpanded = false },
-                ) {
-                    AppPrefs.VoiceBackendKind.entries.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(backendLabel(option)) },
-                            onClick = {
-                                backend = option
-                                AppPrefs.setVoiceBackendKind(context, option)
-                                Backends.warmDns(context)
-                                backendExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            if (backend == AppPrefs.VoiceBackendKind.LOCAL) {
-                Spacer(Modifier.size(28.dp))
-                Text("Local server", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.size(4.dp))
-                Text("Where the voice host runs on your network.", color = subtle, fontSize = TextSize.Body)
-                Spacer(Modifier.size(14.dp))
-                LocalVoiceHostSection(subtle = subtle)
-            }
-
-            if (backend == AppPrefs.VoiceBackendKind.GEMINI) {
-                Spacer(Modifier.size(28.dp))
-                Text("Model", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.size(4.dp))
-                Text("Which model Jarvis uses.", color = subtle, fontSize = TextSize.Body)
-                Spacer(Modifier.size(14.dp))
-
-                var modelExpanded by remember { mutableStateOf(false) }
-                var model by remember { mutableStateOf(AppPrefs.modelId(context)) }
-                ExposedDropdownMenuBox(
-                    expanded = modelExpanded,
-                    onExpandedChange = { modelExpanded = it },
-                ) {
-                    OutlinedTextField(
-                        value = model,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Model") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                        modifier = Modifier
-                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                            .fillMaxWidth(),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = modelExpanded,
-                        onDismissRequest = { modelExpanded = false },
-                    ) {
-                        GeminiModel.AVAILABLE.forEach { id ->
-                            DropdownMenuItem(
-                                text = { Text(id) },
-                                onClick = {
-                                    model = id
-                                    AppPrefs.setModelId(context, id)
-                                    modelExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.size(28.dp))
-                Text("Voice", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.size(4.dp))
-                Text("Which voice Jarvis speaks with.", color = subtle, fontSize = TextSize.Body)
-                Spacer(Modifier.size(14.dp))
-                SpeakerSection()
-
-                Spacer(Modifier.size(36.dp))
-                ApiKeySection(subtle = subtle)
-            }
-
-            Spacer(Modifier.size(36.dp))
-            SoundsSection(subtle = subtle)
-
-            Spacer(Modifier.size(36.dp))
-            Text("Location", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(4.dp))
-            Text("Used for weather and other location-aware answers.", color = subtle, fontSize = TextSize.Body)
-            Spacer(Modifier.size(14.dp))
-
-            OutlinedTextField(
-                value = place,
-                onValueChange = { if (it.length <= 200) place = it },
-                singleLine = true,
-                label = { Text("Location (e.g. New York, NY)") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.size(18.dp))
-            Button(
-                onClick = {
-                    LocationProvider.setOverride(context, place)
-                    savedPlace = place // persist only; the back arrow navigates away
-                },
-                enabled = place.isNotBlank() && place.trim() != savedPlace.trim(),
-                colors = settingsButtonColors(),
-            ) { Text("Save") }
-
-            Spacer(Modifier.size(36.dp))
-            Text("Default music app", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(4.dp))
-            Text("Choose the default app to play music.", color = subtle, fontSize = TextSize.Body)
-            Spacer(Modifier.size(14.dp))
-
-            // Enumerating installed apps + the saved default's install check are PackageManager IPCs — load
-            // them off the main thread so opening Settings on a cold cache can't jank/ANR the UI.
-            // The discovered set and the union (selectable list) — effectiveDefault needs both to render the
-            // same default routing plays.
-            val apps by produceState(emptyList<AppEntry>() to emptyList<AppEntry>()) {
-                value = withContext(Dispatchers.IO) { PackageCatalog.musicAppChoices(context) }
-            }
-            val discovered = apps.first
-            val selectableApps = apps.second
-            var musicExpanded by remember { mutableStateOf(false) }
-            var musicPkg by remember { mutableStateOf<String?>(null) }
-            // Label for a default not (yet) in the loaded list — also resolved off-main below.
-            var savedMusicLabel by remember { mutableStateOf<String?>(null) }
-            LaunchedEffect(Unit) {
-                val pkg = withContext(Dispatchers.IO) { AppPrefs.defaultMusicPkg(context) }
-                musicPkg = pkg
-                savedMusicLabel = pkg?.let { withContext(Dispatchers.IO) { PackageCatalog.labelFor(context, it) } }
-            }
-            // Render the *effective* default: the explicit pick, else what a bare "play music" resolves to —
-            // the SAME set + rule routing uses (effectiveDefault), so the field never lies. No vague "Auto".
-            val effectivePkg = musicPkg
-                ?: MediaRouting.effectiveDefault(discovered, { selectableApps }, PackageCatalog.SPOTIFY_PKGS)?.pkg
-            val musicLabel = when (effectivePkg) {
-                null -> "Choose a music app"
-                else -> selectableApps.firstOrNull { it.pkg == effectivePkg }?.label ?: savedMusicLabel ?: effectivePkg
-            }
-            ExposedDropdownMenuBox(
-                expanded = musicExpanded,
-                onExpandedChange = { musicExpanded = it },
-            ) {
-                OutlinedTextField(
-                    value = musicLabel,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Default music app") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = musicExpanded) },
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                        .fillMaxWidth(),
-                )
-                ExposedDropdownMenu(
-                    expanded = musicExpanded,
-                    onDismissRequest = { musicExpanded = false },
-                ) {
-                    selectableApps.forEach { entry ->
-                        DropdownMenuItem(
-                            text = { Text(entry.label) },
-                            onClick = {
-                                musicPkg = entry.pkg
-                                AppPrefs.setDefaultMusicPkg(context, entry.pkg)
-                                musicExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.size(36.dp))
-            Text("External tools", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                "Installed apps that add abilities to Jarvis. Off until you enable them.",
-                color = subtle,
-                fontSize = TextSize.Body,
-            )
-            Spacer(Modifier.size(14.dp))
-
-            var providers by remember { mutableStateOf(ExternalToolProvider.providersForSettings(context)) }
-            if (providers.isEmpty()) {
-                Text("No tool provider apps installed.", color = subtle, fontSize = TextSize.Body)
-            } else {
-                providers.forEach { p ->
-                    // Under the app name we say what it actually adds, in plain words — the provider's own
-                    // required one-sentence summary (ToolContract.META_SUMMARY) — not the reverse-domain tool
-                    // ids, which meant nothing to a user.
-                    SettingsSwitchRow(
-                        title = p.label,
-                        subtitle = p.summary,
-                        checked = p.enabled,
-                        onCheckedChange = { on ->
-                            AppPrefs.setProviderEnabled(context, p.pkg, on)
-                            providers = providers.map { if (it.pkg == p.pkg) it.copy(enabled = on) else it }
-                        },
-                        subtle = subtle,
-                    )
-                }
             }
         }
     }
