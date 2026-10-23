@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicLong
  * All reads go through thread-safe [StateFlow]. (Activity-foreground state lives separately in
  * [com.portal.assistant.ui.UiVisibility], not on this bus.)
  *
- * Lifecycle: [startFresh] (or [startResume], which keeps the turns) begins a conversation; when one ends the phase returns to
+ * Lifecycle: [startFresh] (or [startResume], which keeps the turns) begins a conversation; when one ends the phase
+ * returns to
  * [UiPhase.IDLE] but the turns stay on screen until the next start. No conversation ever run → empty turns →
  * the greeting screen.
  */

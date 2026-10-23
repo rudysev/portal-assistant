@@ -7,7 +7,8 @@ import org.json.JSONObject
 
 /**
  * Tool-call wire helpers shared by every [WireFormat]: both backends frame a call as `{id, name, args}`, a
- * cancellation as a list of call ids and a result as `{id, name, response}`. Pure. A call with an empty name is **kept**: it is answered through the Tool
+ * cancellation as a list of call ids and a result as `{id, name, response}`. Pure. A call with an empty name is
+ * **kept**: it is answered through the Tool
  * runner's unknown-tool error, so every call the backend makes gets one answer.
  */
 object ToolCallWire {
@@ -37,5 +38,6 @@ object ToolCallWire {
     }
 
     /** One `{id, name, response}` result element. */
-    fun resultElement(result: ToolResult): JSONObject = JSONObject().put("id", result.id).put("name", result.name).put("response", result.response)
+    fun resultElement(result: ToolResult): JSONObject =
+        JSONObject().put("id", result.id).put("name", result.name).put("response", result.response)
 }

@@ -57,14 +57,19 @@ object AppPrefs {
     // On by default: an absent key means on.
     const val KEY_LISTENING_TONE = "sounds_listening_tone"
 
-    fun prefs(context: Context): SharedPreferences = context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+    fun prefs(context: Context): SharedPreferences =
+        context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
     /** The selected model id, or [GeminiModel.ID] if unset or no longer offered. Self-heals: a saved id that
      *  fell out of the catalog is cleared so prefs never retain an orphan. */
     fun modelId(context: Context): String {
         val saved = prefs(context).getString(KEY_MODEL, null)
         val offered = saved?.takeIf { it in GeminiModel.AVAILABLE }
-        if (saved != null && offered == null) prefs(context).edit { remove(KEY_MODEL) } // orphan from a catalog change — drop it
+        if (saved != null && offered == null) {
+            prefs(context).edit {
+                remove(KEY_MODEL)
+            } // orphan from a catalog change — drop it
+        }
         return offered ?: GeminiModel.ID
     }
 
@@ -107,7 +112,9 @@ object AppPrefs {
 
     /** Set the default music app package, or clear it with a null/blank value (applies to the next play). */
     fun setDefaultMusicPkg(context: Context, pkg: String?) {
-        prefs(context).edit { if (pkg.isNullOrBlank()) remove(KEY_DEFAULT_MUSIC_PKG) else putString(KEY_DEFAULT_MUSIC_PKG, pkg) }
+        prefs(context).edit {
+            if (pkg.isNullOrBlank()) remove(KEY_DEFAULT_MUSIC_PKG) else putString(KEY_DEFAULT_MUSIC_PKG, pkg)
+        }
     }
 
     /** Whether the Listening tone plays when a voice conversation starts; true unless the user turned it off. */
@@ -143,11 +150,15 @@ object AppPrefs {
     const val KEY_VOICE_BACKEND = "voice_backend" // VoiceBackendKind.name
     const val KEY_LOCAL_VOICE_HOST = "local_voice_host" // canonical wss://host:port from [LocalVoiceHost]
 
-    /** Which voice backend powers a conversation. See [Backends][com.portal.assistant.conversation.backend.Backends]. */
+    /**
+     * Which voice backend powers a conversation. See [Backends][com.portal.assistant.conversation.backend.Backends].
+     */
     enum class VoiceBackendKind { GEMINI, LOCAL }
 
     /** The selected backend, defaulting to [VoiceBackendKind.GEMINI] if unset/unknown. */
-    fun voiceBackendKind(context: Context): VoiceBackendKind = if (prefs(context).getString(KEY_VOICE_BACKEND, null) == VoiceBackendKind.LOCAL.name) {
+    fun voiceBackendKind(context: Context): VoiceBackendKind = if (prefs(context).getString(KEY_VOICE_BACKEND, null) ==
+        VoiceBackendKind.LOCAL.name
+    ) {
         VoiceBackendKind.LOCAL
     } else {
         VoiceBackendKind.GEMINI
@@ -181,7 +192,15 @@ object AppPrefs {
                 is LocalVoiceHost.ParseResult.Invalid -> return // same contract as setModelId — reject silently
             }
         }
-        prefs(context).edit { if (wssUrl == null) remove(KEY_LOCAL_VOICE_HOST) else putString(KEY_LOCAL_VOICE_HOST, wssUrl) }
+        prefs(context).edit {
+            if (wssUrl ==
+                null
+            ) {
+                remove(KEY_LOCAL_VOICE_HOST)
+            } else {
+                putString(KEY_LOCAL_VOICE_HOST, wssUrl)
+            }
+        }
     }
 
     /** Name of the one-shot provisioning file the install script drops in the app's external files dir. */
@@ -215,7 +234,8 @@ object AppPrefs {
 
     /** Provider packages the user has enabled to contribute external tools. A defensive copy — the set
      *  SharedPreferences returns must never be mutated. */
-    fun enabledProviders(context: Context): Set<String> = prefs(context).getStringSet(KEY_TOOLS_ENABLED, null)?.toSet().orEmpty()
+    fun enabledProviders(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_TOOLS_ENABLED, null)?.toSet().orEmpty()
 
     /** Add/remove [pkg] from the external-tool allowlist (applies to the next conversation). */
     fun setProviderEnabled(context: Context, pkg: String, enabled: Boolean) {

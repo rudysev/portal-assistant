@@ -34,6 +34,6 @@ object SystemPrompt {
             "stated; otherwise omit.\n" +
             "- Media Controls: portal.media_control (play/pause/next/previous), portal.set_repeat (one " +
             "[current song], all [album/playlist], off), portal.now_playing.\n" +
-            "- Apps (portal.open_app): Launch an installed app by name. If uninstalled, offer returned close matches (do " +
-            "not guess). Use portal.play_music instead to play a specific song.\n"
+            "- Apps (portal.open_app): Launch an installed app by name. If uninstalled, offer returned close " +
+            "matches (do not guess). Use portal.play_music instead to play a specific song.\n"
 }

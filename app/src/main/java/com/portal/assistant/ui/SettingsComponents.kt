@@ -102,7 +102,12 @@ internal fun SettingsSwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ToolLabel, fontWeight = FontWeight.Medium)
+            Text(
+                title,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = TextSize.ToolLabel,
+                fontWeight = FontWeight.Medium,
+            )
             Spacer(Modifier.size(2.dp))
             Text(
                 subtitle,
@@ -148,7 +153,12 @@ internal fun settingsButtonColors() = ButtonDefaults.buttonColors(
 @Composable
 internal fun SectionHeading(title: String, caption: String, subtle: Color) {
     Column {
-        Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+        Text(
+            title,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = TextSize.SectionHeader,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.size(4.dp))
         Text(caption, color = subtle, fontSize = TextSize.Body)
         Spacer(Modifier.size(14.dp))

@@ -22,6 +22,9 @@ object GetTimeTool : Tool {
     override fun invoke(args: JSONObject): JSONObject {
         val now = ZonedDateTime.now(ZoneId.systemDefault())
         return JSONObject()
-            .put("datetime", now.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy 'at' h:mm a", Locale.getDefault())))
+            .put(
+                "datetime",
+                now.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy 'at' h:mm a", Locale.getDefault())),
+            )
     }
 }

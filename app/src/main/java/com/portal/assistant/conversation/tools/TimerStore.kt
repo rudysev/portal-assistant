@@ -23,7 +23,8 @@ object TimerStore {
     @Volatile private var scheduler: TimerScheduler? = null
 
     @Synchronized
-    private fun scheduler(context: Context): TimerScheduler = scheduler ?: TimerScheduler(context.applicationContext).also { scheduler = it }
+    private fun scheduler(context: Context): TimerScheduler =
+        scheduler ?: TimerScheduler(context.applicationContext).also { scheduler = it }
 
     /** Called by [TimerScheduler.mutate] after every store write. */
     internal fun publish(list: List<TimerEntry>) {

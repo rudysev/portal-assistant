@@ -3,13 +3,7 @@ package com.portal.assistant.system
 import org.json.JSONObject
 
 /** Approximate device location from IP geolocation. Pure data. */
-data class DeviceLocation(
-    val city: String,
-    val region: String,
-    val country: String,
-    val lat: Double,
-    val lon: Double,
-)
+data class DeviceLocation(val city: String, val region: String, val country: String, val lat: Double, val lon: Double)
 
 /**
  * Pure IP-geolocation parsing — Android-free so it's unit-tested (same pattern as

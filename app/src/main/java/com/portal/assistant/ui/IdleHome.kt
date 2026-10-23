@@ -148,7 +148,9 @@ internal fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit
                             textAlign = TextAlign.Center,
                         )
                         Spacer(Modifier.size(14.dp))
-                        SuggestionChip("Open Settings", onTap = { onOpenSettings() }, contentDescription = "Open Settings")
+                        SuggestionChip("Open Settings", onTap = {
+                            onOpenSettings()
+                        }, contentDescription = "Open Settings")
                     }
                 } else {
                     AskPanel(onSuggestion)
@@ -228,7 +230,11 @@ internal fun AmbientGlow(modifier: Modifier = Modifier) {
         ).value
     }
     Canvas(modifier = modifier.fillMaxSize()) {
-        drawAccentGlow(AMBIENT_GLOW_ALPHA * intensity, radius = size.minDimension * (AMBIENT_GLOW_RADIUS + AMBIENT_GLOW_GROWTH * intensity))
+        drawAccentGlow(
+            AMBIENT_GLOW_ALPHA * intensity,
+            radius =
+            size.minDimension * (AMBIENT_GLOW_RADIUS + AMBIENT_GLOW_GROWTH * intensity),
+        )
     }
 }
 

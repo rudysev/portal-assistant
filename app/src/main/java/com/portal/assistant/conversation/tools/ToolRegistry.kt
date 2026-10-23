@@ -7,7 +7,8 @@ import org.json.JSONObject
 /**
  * The production [ToolSet]: routes function calls to registered [Tool]s. The [ToolRunner] holds one
  * instance; built-in tools are registered in [tools]. **External providers** (installed apps via the
- * [ToolContract] plugin API) contribute additional tools through [external] — discovered + allowlist-gated, declared alongside the
+ * [ToolContract] plugin API) contribute additional tools through [external] — discovered + allowlist-gated, declared
+ * alongside the
  * built-ins, and invoked when a name isn't a built-in. Built-ins always win a name collision.
  *
  * [declarations] is called once at session start to populate the Gemini setup message; [externalPromptLines]

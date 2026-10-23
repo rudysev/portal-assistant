@@ -147,7 +147,11 @@ fun ConversationScreen(
                     // awake, not frozen (glow drawn first → sits behind the clock/greeting).
                     phase == ConversationHub.UiPhase.IDLE -> {
                         AmbientGlow()
-                        IdleHome(onSuggestion = onSuggestion, onOpenSettings = onOpenSettings, modifier = Modifier.fillMaxSize())
+                        IdleHome(
+                            onSuggestion = onSuggestion,
+                            onOpenSettings = onOpenSettings,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
 
                     // Connecting / listening with nothing said yet → put the state front-and-center (a big label
@@ -204,7 +208,11 @@ private fun TopBar(
         // Settings. Settings stays present in every state (it used to be replaced by "+", stranding the user
         // mid-conversation). Both are sized for an imprecise far-tap and carry TalkBack labels.
         if (showNewConversation) {
-            CircleButton(onClick = onNewConversation, bg = MaterialTheme.colorScheme.surface, size = Dims.TopIconButton) {
+            CircleButton(
+                onClick = onNewConversation,
+                bg = MaterialTheme.colorScheme.surface,
+                size = Dims.TopIconButton,
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "New conversation",
@@ -354,7 +362,10 @@ private fun ListeningOrb(phase: ConversationHub.UiPhase, audioLevel: StateFlow<F
             rememberInfiniteTransition(label = "orbPulse").animateFloat(
                 initialValue = 1f,
                 targetValue = 1.06f, // gentle, so the hand-off to the listen scale isn't a visible pop
-                animationSpec = infiniteRepeatable(animation = tween(durationMillis = ORB_PULSE_MS), repeatMode = RepeatMode.Reverse),
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = ORB_PULSE_MS),
+                    repeatMode = RepeatMode.Reverse,
+                ),
                 label = "pulse",
             ).value
         }

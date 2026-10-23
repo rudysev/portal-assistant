@@ -168,7 +168,10 @@ class WebSocketVoiceBackendTest {
     @Test
     fun `every backend event is relayed to its callback, in order`() {
         opened()
-        socketListener.onMessage(socket, "ready,in,generating,toolCall,toolCancel,out,audio,interrupted,closingSoon,turnComplete,error")
+        socketListener.onMessage(
+            socket,
+            "ready,in,generating,toolCall,toolCancel,out,audio,interrupted,closingSoon,turnComplete,error",
+        )
         assertEquals(
             listOf(
                 "ready",
@@ -242,7 +245,10 @@ class WebSocketVoiceBackendTest {
         socketListener.onMessage(socket, "ready,generating")
         socketListener.onFailure(socket, IOException("x"), null)
         socketListener.onMessage(socket, "audio")
-        assertEquals(listOf("ready", "generating", "transport:Test connection failed: x", "generating", "audio:4"), listener.events)
+        assertEquals(
+            listOf("ready", "generating", "transport:Test connection failed: x", "generating", "audio:4"),
+            listener.events,
+        )
     }
 
     @Test

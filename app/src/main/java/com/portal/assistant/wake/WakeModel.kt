@@ -13,7 +13,9 @@ interface WakeModel {
     /** True only when a complete model is on disk. */
     fun isInstalled(): Boolean
 
-    /** Download + unpack the model. Blocking (run off the main thread); [onProgress] gets 0f–1f. False on any failure. */
+    /**
+     * Download + unpack the model. Blocking (run off the main thread); [onProgress] gets 0f–1f. False on any failure.
+     */
     fun install(onProgress: (Float) -> Unit): Boolean
 
     /** Remove the model so the next [install] fetches a fresh copy. */

@@ -232,7 +232,12 @@ private fun keyCheckMessage(result: GeminiKeyCheck.Result): String = when (resul
 @Composable
 private fun ApiKeyHeading(subtle: Color) {
     Column {
-        Text("API key", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.SectionHeader, fontWeight = FontWeight.SemiBold)
+        Text(
+            "API key",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = TextSize.SectionHeader,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.size(4.dp))
         Text(
             "Your own Gemini key powers Jarvis. It's usually set up when the app is installed — enter it below to " +

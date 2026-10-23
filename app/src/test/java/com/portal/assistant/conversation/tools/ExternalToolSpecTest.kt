@@ -13,7 +13,8 @@ class ExternalToolSpecTest {
         return """{"name":"$name","description":"$desc"$params}"""
     }
 
-    private fun provider(pkg: String, vararg decls: String, summary: String = "Test provider.") = DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]", summary)
+    private fun provider(pkg: String, vararg decls: String, summary: String = "Test provider.") =
+        DiscoveredProvider(pkg, "$pkg.tools", "[${decls.joinToString(",")}]", summary)
 
     @Test fun enabledProviderContributesItsTools() {
         val p = provider("com.example.lights", decl("com.example.lights.set_light"))
@@ -71,7 +72,12 @@ class ExternalToolSpecTest {
     @Test fun promptLinesListToolNamesFromDeclarations() {
         val p = provider("com.example.lights", decl("com.example.lights.a"), decl("com.example.lights.b"))
         val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
-        assertEquals(listOf("com.example.lights.a", "com.example.lights.b"), r.declarations.map { it.optString("name") })
+        assertEquals(
+            listOf("com.example.lights.a", "com.example.lights.b"),
+            r.declarations.map {
+                it.optString("name")
+            },
+        )
         assertEquals(
             listOf("- Test provider. Tools: com.example.lights.a, com.example.lights.b."),
             r.promptLines,
@@ -85,7 +91,8 @@ class ExternalToolSpecTest {
             listOf(provider("com.example.lights", decl("com.example.lights.set_light"))),
             enabledPkgs = setOf("com.example.lights"),
         ).declarations
-        val builtinNames = setOf("portal.set_volume", "com.example.lights.set_light") // pretend the latter is a built-in
+        // pretend the latter is a built-in
+        val builtinNames = setOf("portal.set_volume", "com.example.lights.set_light")
         val merged = ExternalToolSpec.withoutBuiltinCollisions(ext, builtinNames)
         assertTrue(merged.none { it.optString("name") in builtinNames })
         assertTrue(merged.isEmpty()) // the only external name clashed with a built-in → dropped

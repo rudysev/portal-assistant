@@ -6,7 +6,8 @@ import com.portal.assistant.conversation.backend.BackendConfig
  * Hear a Speaker before choosing it (Settings → Voice): tapping a row opens a short Gemini Live session with the
  * selected model and that Speaker (null = Server default), asks Jarvis to introduce itself in one sentence, and
  * plays the answer. A preview that plays to the end is kept for the rest of the dialog, so re-tapping that row
- * replays it with no session (see [State.cached]). This is the pure core — [reduce] decides every transition and [SpeakerPreviewPlayer] is the
+ * replays it with no session (see [State.cached]). This is the pure core — [reduce] decides every transition and
+ * [SpeakerPreviewPlayer] is the
  * thin I/O shell that carries out its [Action]s (same pure-core + thin-shell split as the conversation reducer).
  */
 object SpeakerPreview {
@@ -145,7 +146,14 @@ object SpeakerPreview {
         is Event.Tap -> onTap(state, event.speaker)
 
         is Event.Ready -> when (val s = state.status) {
-            is Status.Loading -> if (s.id == event.id) Decision(state, listOf(Action.SendIntro(s.id))) else Decision(state)
+            is Status.Loading -> if (s.id ==
+                event.id
+            ) {
+                Decision(state, listOf(Action.SendIntro(s.id)))
+            } else {
+                Decision(state)
+            }
+
             else -> Decision(state)
         }
 
@@ -235,7 +243,8 @@ object SpeakerPreview {
     }
 
     /** Preview [id] couldn't play — stop it and flag [speaker]'s row. */
-    private fun fail(state: State, id: Long, speaker: GeminiSpeaker.Speaker?) = Decision(state.copy(status = Status.Failed(speaker)), listOf(Action.Stop(id)))
+    private fun fail(state: State, id: Long, speaker: GeminiSpeaker.Speaker?) =
+        Decision(state.copy(status = Status.Failed(speaker)), listOf(Action.Stop(id)))
 
     /** Preview [p] played to the end — keep its clip (unless it was already a replay) and free the slot. */
     private fun finish(state: State, p: Status.Playing): Decision = if (p.speaker in state.cached) {

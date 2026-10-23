@@ -143,12 +143,7 @@ internal fun ScrollToBottomButton(onClick: () -> Unit) {
 }
 
 @Composable
-internal fun CircleButton(
-    onClick: () -> Unit,
-    bg: Color,
-    size: Dp = 64.dp,
-    content: @Composable () -> Unit,
-) {
+internal fun CircleButton(onClick: () -> Unit, bg: Color, size: Dp = 64.dp, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier.size(size).clip(CircleShape).background(bg).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

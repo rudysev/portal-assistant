@@ -95,8 +95,15 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
         }
     }
 
-    /** Copy [input] to [out], reporting progress against [total] bytes (unknown when <= 0). Returns the bytes copied. */
-    private fun copyWithProgress(input: InputStream, out: OutputStream, total: Long, onProgress: (Float) -> Unit): Long {
+    /**
+     * Copy [input] to [out], reporting progress against [total] bytes (unknown when <= 0). Returns the bytes copied.
+     */
+    private fun copyWithProgress(
+        input: InputStream,
+        out: OutputStream,
+        total: Long,
+        onProgress: (Float) -> Unit,
+    ): Long {
         val buf = ByteArray(64 * 1024)
         var done = 0L
         var lastPct = -1

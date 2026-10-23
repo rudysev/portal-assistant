@@ -18,7 +18,8 @@ class MarkdownTest {
 
     @Test fun stripsLinkToItsText() = assertEquals("see the docs", Markdown.strip("see the [docs](https://x.io/a)"))
 
-    @Test fun leavesOrdinaryPunctuationAlone() = assertEquals("It's 1.5 mi, e.g. north.", Markdown.strip("It's 1.5 mi, e.g. north."))
+    @Test fun leavesOrdinaryPunctuationAlone() =
+        assertEquals("It's 1.5 mi, e.g. north.", Markdown.strip("It's 1.5 mi, e.g. north."))
 
     @Test fun emptyStaysEmpty() = assertEquals("", Markdown.strip(""))
 

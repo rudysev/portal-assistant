@@ -162,7 +162,9 @@ private fun TurnItem(turn: Turn, dimmed: Boolean, revealedWords: Int?) {
                 }
                 append(turn.text)
             },
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (dimmed) OLDER_TURN_ALPHA else SECONDARY_ALPHA),
+            color = MaterialTheme.colorScheme.onBackground.copy(
+                alpha = if (dimmed) OLDER_TURN_ALPHA else SECONDARY_ALPHA,
+            ),
             fontSize = TextSize.UserEcho,
             modifier = Modifier.fillMaxWidth().padding(top = TurnSpacing.PairGap, bottom = TurnSpacing.Couple),
         )

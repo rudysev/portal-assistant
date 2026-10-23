@@ -43,10 +43,21 @@ object MediaSelection {
      * the best. The metadata tiebreak matters most for PLAY/PAUSE, which Alexa also advertises: a paused
      * Spotify (has metadata) wins resume over a higher-priority Alexa (no metadata) instead of poking Alexa.
      */
-    fun pickForControl(sessions: List<SessionInfo>, action: MediaAction, ownPkg: String): Int? = choose(sessions.filter { it.pkg != ownPkg && it.supports(action) })
+    fun pickForControl(sessions: List<SessionInfo>, action: MediaAction, ownPkg: String): Int? = choose(
+        sessions.filter {
+            it.pkg !=
+                ownPkg &&
+                it.supports(action)
+        },
+    )
 
     /** Choose the session to set repeat on: the active music session that advertises repeat support. */
-    fun pickForRepeat(sessions: List<SessionInfo>, ownPkg: String): Int? = choose(sessions.filter { it.pkg != ownPkg && it.canSetRepeat })
+    fun pickForRepeat(sessions: List<SessionInfo>, ownPkg: String): Int? = choose(
+        sessions.filter {
+            it.pkg != ownPkg &&
+                it.canSetRepeat
+        },
+    )
 
     /** Choose the session to report "what's playing": the playing one, else the highest-priority with metadata. */
     fun pickForStatus(sessions: List<SessionInfo>, ownPkg: String): Int? {
@@ -56,7 +67,11 @@ object MediaSelection {
 
     /** Prefer a currently-playing session (you control what's playing), else one with metadata (a real music
      *  app), else the highest-priority. Sessions arrive in framework priority order (most-recently-active first). */
-    private fun choose(usable: List<SessionInfo>): Int? = (usable.firstOrNull { it.isPlaying } ?: usable.firstOrNull { it.hasMetadata } ?: usable.firstOrNull())?.index
+    private fun choose(usable: List<SessionInfo>): Int? = (
+        usable.firstOrNull { it.isPlaying }
+            ?: usable.firstOrNull { it.hasMetadata }
+            ?: usable.firstOrNull()
+        )?.index
 
     /** Normalize the repeat mode to a [RepeatMode], or null when absent/unrecognized. Kept to the tool's
      *  declared values (one/all/off) — deliberately NOT accepting "stop" (it means pause in media_control). */

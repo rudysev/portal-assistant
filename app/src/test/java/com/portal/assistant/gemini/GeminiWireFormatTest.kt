@@ -28,7 +28,8 @@ class GeminiWireFormatTest {
         systemPrompt: String = "p",
         functionDeclarations: List<JSONObject> = emptyList(),
         speaker: String? = null,
-    ): JSONObject = GeminiWireFormat(model, systemPrompt, functionDeclarations, speaker).setup().json().getJSONObject("setup")
+    ): JSONObject =
+        GeminiWireFormat(model, systemPrompt, functionDeclarations, speaker).setup().json().getJSONObject("setup")
 
     // ---- decode ------------------------------------------------------------------------------------
 
@@ -43,10 +44,15 @@ class GeminiWireFormatTest {
     }
 
     @Test fun binaryFrameIsReadAsUtf8Json() {
-        assertEquals(listOf(BackendEvent.Ready), wireFormat.decode("""{"setupComplete":{}}""".toByteArray(Charsets.UTF_8)))
+        assertEquals(
+            listOf(BackendEvent.Ready),
+            wireFormat.decode("""{"setupComplete":{}}""".toByteArray(Charsets.UTF_8)),
+        )
         assertEquals(
             listOf(BackendEvent.OutputTranscript("café")),
-            wireFormat.decode("""{"serverContent":{"outputTranscription":{"text":"café"}}}""".toByteArray(Charsets.UTF_8)),
+            wireFormat.decode(
+                """{"serverContent":{"outputTranscription":{"text":"café"}}}""".toByteArray(Charsets.UTF_8),
+            ),
         )
         assertEquals(emptyList<BackendEvent>(), wireFormat.decode(byteArrayOf(1, 2, 3)))
     }
@@ -156,7 +162,10 @@ class GeminiWireFormatTest {
     }
 
     @Test fun toolCallCancellationParsed() {
-        assertEquals(listOf(BackendEvent.ToolCancel(listOf("c1", "c2"))), decode("""{"toolCallCancellation":{"ids":["c1","c2"]}}"""))
+        assertEquals(
+            listOf(BackendEvent.ToolCancel(listOf("c1", "c2"))),
+            decode("""{"toolCallCancellation":{"ids":["c1","c2"]}}"""),
+        )
     }
 
     @Test fun toolCallAndServerContentSameMessage() {

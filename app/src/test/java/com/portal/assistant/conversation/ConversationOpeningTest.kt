@@ -55,7 +55,8 @@ class ConversationOpeningTest {
     @Test fun decideRefusesEveryTriggerWithoutACredential() {
         val refusals = mapOf(
             geminiChoice(apiKey = "") to Refusal("Jarvis isn’t set up yet — a Gemini API key is missing."),
-            localChoice(hostUrl = null) to Refusal("Jarvis isn’t set up yet — add your local server address in Settings."),
+            localChoice(hostUrl = null) to
+                Refusal("Jarvis isn’t set up yet — add your local server address in Settings."),
         )
         for ((backendChoice, refusal) in refusals) {
             for (trigger in allTriggers) {
@@ -76,7 +77,11 @@ class ConversationOpeningTest {
 
     @Test fun everyTriggerWithNothingOnScreenStartsFresh() {
         for (trigger in allTriggers) {
-            assertEquals(trigger.logLabel, TranscriptSeed.Fresh, open(trigger, inputs().copy(onScreenTurns = emptyList())).transcriptSeed)
+            assertEquals(
+                trigger.logLabel,
+                TranscriptSeed.Fresh,
+                open(trigger, inputs().copy(onScreenTurns = emptyList())).transcriptSeed,
+            )
         }
     }
 
@@ -136,24 +141,38 @@ class ConversationOpeningTest {
 
     @Test fun theListeningToneIsSilentForASuggestionChip() {
         // A chip's query is sent as text, so there is nothing to tell the user to say.
-        assertFalse(open(Trigger.SuggestionChip("What's the weather?"), inputs().copy(listeningToneEnabled = true)).listeningTonePlays)
+        assertFalse(
+            open(
+                Trigger.SuggestionChip("What's the weather?"),
+                inputs().copy(listeningToneEnabled = true),
+            ).listeningTonePlays,
+        )
     }
 
     // --- What Jarvis is told up front: time and location ---
 
     @Test fun aLocationOverrideBeatsTheIpGeoGuess() {
-        val prompt = open(Trigger.WakeWord("jarvis"), inputs().copy(locationOverride = "Lisbon, Portugal", deviceLocation = seattle)).sessionPrompt
+        val prompt = open(
+            Trigger.WakeWord("jarvis"),
+            inputs().copy(locationOverride = "Lisbon, Portugal", deviceLocation = seattle),
+        ).sessionPrompt
         assertTrue(prompt.contains("Location: Lisbon, Portugal."))
         assertFalse(prompt.contains("Seattle"))
     }
 
     @Test fun theIpGeoGuessIsUsedWithNoOverride() {
-        val prompt = open(Trigger.WakeWord("jarvis"), inputs().copy(locationOverride = null, deviceLocation = seattle)).sessionPrompt
+        val prompt = open(
+            Trigger.WakeWord("jarvis"),
+            inputs().copy(locationOverride = null, deviceLocation = seattle),
+        ).sessionPrompt
         assertTrue(prompt.contains("Location: Seattle, Washington, United States (lat 47.61, lon -122.33)."))
     }
 
     @Test fun theLocationIsUnknownWithNeitherOverrideNorIpGeo() {
-        val prompt = open(Trigger.WakeWord("jarvis"), inputs().copy(locationOverride = null, deviceLocation = null)).sessionPrompt
+        val prompt = open(
+            Trigger.WakeWord("jarvis"),
+            inputs().copy(locationOverride = null, deviceLocation = null),
+        ).sessionPrompt
         assertTrue(prompt.contains("Location: unknown — if a question needs a location, ask the user."))
     }
 
@@ -166,7 +185,12 @@ class ConversationOpeningTest {
 
     @Test fun enabledExternalProvidersAreDescribedInThePrompt() {
         val line = "- Kasa: control the smart plugs in the house."
-        assertTrue(open(Trigger.WakeWord("jarvis"), inputs().copy(externalPromptLines = listOf(line))).sessionPrompt.contains(line))
+        assertTrue(
+            open(
+                Trigger.WakeWord("jarvis"),
+                inputs().copy(externalPromptLines = listOf(line)),
+            ).sessionPrompt.contains(line),
+        )
     }
 
     // --- The backend's session config ---
@@ -196,7 +220,10 @@ class ConversationOpeningTest {
     }
 
     @Test fun aLocalBackendGetsItsHostAddressAsTheCredential() {
-        val config = open(Trigger.MicTap, inputs().copy(backendChoice = localChoice(hostUrl = "wss://192.168.1.5:8080"))).backendConfig
+        val config = open(
+            Trigger.MicTap,
+            inputs().copy(backendChoice = localChoice(hostUrl = "wss://192.168.1.5:8080")),
+        ).backendConfig
         assertEquals("wss://192.168.1.5:8080", config.credential)
         assertEquals(AppPrefs.VoiceBackendKind.LOCAL, config.kind)
     }
@@ -205,9 +232,11 @@ class ConversationOpeningTest {
 
     private val seattle = DeviceLocation("Seattle", "Washington", "United States", lat = 47.6062, lon = -122.3321)
 
-    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening = ConversationOpening.decide(trigger, inputs) as Opening
+    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening =
+        ConversationOpening.decide(trigger, inputs) as Opening
 
-    private val allTriggers = listOf(Trigger.WakeWord("jarvis"), Trigger.MicTap, Trigger.SuggestionChip("What's the weather?"))
+    private val allTriggers =
+        listOf(Trigger.WakeWord("jarvis"), Trigger.MicTap, Trigger.SuggestionChip("What's the weather?"))
 
     private fun geminiChoice(apiKey: String) = Backends.resolveChoice(
         selected = AppPrefs.VoiceBackendKind.GEMINI,

@@ -17,7 +17,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * [SpeakerPreview.Event] reduced on the **main thread** (socket and player callbacks post there — no locks);
  * this class only carries out the resulting [SpeakerPreview.Action]s and publishes [state] for the rows.
  *
- * Each preview gets its own session (from [GeminiBackend.Factory]) + [PcmPlayer], so a stopped preview's stragglers land on a dead
+ * Each preview gets its own session (from [GeminiBackend.Factory]) + [PcmPlayer], so a stopped preview's stragglers
+ * land on a dead
  * session and the reducer drops them by id. Independent of the conversation engine: it never touches the mic,
  * the hub, or the reducer — the dialog reports whether a conversation is live via [setConversationLive].
  *
@@ -27,11 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * [apiKey] is resolved the same way a conversation's is (blank = none → no connection is ever attempted);
  * [model] is the selected model.
  */
-class SpeakerPreviewPlayer(
-    private val apiKey: String,
-    private val model: String,
-    conversationLive: Boolean,
-) {
+class SpeakerPreviewPlayer(private val apiKey: String, private val model: String, conversationLive: Boolean) {
     private val handler = Handler(Looper.getMainLooper())
 
     private val _state = MutableStateFlow(
@@ -126,35 +123,36 @@ class SpeakerPreviewPlayer(
     }
 
     /** Relays preview [id]'s socket callbacks as events. */
-    private fun listenerFor(id: Long, player: PcmPlayer, clip: ConcurrentLinkedQueue<ByteArray>) = object : VoiceBackend.Listener {
-        override fun onReady() = post(SpeakerPreview.Event.Ready(id))
+    private fun listenerFor(id: Long, player: PcmPlayer, clip: ConcurrentLinkedQueue<ByteArray>) =
+        object : VoiceBackend.Listener {
+            override fun onReady() = post(SpeakerPreview.Event.Ready(id))
 
-        override fun onAudio(pcm24k: ByteArray) {
-            // Enqueue synchronously (like the engine) — the posted event only moves the row to "playing".
-            // Also keep every chunk, in case this preview plays to completion (KeepClip).
-            player.enqueue(pcm24k)
-            clip.add(pcm24k)
-            post(SpeakerPreview.Event.Audio(id))
+            override fun onAudio(pcm24k: ByteArray) {
+                // Enqueue synchronously (like the engine) — the posted event only moves the row to "playing".
+                // Also keep every chunk, in case this preview plays to completion (KeepClip).
+                player.enqueue(pcm24k)
+                clip.add(pcm24k)
+                post(SpeakerPreview.Event.Audio(id))
+            }
+
+            override fun onTurnComplete() = post(SpeakerPreview.Event.TurnComplete(id))
+
+            override fun onError(error: BackendError) {
+                DebugLog.log("speaker preview $id error: $error")
+                post(SpeakerPreview.Event.Disconnected(id))
+            }
+
+            override fun onClosed() = post(SpeakerPreview.Event.Disconnected(id))
+
+            // A one-sentence intro with no function declarations — nothing else matters here.
+            override fun onInputTranscript(textDelta: String) = Unit
+            override fun onOutputTranscript(textDelta: String) = Unit
+            override fun onInterrupted() = Unit
+            override fun onModelGenerating() = Unit
+            override fun onToolCall(calls: List<FunctionCall>) = Unit
+            override fun onToolCancel(ids: List<String>) = Unit
+            override fun onServerClosingSoon(graceMs: Long) = Unit
         }
-
-        override fun onTurnComplete() = post(SpeakerPreview.Event.TurnComplete(id))
-
-        override fun onError(error: BackendError) {
-            DebugLog.log("speaker preview $id error: $error")
-            post(SpeakerPreview.Event.Disconnected(id))
-        }
-
-        override fun onClosed() = post(SpeakerPreview.Event.Disconnected(id))
-
-        // A one-sentence intro with no function declarations — nothing else matters here.
-        override fun onInputTranscript(textDelta: String) = Unit
-        override fun onOutputTranscript(textDelta: String) = Unit
-        override fun onInterrupted() = Unit
-        override fun onModelGenerating() = Unit
-        override fun onToolCall(calls: List<FunctionCall>) = Unit
-        override fun onToolCancel(ids: List<String>) = Unit
-        override fun onServerClosingSoon(graceMs: Long) = Unit
-    }
 }
 
 private const val PCM_BYTES_PER_MS = 48 // 24 kHz mono 16-bit: 24 samples × 2 bytes per ms

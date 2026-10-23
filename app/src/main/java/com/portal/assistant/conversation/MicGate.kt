@@ -66,7 +66,9 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
         /** No tone this conversation (setting off, a chip, or it failed to play): nothing is dropped. */
         data object None : TonePlayback
 
-        /** The mic is open but the tone hasn't started yet: every frame is dropped — none was captured after the cue. */
+        /**
+         * The mic is open but the tone hasn't started yet: every frame is dropped — none was captured after the cue.
+         */
         data object Pending : TonePlayback
 
         /** The tone started at [startedAtMs]: frames captured before its suppression window ends are dropped. */
@@ -78,12 +80,15 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
     /** True only for a voice query's initial connect window, until the first listening frame or listening stops. */
     @Volatile private var connectBuffering = voiceQuery
 
-    @Volatile private var tonePlayback: TonePlayback = if (playsListeningTone) TonePlayback.Pending else TonePlayback.None
+    @Volatile private var tonePlayback: TonePlayback =
+        if (playsListeningTone) TonePlayback.Pending else TonePlayback.None
 
     /** Capture-thread only; bounded and per-conversation, so it is freed with the gate. */
     private val connectBuffer = ArrayDeque<ByteArray>()
 
-    /** Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log). */
+    /**
+     * Capture-thread only: frames dropped for the Listening tone, and the capture offsets they spanned (for the log).
+     */
     private var tonePendingDroppedFrames = 0
     private var toneWindowDroppedFrames = 0
     private var toneWindowDroppedFromMs = 0L
@@ -173,7 +178,11 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
         val dropped = suppresses(tonePlaybackNow, capturedFromMs)
         when (tonePlaybackNow) { // bookkeeping for the report only; the rule is suppresses'
             TonePlayback.None ->
-                if (tonePendingDroppedFrames > 0) reportToneDropOnce("then the tone didn't play, so frames are sent again", logLines)
+                if (tonePendingDroppedFrames >
+                    0
+                ) {
+                    reportToneDropOnce("then the tone didn't play, so frames are sent again", logLines)
+                }
 
             TonePlayback.Pending -> tonePendingDroppedFrames++
 
@@ -186,10 +195,14 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
                     val droppedInWindow = if (toneWindowDroppedFrames == 0) {
                         "nothing"
                     } else {
-                        "$toneWindowDroppedFrames frame(s) (${toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS}ms) " +
+                        val droppedMs = toneWindowDroppedFrames * PcmCaptureFormat.FRAME_MS
+                        "$toneWindowDroppedFrames frame(s) (${droppedMs}ms) " +
                             "captured $toneWindowDroppedFromMs..${toneWindowDroppedUntilMs}ms from the tone's start"
                     }
-                    reportToneDropOnce("then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)", logLines)
+                    reportToneDropOnce(
+                        "then $droppedInWindow in its window (${ListeningTone.suppressionWindowMs}ms)",
+                        logLines,
+                    )
                 }
             }
         }
@@ -217,7 +230,8 @@ class MicGate(voiceQuery: Boolean, playsListeningTone: Boolean) {
     /** The single place outbound mic audio is processed: [MIC_GAIN]. */
     private fun withMicGain(pcm: ByteArray, length: Int): ByteArray = PcmGain.amplify(pcm, length, MIC_GAIN)
 
-    private fun flushLine(frames: Int): String = "connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting"
+    private fun flushLine(frames: Int): String =
+        "connect buffer: flushing $frames frame(s) (~${frames * PcmCaptureFormat.FRAME_MS}ms) captured while connecting"
 
     private companion object {
         // Software gain on the sent conversation audio so room-distance speech reaches a level the backend

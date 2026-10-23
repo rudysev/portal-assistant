@@ -19,5 +19,9 @@ class SetRepeatTool(private val media: MediaControl) : Tool {
              "required":["mode"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = media.setRepeat(args.optString("mode").ifBlank { null }) // setRepeat owns the mode check
+    override fun invoke(args: JSONObject): JSONObject = media.setRepeat(
+        args.optString("mode").ifBlank {
+            null
+        },
+    ) // setRepeat owns the mode check
 }

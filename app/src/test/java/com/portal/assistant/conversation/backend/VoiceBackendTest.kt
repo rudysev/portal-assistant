@@ -162,12 +162,15 @@ class VoiceBackendTest {
         assertTrue("Gemini backend should be a WebSocketVoiceBackend", backend is WebSocketVoiceBackend)
     }
 
-    private fun geminiGenerationConfig(config: BackendConfig): JSONObject = JSONObject((GeminiBackend.wireFormat(config).setup() as Frame.Text).text)
-        .getJSONObject("setup").getJSONObject("generationConfig")
+    private fun geminiGenerationConfig(config: BackendConfig): JSONObject =
+        JSONObject((GeminiBackend.wireFormat(config).setup() as Frame.Text).text)
+            .getJSONObject("setup").getJSONObject("generationConfig")
 
     @Test
     fun `Gemini adapter speaks with the chosen speaker`() {
-        val voiceName = geminiGenerationConfig(BackendConfig(credential = "key", model = "m", speaker = "Charon", systemPrompt = "p"))
+        val voiceName = geminiGenerationConfig(
+            BackendConfig(credential = "key", model = "m", speaker = "Charon", systemPrompt = "p"),
+        )
             .getJSONObject("speechConfig").getJSONObject("voiceConfig")
             .getJSONObject("prebuiltVoiceConfig").getString("voiceName")
         assertEquals("Charon", voiceName)
@@ -175,13 +178,16 @@ class VoiceBackendTest {
 
     @Test
     fun `Gemini adapter leaves server default to Gemini`() {
-        val generationConfig = geminiGenerationConfig(BackendConfig(credential = "key", model = "m", speaker = null, systemPrompt = "p"))
+        val generationConfig =
+            geminiGenerationConfig(BackendConfig(credential = "key", model = "m", speaker = null, systemPrompt = "p"))
         assertFalse(generationConfig.has("speechConfig"))
     }
 
     @Test
     fun `Gemini adapter URL-encodes the API key into the default endpoint`() {
-        val address = GeminiBackend.connectAddress(BackendConfig(credential = "a+b/c=d&e f", model = "m", systemPrompt = "p"))
+        val address = GeminiBackend.connectAddress(
+            BackendConfig(credential = "a+b/c=d&e f", model = "m", systemPrompt = "p"),
+        )
         assertEquals(
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService" +
                 ".BidiGenerateContent?key=a%2Bb%2Fc%3Dd%26e%20f",

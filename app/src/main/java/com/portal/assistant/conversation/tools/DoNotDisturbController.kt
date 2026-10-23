@@ -82,5 +82,6 @@ class DoNotDisturbController(context: Context, afterSpeech: AfterSpeech) {
     fun dispose() = deferredEnable.dispose()
 
     // A pending enable (confirmation playing) → report on to stay consistent with what we told the model.
-    private fun isOn(): Boolean = deferredEnable.isPending || manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+    private fun isOn(): Boolean =
+        deferredEnable.isPending || manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
 }

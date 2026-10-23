@@ -41,11 +41,7 @@ import java.util.concurrent.Executor
 // The one impure shell: a function per lifecycle step, Action and hot-path callback. The decisions already live in
 // the pure reducer, MicGate, Transcript and ToolRunner; what is left here is the wiring between them.
 @Suppress("TooManyFunctions")
-class AssistantEngine(
-    context: Context,
-    private val backendChoice: Backends.Choice,
-    private val onEnded: () -> Unit,
-) {
+class AssistantEngine(context: Context, private val backendChoice: Backends.Choice, private val onEnded: () -> Unit) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val overlay = RecordingOverlay(appContext)
@@ -113,7 +109,9 @@ class AssistantEngine(
         // Diagnose: thinking gap before any audio, or audio that started then stopped?
         val gap = if (lastAudioAtMs == 0L) -1 else System.currentTimeMillis() - lastAudioAtMs
         val modelChars = transcript.turns.lastOrNull()?.text?.length ?: 0
-        DebugLog.log("stall fired: ${gap}ms since last audio, turnComplete=${state.turnComplete}, modelChars=$modelChars")
+        DebugLog.log(
+            "stall fired: ${gap}ms since last audio, turnComplete=${state.turnComplete}, modelChars=$modelChars",
+        )
         dispatch(Event.StallTimeout)
     }
 
@@ -152,7 +150,9 @@ class AssistantEngine(
         when (val seed = opening.transcriptSeed) {
             is TranscriptSeed.Resume -> {
                 transcript = Transcript(turns = seed.turnsShown)
-                DebugLog.log("engine start (resume, ${seed.turnsShown.size} turns, ${seed.turnsReplayed.size} replayed)")
+                DebugLog.log(
+                    "engine start (resume, ${seed.turnsShown.size} turns, ${seed.turnsReplayed.size} replayed)",
+                )
                 ConversationHub.startResume()
             }
 
@@ -169,7 +169,9 @@ class AssistantEngine(
         // onFrame never touches it — so starting it after connect()/mic is safe.
         backend = backendChoice.factory.create(opening.backendConfig, backendListener).also { it.connect() }
         if (!opening.listeningTonePlays) {
-            DebugLog.log("listening tone: skipped (enabled=${inputs.listeningToneEnabled}, voiceQuery=${opening.voiceQuery})")
+            DebugLog.log(
+                "listening tone: skipped (enabled=${inputs.listeningToneEnabled}, voiceQuery=${opening.voiceQuery})",
+            )
         }
         // Built before mic.start() spawns the capture thread, so its initial state is visible to it. With the tone
         // on, the gate starts with it pending: from the first frame nothing is sent until the tone has started.
@@ -306,7 +308,8 @@ class AssistantEngine(
      * is just our own teardown closing the socket; [dispatch] ignores the event and we post nothing.)
      *
      * Double-fire safe: an error can be followed by a close (a server close reason reports onError, then onClosed).
-     * The first posts the notice and ends the turn (so `ended` flips true); the second sees `ended == true` → posts nothing and its dispatch no-ops.
+     * The first posts the notice and ends the turn (so `ended` flips true); the second sees `ended == true` → posts
+     * nothing and its dispatch no-ops.
      * (Even a redundant post would be idempotent — [ConversationHub.notice] is a StateFlow that drops an
      * equal value.)
      */

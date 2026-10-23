@@ -62,7 +62,9 @@ object LocalVoiceHost {
 
             lower.endsWith(".local") -> isValidHostname(lower)
 
-            octets.size == IPV4_OCTETS && octets.all { it.toIntOrNull() in 0..MAX_OCTET } -> isPrivateIpv4(octets.map { it.toInt() })
+            octets.size == IPV4_OCTETS && octets.all {
+                it.toIntOrNull() in 0..MAX_OCTET
+            } -> isPrivateIpv4(octets.map { it.toInt() })
 
             // Short mDNS name (no dots) — e.g. `raspberrypi:8080`.
             '.' !in host -> isValidSimpleHostname(host)
@@ -90,5 +92,6 @@ object LocalVoiceHost {
 
     private fun isValidHostname(host: String): Boolean = host.all { it.isLetterOrDigit() || it == '-' || it == '.' }
 
-    private fun isValidSimpleHostname(host: String): Boolean = host.isNotEmpty() && host.all { it.isLetterOrDigit() || it == '-' }
+    private fun isValidSimpleHostname(host: String): Boolean =
+        host.isNotEmpty() && host.all { it.isLetterOrDigit() || it == '-' }
 }

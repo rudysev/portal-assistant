@@ -181,7 +181,10 @@ class GeminiWireFormat(
     override fun decode(bytes: ByteArray): List<BackendEvent> = decode(String(bytes, Charsets.UTF_8))
 
     /** Gemini says why it ends a session in the close reason (e.g. a rejected API key); a normal close says nothing. */
-    override fun closeMessage(code: Int, reason: String): String? = reason.takeIf { code != NORMAL_CLOSURE && it.isNotBlank() }
+    override fun closeMessage(code: Int, reason: String): String? = reason.takeIf {
+        code != NORMAL_CLOSURE &&
+            it.isNotBlank()
+    }
 
     private fun JSONObject.toFrame() = Frame.Text(toString())
 
@@ -197,6 +200,7 @@ class GeminiWireFormat(
         const val VAD_SILENCE_DURATION_MS = 600
 
         /** Parse a protobuf Duration string like "9.5s" to millis; 0 if unparseable. */
-        fun parseDurationMs(durationText: String): Long = (durationText.trim().removeSuffix("s").toDoubleOrNull()?.times(MS_PER_SEC))?.toLong() ?: 0L
+        fun parseDurationMs(durationText: String): Long =
+            (durationText.trim().removeSuffix("s").toDoubleOrNull()?.times(MS_PER_SEC))?.toLong() ?: 0L
     }
 }

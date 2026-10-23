@@ -19,7 +19,12 @@ object SystemContext {
     const val HEADER = "Device Context:"
 
     /** Append a context block ([lines], one item per line) to [systemPrompt]. No-op when [lines] is empty. */
-    fun enrich(systemPrompt: String, lines: List<String>): String = if (lines.isEmpty()) systemPrompt else "$systemPrompt\n\n$HEADER\n" + lines.joinToString("\n")
+    fun enrich(systemPrompt: String, lines: List<String>): String = if (lines.isEmpty()) {
+        systemPrompt
+    } else {
+        "$systemPrompt\n\n$HEADER\n" +
+            lines.joinToString("\n")
+    }
 
     /**
      * The local date/time line, e.g.

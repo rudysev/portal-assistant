@@ -37,7 +37,9 @@ class MediaControl(context: Context) {
     /** Run [action] on the best matching session. */
     fun control(action: MediaAction): JSONObject = withSession(
         pick = { MediaSelection.pickForControl(it, action, ownPkg) },
-        notFound = { empty -> JSONObject().put("error", if (empty) "nothing is playing" else "no media session supports that action") },
+        notFound = { empty ->
+            JSONObject().put("error", if (empty) "nothing is playing" else "no media session supports that action")
+        },
     ) { controller ->
         when (action) {
             MediaAction.PLAY -> controller.transportControls.play()
@@ -61,7 +63,12 @@ class MediaControl(context: Context) {
             ?: return JSONObject().put("error", "repeat must be one, all, or off")
         return withSession(
             pick = { MediaSelection.pickForRepeat(it, ownPkg) },
-            notFound = { empty -> JSONObject().put("error", if (empty) "nothing is playing" else "repeat isn't available on the current app") },
+            notFound = { empty ->
+                JSONObject().put(
+                    "error",
+                    if (empty) "nothing is playing" else "repeat isn't available on the current app",
+                )
+            },
         ) { controller ->
             val app = appLabel(controller.packageName)
             runCatching {
@@ -153,12 +160,14 @@ class MediaControl(context: Context) {
         )
     }
 
-    private fun notEnabledError(): JSONObject = JSONObject().put("error", "media control isn't enabled — grant notification access in Settings")
+    private fun notEnabledError(): JSONObject =
+        JSONObject().put("error", "media control isn't enabled — grant notification access in Settings")
 
     private companion object {
         fun str(md: MediaMetadata?, key: String) = md?.getString(key)?.takeIf { it.isNotBlank() }
 
-        fun title(md: MediaMetadata?) = str(md, MediaMetadata.METADATA_KEY_TITLE) ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+        fun title(md: MediaMetadata?) =
+            str(md, MediaMetadata.METADATA_KEY_TITLE) ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
 
         fun artist(md: MediaMetadata?) = str(md, MediaMetadata.METADATA_KEY_ARTIST)
             ?: str(md, MediaMetadata.METADATA_KEY_ALBUM_ARTIST)

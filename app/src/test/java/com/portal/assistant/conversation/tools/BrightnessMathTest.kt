@@ -5,7 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
 
-/** Pure JVM tests for the linear, floored brightness percent↔raw math (max = 255, the Portal SCREEN_BRIGHTNESS range). */
+/**
+ * Pure JVM tests for the linear, floored brightness percent↔raw math (max = 255, the Portal SCREEN_BRIGHTNESS range).
+ */
 class BrightnessMathTest {
 
     private val max = 255

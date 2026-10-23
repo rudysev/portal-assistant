@@ -25,7 +25,10 @@ class MicGateTest {
 
     /** Feeds frames to the gate one [PcmCaptureFormat.FRAME_MS] apart, from [capturedUntilMs]. */
     private class FrameFeed(val gate: MicGate, var capturedUntilMs: Long = 10_000L) {
-        fun capture(bytes: ByteArray): MicGate.FrameOutcome = gate.onFrame(bytes, bytes.size, capturedUntilMs).also { capturedUntilMs += PcmCaptureFormat.FRAME_MS }
+        fun capture(bytes: ByteArray): MicGate.FrameOutcome = gate.onFrame(bytes, bytes.size, capturedUntilMs).also {
+            capturedUntilMs +=
+                PcmCaptureFormat.FRAME_MS
+        }
     }
 
     @Test fun aVoiceQueryBuffersWhileConnectingThenFlushesInCaptureOrderBeforeTheLiveFrame() {
@@ -151,7 +154,10 @@ class MicGateTest {
     // --- The Listening tone ---
 
     /** A voice conversation whose Listening tone is still pending, already listening (the socket connected first). */
-    private fun listeningWithTonePending(): FrameFeed = FrameFeed(MicGate(voiceQuery = true, playsListeningTone = true)).also { it.gate.listeningStarted() }
+    private fun listeningWithTonePending(): FrameFeed =
+        FrameFeed(MicGate(voiceQuery = true, playsListeningTone = true)).also {
+            it.gate.listeningStarted()
+        }
 
     private val windowMs = ListeningTone.suppressionWindowMs
 
@@ -244,7 +250,9 @@ class MicGateTest {
         mic.gate.toneFailed()
 
         assertEquals(
-            listOf("listening tone: dropped 1 frame(s) while pending, then the tone didn't play, so frames are sent again"),
+            listOf(
+                "listening tone: dropped 1 frame(s) while pending, then the tone didn't play, so frames are sent again",
+            ),
             mic.capture(frame(100)).logLines,
         )
         assertEquals(emptyList<String>(), mic.capture(frame(100)).logLines)

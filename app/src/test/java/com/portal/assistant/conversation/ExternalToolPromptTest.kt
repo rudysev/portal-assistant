@@ -12,7 +12,11 @@ class ExternalToolPromptTest {
     private fun kasaProvider() = DiscoveredProvider(
         pkg = "com.portal.kasa",
         authority = "com.portal.kasa.tools",
-        declarationsJson = """[{"name":"com.portal.kasa.set_plug","description":"Turn a smart plug on or off by name.","parameters":{"type":"OBJECT","properties":{"plug_name":{"type":"STRING"},"on":{"type":"BOOLEAN"}},"required":["plug_name","on"]}}]""",
+        declarationsJson = """
+            [{"name":"com.portal.kasa.set_plug","description":"Turn a smart plug on or off by name.",
+              "parameters":{"type":"OBJECT","properties":{"plug_name":{"type":"STRING"},"on":{"type":"BOOLEAN"}},
+                            "required":["plug_name","on"]}}]
+        """.trimIndent(),
         summary = "Control your smart plugs by voice.",
     )
 
@@ -30,7 +34,10 @@ class ExternalToolPromptTest {
     }
 
     @Test fun enrichAddsHeaderWhenLinesPresent() {
-        val out = ExternalToolPrompt.enrich("BASE", listOf("- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug."))
+        val out = ExternalToolPrompt.enrich(
+            "BASE",
+            listOf("- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug."),
+        )
         assertTrue(out.startsWith("BASE"))
         assertTrue(out.contains(ExternalToolPrompt.HEADER))
         assertTrue(out.contains("com.portal.kasa.set_plug"))
@@ -52,7 +59,10 @@ class ExternalToolPromptTest {
         val calendar = DiscoveredProvider(
             pkg = "com.portal.calendar",
             authority = "com.portal.calendar.tools",
-            declarationsJson = """[{"name":"com.portal.calendar.add_event","description":"Add a calendar event.","parameters":{"type":"OBJECT","properties":{}}}]""",
+            declarationsJson = """
+                [{"name":"com.portal.calendar.add_event","description":"Add a calendar event.",
+                  "parameters":{"type":"OBJECT","properties":{}}}]
+            """.trimIndent(),
             summary = "Manage your calendar by voice.",
         )
         val parsed = ExternalToolSpec.parse(listOf(kasa, calendar), setOf(kasa.pkg, calendar.pkg))

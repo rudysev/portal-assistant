@@ -4,7 +4,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** One installed tool provider as discovered from the manifest (pure data; the Android query lives elsewhere). */
-data class DiscoveredProvider(val pkg: String, val authority: String, val declarationsJson: String?, val summary: String? = null)
+data class DiscoveredProvider(
+    val pkg: String,
+    val authority: String,
+    val declarationsJson: String?,
+    val summary: String? = null,
+)
 
 /**
  * The validated external tools for a session: [declarations] to send to Gemini, [authorityByName] for invoke,
@@ -107,5 +112,9 @@ object ExternalToolSpec {
     }
 
     /** Drop any external declaration whose name collides with a built-in — built-ins always win. */
-    fun withoutBuiltinCollisions(external: List<JSONObject>, builtinNames: Set<String>): List<JSONObject> = external.filter { it.optString("name") !in builtinNames }
+    fun withoutBuiltinCollisions(external: List<JSONObject>, builtinNames: Set<String>): List<JSONObject> =
+        external.filter {
+            it.optString("name") !in
+                builtinNames
+        }
 }

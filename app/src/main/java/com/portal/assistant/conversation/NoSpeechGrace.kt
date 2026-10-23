@@ -29,5 +29,6 @@ object NoSpeechGrace {
     const val MAX_GRACES = 4
 
     /** Defer the no-speech end iff local speech was heard within [RECENT_SPEECH_MS] and the budget isn't spent. */
-    fun shouldExtend(nowMs: Long, lastSpeechMs: Long, gracesUsed: Int): Boolean = lastSpeechMs > 0L && (nowMs - lastSpeechMs) <= RECENT_SPEECH_MS && gracesUsed < MAX_GRACES
+    fun shouldExtend(nowMs: Long, lastSpeechMs: Long, gracesUsed: Int): Boolean =
+        lastSpeechMs > 0L && (nowMs - lastSpeechMs) <= RECENT_SPEECH_MS && gracesUsed < MAX_GRACES
 }

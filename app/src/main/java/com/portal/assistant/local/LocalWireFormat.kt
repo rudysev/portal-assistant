@@ -18,7 +18,8 @@ import org.json.JSONObject
  *    them into the chat bubble, same as Gemini Live.
  *
  * The host should emit `model_generating` before its first audio frame; the transport reports it anyway if it
- * doesn't. Pure — the socket is [WebSocketVoiceBackend][com.portal.assistant.conversation.backend.WebSocketVoiceBackend]'s.
+ * doesn't. Pure — the socket is
+ * [WebSocketVoiceBackend][com.portal.assistant.conversation.backend.WebSocketVoiceBackend]'s.
  */
 class LocalWireFormat(
     private val systemPrompt: String,
@@ -66,13 +67,16 @@ class LocalWireFormat(
     }
 
     /** [event] of a non-empty text payload; nothing for an empty one. */
-    private fun ifPresent(text: String, event: (String) -> BackendEvent): List<BackendEvent> = if (text.isEmpty()) emptyList() else listOf(event(text))
+    private fun ifPresent(text: String, event: (String) -> BackendEvent): List<BackendEvent> =
+        if (text.isEmpty()) emptyList() else listOf(event(text))
 
     /** [event] of a non-empty list payload; nothing for an empty one. */
-    private fun <T> ifPresent(items: List<T>, event: (List<T>) -> BackendEvent): List<BackendEvent> = if (items.isEmpty()) emptyList() else listOf(event(items))
+    private fun <T> ifPresent(items: List<T>, event: (List<T>) -> BackendEvent): List<BackendEvent> =
+        if (items.isEmpty()) emptyList() else listOf(event(items))
 
     /** One raw 24 kHz PCM chunk. */
-    override fun decode(bytes: ByteArray): List<BackendEvent> = if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
+    override fun decode(bytes: ByteArray): List<BackendEvent> =
+        if (bytes.isEmpty()) emptyList() else listOf(BackendEvent.Audio(bytes))
 
     /** The host reports its errors as `error` frames; a close reason is never meant for the user. */
     override fun closeMessage(code: Int, reason: String): String? = null

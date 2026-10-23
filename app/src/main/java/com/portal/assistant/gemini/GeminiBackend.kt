@@ -18,7 +18,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 object GeminiBackend {
 
     const val DEFAULT_ENDPOINT =
-        "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        "wss://generativelanguage.googleapis.com/ws/" +
+            "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
     /** DNS hostname for [Backends.warmDns] — derived from [DEFAULT_ENDPOINT], not duplicated here. */
     fun dnsHost(): String = java.net.URI(DEFAULT_ENDPOINT).host
@@ -52,11 +53,12 @@ object GeminiBackend {
     object Factory : VoiceBackendFactory {
         override val deadAirStallMs = DEAD_AIR_STALL_MS
 
-        override fun create(config: BackendConfig, listener: VoiceBackend.Listener): VoiceBackend = WebSocketVoiceBackend(
-            wireFormat = wireFormat(config),
-            address = connectAddress(config),
-            listener = listener,
-            tls = Http.shared,
-        )
+        override fun create(config: BackendConfig, listener: VoiceBackend.Listener): VoiceBackend =
+            WebSocketVoiceBackend(
+                wireFormat = wireFormat(config),
+                address = connectAddress(config),
+                listener = listener,
+                tls = Http.shared,
+            )
     }
 }

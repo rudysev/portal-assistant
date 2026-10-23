@@ -13,12 +13,8 @@ import java.io.File
  * The production [Detector]: the commons [WakeMicEngine] running Vosk on the downloaded model, listening for
  * "hey jarvis". Its wake arrives on the capture thread and its unavailable report on main; [ForegroundWake] hops both.
  */
-class VoskDetector(
-    context: Context,
-    modelDir: File,
-    onWake: (wakeId: String) -> Unit,
-    onUnavailable: () -> Unit,
-) : Detector {
+class VoskDetector(context: Context, modelDir: File, onWake: (wakeId: String) -> Unit, onUnavailable: () -> Unit) :
+    Detector {
     private val engine = WakeMicEngine(
         context = context,
         config = WakeMicConfig(
@@ -39,8 +35,9 @@ class VoskDetector(
     private companion object {
         /** "hey jarvis" at the strict floor, matching portal-wake's built-in jarvis default so accuracy is identical.
          *  Non-null: the phrase is a valid two-word phrase. */
-        val WAKE_WORD = checkNotNull(WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)) {
-            "built-in phrase \"hey jarvis\""
-        }
+        val WAKE_WORD =
+            checkNotNull(WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)) {
+                "built-in phrase \"hey jarvis\""
+            }
     }
 }

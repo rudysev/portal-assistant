@@ -67,10 +67,14 @@ class AssistantService : Service() {
         val mainHandler = Handler(Looper.getMainLooper())
         foregroundWake = ForegroundWake(
             supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
-            micPermitted = { checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED },
+            micPermitted = {
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            },
             online = { NetworkStatus.isOnline(this) },
             model = WakeModelInstaller(filesDir),
-            detectors = { modelDir, onWake, onUnavailable -> VoskDetector(applicationContext, modelDir, onWake, onUnavailable) },
+            detectors = { modelDir, onWake, onUnavailable ->
+                VoskDetector(applicationContext, modelDir, onWake, onUnavailable)
+            },
             io = { task ->
                 Thread(task).apply {
                     isDaemon = true
@@ -183,9 +187,12 @@ class AssistantService : Service() {
                 Class.forName("com.portal.assistant.audio.PcmPlayer")
                 Backends.warmDns(applicationContext)
                 LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
-                com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext) // pre-scan installed tool providers off the wake path
-                com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext) // pre-scan installed music apps off the wake path
-                com.portal.assistant.conversation.ListeningTonePlayer.prewarm() // synthesize the Listening tone + build its track off the wake path
+                // pre-scan installed tool providers off the wake path
+                com.portal.assistant.conversation.tools.ExternalToolProvider.warm(applicationContext)
+                // pre-scan installed music apps off the wake path
+                com.portal.assistant.conversation.tools.PackageCatalog.warmMusicApps(applicationContext)
+                // synthesize the Listening tone + build its track off the wake path
+                com.portal.assistant.conversation.ListeningTonePlayer.prewarm()
                 DebugLog.log("prewarm done (classes + http + dns + tools + music + tone)")
             }.onFailure { DebugLog.log("prewarm failed: ${it.message}") }
         }.apply {
@@ -283,16 +290,31 @@ class AssistantService : Service() {
         }
 
         private fun encodeTrigger(intent: Intent, trigger: Trigger): Intent = when (trigger) {
-            is Trigger.WakeWord -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_WAKE_WORD).putExtra(EXTRA_WAKE_ID, trigger.wakeId)
+            is Trigger.WakeWord -> intent.putExtra(
+                EXTRA_TRIGGER,
+                TRIGGER_WAKE_WORD,
+            ).putExtra(EXTRA_WAKE_ID, trigger.wakeId)
+
             Trigger.MicTap -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_MIC_TAP)
-            is Trigger.SuggestionChip -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_SUGGESTION_CHIP).putExtra(EXTRA_CHIP_TEXT, trigger.text)
+
+            is Trigger.SuggestionChip -> intent.putExtra(
+                EXTRA_TRIGGER,
+                TRIGGER_SUGGESTION_CHIP,
+            ).putExtra(EXTRA_CHIP_TEXT, trigger.text)
         }
 
-        /** The [Trigger] [encodeTrigger] wrote, or null when the Intent doesn't carry a whole one — then nothing starts. */
+        /**
+         * The [Trigger] [encodeTrigger] wrote, or null when the Intent doesn't carry a whole one — then nothing starts.
+         */
         private fun decodeTrigger(intent: Intent): Trigger? = when (intent.getStringExtra(EXTRA_TRIGGER)) {
             TRIGGER_WAKE_WORD -> intent.getStringExtra(EXTRA_WAKE_ID)?.let(Trigger::WakeWord)
+
             TRIGGER_MIC_TAP -> Trigger.MicTap
-            TRIGGER_SUGGESTION_CHIP -> intent.getStringExtra(EXTRA_CHIP_TEXT)?.takeIf { it.isNotBlank() }?.let(Trigger::SuggestionChip)
+
+            TRIGGER_SUGGESTION_CHIP -> intent.getStringExtra(EXTRA_CHIP_TEXT)?.takeIf {
+                it.isNotBlank()
+            }?.let(Trigger::SuggestionChip)
+
             else -> null
         }
 

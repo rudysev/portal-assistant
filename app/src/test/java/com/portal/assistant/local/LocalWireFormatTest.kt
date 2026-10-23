@@ -89,7 +89,10 @@ class LocalWireFormatTest {
     @Test
     fun `tool_call with missing or garbage args gets empty args`() {
         val events = wireFormat.decode(
-            """{"type":"tool_call","calls":[{"id":"a","name":"x"},{"id":"b","name":"y","args":"not json"},{"id":"c","name":"z","args":5}]}""",
+            """
+            {"type":"tool_call",
+             "calls":[{"id":"a","name":"x"},{"id":"b","name":"y","args":"not json"},{"id":"c","name":"z","args":5}]}
+            """.trimIndent(),
         )
         val call = events.single() as BackendEvent.ToolCall
         assertEquals(listOf(0, 0, 0), call.calls.map { it.args.length() })
@@ -120,7 +123,8 @@ class LocalWireFormatTest {
     fun `setup carries the prompt and normalized tools`() {
         val decl = JSONObject(
             """{"name":"portal.set_timer","description":"start a timer",
-                "parameters":{"type":"OBJECT","properties":{"duration_seconds":{"type":"NUMBER"}},"required":["duration_seconds"]}}""",
+                "parameters":{"type":"OBJECT","properties":{"duration_seconds":{"type":"NUMBER"}},
+                              "required":["duration_seconds"]}}""",
         )
         val setup = LocalWireFormat("be helpful", listOf(decl)).setup().json()
         assertEquals("setup", setup.getString("type"))
@@ -139,7 +143,9 @@ class LocalWireFormatTest {
 
     @Test
     fun `tool results and the user text turn shape the outbound frames`() {
-        val result = wireFormat.toolResults(listOf(ToolResult("a", "portal.set_timer", JSONObject().put("ok", true)))).json()
+        val result = wireFormat.toolResults(
+            listOf(ToolResult("a", "portal.set_timer", JSONObject().put("ok", true))),
+        ).json()
         assertEquals("tool_result", result.getString("type"))
         val r0 = result.getJSONArray("results").getJSONObject(0)
         assertEquals("a", r0.getString("id"))

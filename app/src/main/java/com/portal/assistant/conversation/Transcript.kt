@@ -104,7 +104,13 @@ data class Transcript(
     private fun revealAt(playedBytes: Long): Transcript {
         val idx = jarvisIndex()
         val next = if (idx < 0) revealedWords else wordsHeard(turns[idx].text, playedBytes)
-        return if (next == revealedWords) this else copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
+        return if (next ==
+            revealedWords
+        ) {
+            this
+        } else {
+            copy(turns = turns.patched(idx) { it.copy(revealedWords = next) }, revealedWords = next)
+        }
     }
 
     /**
@@ -166,7 +172,10 @@ data class Transcript(
 
     private fun jarvisIndex(): Int = if (jarvisTurnId == NONE) -1 else turns.indexOfLast { it.id == jarvisTurnId }
 
-    private fun List<Turn>.patched(idx: Int, change: (Turn) -> Turn): List<Turn> = toMutableList().also { it[idx] = change(it[idx]) }
+    private fun List<Turn>.patched(idx: Int, change: (Turn) -> Turn): List<Turn> = toMutableList().also {
+        it[idx] =
+            change(it[idx])
+    }
 
     private companion object {
         const val NONE = -1L

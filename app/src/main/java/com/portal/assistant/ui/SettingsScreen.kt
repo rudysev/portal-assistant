@@ -55,8 +55,10 @@ import kotlinx.coroutines.withContext
 /**
  * The app's settings surface: **backend** (Gemini cloud vs a local voice host on the LAN), the **API key**
  * when Gemini is selected (BYOD — paste or type + verify), the **model** picker and the **voice** (Speaker)
- * picker (Gemini only), the **local host address** (Local only), the **location** used for weather / "near me" answers, the default music app,
- * **sounds** (the Listening tone switch), and the **external tools** allowlist. Changes apply to the **next** conversation (device context, model, and tool
+ * picker (Gemini only), the **local host address** (Local only), the **location** used for weather / "near me" answers,
+ * the default music app,
+ * **sounds** (the Listening tone switch), and the **external tools** allowlist. Changes apply to the **next**
+ * conversation (device context, model, and tool
  * declarations are fixed at session start).
  *
  * Location is auto-detected once via IP geolocation on first install. The field is pre-filled from the
@@ -66,7 +68,11 @@ import kotlinx.coroutines.withContext
  */
 // ioDispatcher: where the sections' PackageManager and network calls run, off the main thread.
 @Composable
-fun SettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, ioDispatcher: CoroutineDispatcher = Dispatchers.IO) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
     // Helper/caption text raised to clear AA at viewing distance.
     val subtle = MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA)
 
@@ -119,7 +125,12 @@ private fun SettingsTitle(onBack: () -> Unit, subtle: Color) {
                 )
             }
             Spacer(Modifier.size(8.dp))
-            Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = TextSize.ScreenTitle, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Settings",
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = TextSize.ScreenTitle,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
 
         // Said once, here — the settings that shape a conversation's opening (backend, key, model, voice, sound,
@@ -289,7 +300,11 @@ private fun ExternalToolsSection(subtle: Color) {
     val context = LocalContext.current
     var providers by remember { mutableStateOf(ExternalToolProvider.providersForSettings(context)) }
     Column {
-        SectionHeading("External tools", "Installed apps that add abilities to Jarvis. Off until you enable them.", subtle)
+        SectionHeading(
+            "External tools",
+            "Installed apps that add abilities to Jarvis. Off until you enable them.",
+            subtle,
+        )
         if (providers.isEmpty()) {
             Text("No tool provider apps installed.", color = subtle, fontSize = TextSize.Body)
         } else {

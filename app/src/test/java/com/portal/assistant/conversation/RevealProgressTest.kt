@@ -52,6 +52,9 @@ class RevealProgressTest {
     }
 
     @Test fun cappedAtTotalWords() {
-        assertEquals(5, RevealProgress.wordsToShow(totalWords = 5, playedBytes = 100, receivedBytes = 100, previous = 8))
+        assertEquals(
+            5,
+            RevealProgress.wordsToShow(totalWords = 5, playedBytes = 100, receivedBytes = 100, previous = 8),
+        )
     }
 }

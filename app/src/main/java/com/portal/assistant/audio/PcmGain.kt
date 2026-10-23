@@ -29,7 +29,8 @@ object PcmGain {
         val out = ByteArray(n)
         var i = 0
         while (i < n) {
-            val sample = (buf[i].toInt() and BYTE_MASK) or (buf[i + 1].toInt() shl BYTE_BITS) // signed 16-bit, little-endian
+            // signed 16-bit, little-endian
+            val sample = (buf[i].toInt() and BYTE_MASK) or (buf[i + 1].toInt() shl BYTE_BITS)
             val scaled = (sample * gain).toInt().coerceIn(MIN_16, MAX_16)
             out[i] = (scaled and BYTE_MASK).toByte()
             out[i + 1] = ((scaled shr BYTE_BITS) and BYTE_MASK).toByte()

@@ -43,7 +43,10 @@ class PrebuiltTrack(private val logLabel: String, private val buildTrack: () -> 
         return played
     }
 
-    /** Replay [candidate]; if it can't, log [failureContext], release it, and stop keeping it. Returns whether it played. */
+    /**
+     * Replay [candidate]; if it can't, log [failureContext], release it, and stop keeping it. Returns whether it
+     * played.
+     */
     private fun replayOrDiscard(candidate: Track, failureContext: String): Boolean {
         val replayed = runCatching { candidate.replay() }
         if (replayed.isSuccess) return true

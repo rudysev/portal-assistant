@@ -6,12 +6,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 /** One scheduled timer. Pure data — id doubles as the AlarmManager PendingIntent requestCode. */
-data class TimerEntry(
-    val id: Int,
-    val label: String,
-    val fireAtMs: Long,
-    val durationSec: Int,
-)
+data class TimerEntry(val id: Int, val label: String, val fireAtMs: Long, val durationSec: Int)
 
 /**
  * Pure timer-store logic — Android-free so it's unit-tested (same pattern as
@@ -50,7 +45,8 @@ object Timers {
     }
 
     /** Whole seconds until [entry] fires, never negative. */
-    fun remainingSec(entry: TimerEntry, nowMs: Long): Long = max(0L, TimeUnit.MILLISECONDS.toSeconds(entry.fireAtMs - nowMs))
+    fun remainingSec(entry: TimerEntry, nowMs: Long): Long =
+        max(0L, TimeUnit.MILLISECONDS.toSeconds(entry.fireAtMs - nowMs))
 
     /** Entries that haven't fired yet (drops elapsed ones defensively). */
     fun active(list: List<TimerEntry>, nowMs: Long): List<TimerEntry> = list.filter { it.fireAtMs > nowMs }

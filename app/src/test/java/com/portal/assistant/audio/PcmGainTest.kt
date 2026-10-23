@@ -18,7 +18,10 @@ class PcmGainTest {
     }
 
     /** Decode little-endian 16-bit samples back to ints. */
-    private fun samples(b: ByteArray): List<Int> = (0 until b.size / 2).map { (b[it * 2].toInt() and 0xff) or (b[it * 2 + 1].toInt() shl 8) }
+    private fun samples(b: ByteArray): List<Int> = (0 until b.size / 2).map {
+        (b[it * 2].toInt() and 0xff) or
+            (b[it * 2 + 1].toInt() shl 8)
+    }
 
     @Test fun unityGainIsPassThrough() {
         val input = pcm(100, -100, 5000, -5000, 0)

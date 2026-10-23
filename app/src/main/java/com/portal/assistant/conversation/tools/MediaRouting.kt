@@ -68,7 +68,11 @@ object MediaRouting {
     }
 
     /** The app the user named: matched over the music apps first, then the fallback set. */
-    private fun spokenTarget(spokenApp: String, musicApps: List<AppEntry>, fallbackApps: () -> List<AppEntry>): MusicTarget {
+    private fun spokenTarget(
+        spokenApp: String,
+        musicApps: List<AppEntry>,
+        fallbackApps: () -> List<AppEntry>,
+    ): MusicTarget {
         val pick = AppMatch.best(spokenApp, musicApps).pick
             ?: AppMatch.best(spokenApp, fallbackApps()).pick
         return if (pick != null) {
@@ -86,7 +90,8 @@ object MediaRouting {
      * same members but in different orders (Settings sorts by label), so the Spotify tiebreak resolves by
      * [spotifyPkgs] priority, not by list position.
      */
-    fun autoDefault(apps: List<AppEntry>, spotifyPkgs: List<String>): AppEntry? = apps.singleOrNull() ?: spotifyPkgs.firstNotNullOfOrNull { pk -> apps.firstOrNull { it.pkg == pk } }
+    fun autoDefault(apps: List<AppEntry>, spotifyPkgs: List<String>): AppEntry? =
+        apps.singleOrNull() ?: spotifyPkgs.firstNotNullOfOrNull { pk -> apps.firstOrNull { it.pkg == pk } }
 
     /**
      * The default a bare "play some music" resolves to (no app named, no saved default): the sole/Spotify
@@ -96,7 +101,8 @@ object MediaRouting {
      * when [discovered] doesn't resolve. [resolveTarget] and Settings both call this over the same inputs, so
      * the rendered and the played default can't drift.
      */
-    fun effectiveDefault(discovered: List<AppEntry>, all: () -> List<AppEntry>, spotifyPkgs: List<String>): AppEntry? = autoDefault(discovered, spotifyPkgs) ?: autoDefault(all(), spotifyPkgs)
+    fun effectiveDefault(discovered: List<AppEntry>, all: () -> List<AppEntry>, spotifyPkgs: List<String>): AppEntry? =
+        autoDefault(discovered, spotifyPkgs) ?: autoDefault(all(), spotifyPkgs)
 
     /**
      * How to start playback on [pkg]: Spotify → its deep link (see [MediaControl] for why), an app handling

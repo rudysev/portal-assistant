@@ -116,7 +116,13 @@ class SpeakerPreviewTest {
 
     @Test fun aStoppedPreviewsLateCallbacksCannotTouchItsSuccessor() {
         val next = SpeakerPreview.reduce(playing, Event.Tap(null)).state
-        for (late in listOf(Event.Ready(1), Event.Audio(1), Event.TurnComplete(1), Event.PlaybackDrained(1), Event.Disconnected(1))) {
+        for (late in listOf(
+            Event.Ready(1),
+            Event.Audio(1),
+            Event.TurnComplete(1),
+            Event.PlaybackDrained(1),
+            Event.Disconnected(1),
+        )) {
             val d = SpeakerPreview.reduce(next, late)
             assertEquals(next, d.state)
             assertEquals(emptyList<Action>(), d.actions)
@@ -211,7 +217,10 @@ class SpeakerPreviewTest {
         val d = SpeakerPreview.reduce(replaying, Event.PlaybackDrained(2))
         assertEquals(listOf(Action.Stop(2)), d.actions) // already kept — nothing to keep again
         assertEquals(RowStatus.NONE, d.state.rowStatus(charon))
-        assertEquals(listOf(Action.Replay(id = 3, speaker = charon)), SpeakerPreview.reduce(d.state, Event.Tap(charon)).actions)
+        assertEquals(
+            listOf(Action.Replay(id = 3, speaker = charon)),
+            SpeakerPreview.reduce(d.state, Event.Tap(charon)).actions,
+        )
     }
 
     @Test fun aPreviewCutShortIsNotKept() {
@@ -244,7 +253,10 @@ class SpeakerPreviewTest {
         val paused = SpeakerPreview.reduce(played.state, Event.ConversationLive(true)).state
         assertEquals(emptyList<Action>(), SpeakerPreview.reduce(paused, Event.Tap(charon)).actions)
         val resumed = SpeakerPreview.reduce(paused, Event.ConversationLive(false)).state
-        assertEquals(listOf(Action.Replay(id = 2, speaker = charon)), SpeakerPreview.reduce(resumed, Event.Tap(charon)).actions)
+        assertEquals(
+            listOf(Action.Replay(id = 2, speaker = charon)),
+            SpeakerPreview.reduce(resumed, Event.Tap(charon)).actions,
+        )
     }
 
     @Test fun theDefaultRowKeepsItsOwnClip() {
@@ -257,8 +269,14 @@ class SpeakerPreviewTest {
             Event.PlaybackDrained(2),
         )
         assertEquals(Action.KeepClip(2, null), both.actions[both.actions.size - 2])
-        assertEquals(listOf(Action.Replay(id = 3, speaker = null)), SpeakerPreview.reduce(both.state, Event.Tap(null)).actions)
-        assertEquals(listOf(Action.Replay(id = 3, speaker = charon)), SpeakerPreview.reduce(both.state, Event.Tap(charon)).actions)
+        assertEquals(
+            listOf(Action.Replay(id = 3, speaker = null)),
+            SpeakerPreview.reduce(both.state, Event.Tap(null)).actions,
+        )
+        assertEquals(
+            listOf(Action.Replay(id = 3, speaker = charon)),
+            SpeakerPreview.reduce(both.state, Event.Tap(charon)).actions,
+        )
     }
 
     // ---- the preview session --------------------------------------------------------------------------
@@ -279,9 +297,11 @@ class SpeakerPreviewTest {
     }
 
     /** The preview's session config, mapped the way the Gemini factory maps a conversation's. */
-    private fun configOf(speaker: GeminiSpeaker.Speaker?) = SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
+    private fun configOf(speaker: GeminiSpeaker.Speaker?) =
+        SpeakerPreview.sessionConfig(apiKey = "key", model = "gemini-live-x", speaker = speaker)
 
-    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject = JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
+    private fun setupOf(speaker: GeminiSpeaker.Speaker?): JSONObject =
+        JSONObject((GeminiBackend.wireFormat(configOf(speaker)).setup() as Frame.Text).text).getJSONObject("setup")
 
     @Test fun previewSessionRunsOnTheSharedTransport() {
         assertTrue(GeminiBackend.Factory.create(configOf(charon), Silent) is WebSocketVoiceBackend)
@@ -309,7 +329,9 @@ class SpeakerPreviewTest {
         val setup = setupOf(charon)
         val tools = setup.getJSONArray("tools")
         assertFalse((0 until tools.length()).any { tools.getJSONObject(it).has("functionDeclarations") })
-        val instruction = setup.getJSONObject("systemInstruction").getJSONArray("parts").getJSONObject(0).getString("text")
+        val instruction = setup.getJSONObject(
+            "systemInstruction",
+        ).getJSONArray("parts").getJSONObject(0).getString("text")
         assertTrue(instruction.contains("Jarvis"))
     }
 }

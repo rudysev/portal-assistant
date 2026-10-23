@@ -83,7 +83,8 @@ object ListeningTonePlayer {
          */
         override fun replay() {
             check(audioTrack.state == AudioTrack.STATE_INITIALIZED) { "not initialized (state ${audioTrack.state})" }
-            audioTrack.stop() // a static track that played to its end still reports PLAYING; it must be stopped to rewind
+            // a static track that played to its end still reports PLAYING; it must be stopped to rewind
+            audioTrack.stop()
             val rewound = audioTrack.reloadStaticData()
             check(rewound == AudioTrack.SUCCESS) { "rewind failed ($rewound)" }
             audioTrack.play()

@@ -24,10 +24,12 @@ object LocationProvider {
     private val refreshing = AtomicBoolean(false)
 
     /** Best known IP-geo location (lat/lon + place), or null until the first fetch succeeds. */
-    fun current(context: Context): DeviceLocation? = AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_JSON, null)?.let { Geolocation.parse(it) }
+    fun current(context: Context): DeviceLocation? =
+        AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_JSON, null)?.let { Geolocation.parse(it) }
 
     /** Explicit user-set location override (free text), or null when only the IP-geo result is available. */
-    fun override(context: Context): String? = AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_OVERRIDE, null)?.ifBlank { null }
+    fun override(context: Context): String? =
+        AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_OVERRIDE, null)?.ifBlank { null }
 
     fun setOverride(context: Context, place: String) {
         AppPrefs.prefs(context).edit { putString(AppPrefs.KEY_LOC_OVERRIDE, place.trim()) }

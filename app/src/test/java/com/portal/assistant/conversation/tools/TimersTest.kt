@@ -8,7 +8,8 @@ import org.junit.Test
 /** Pure JVM tests for the timer store — mirrors GeolocationTest. */
 class TimersTest {
 
-    private fun e(id: Int, label: String = "timer", fireAtMs: Long = 10_000, durationSec: Int = 10) = TimerEntry(id, label, fireAtMs, durationSec)
+    private fun e(id: Int, label: String = "timer", fireAtMs: Long = 10_000, durationSec: Int = 10) =
+        TimerEntry(id, label, fireAtMs, durationSec)
 
     @Test fun serializeParseRoundTrip() {
         val list = listOf(e(1, "pasta", 60_000, 60), e(2, "tea", 120_000, 120))

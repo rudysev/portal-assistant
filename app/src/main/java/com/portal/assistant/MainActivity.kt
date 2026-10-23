@@ -52,7 +52,9 @@ class MainActivity : ComponentActivity() {
             if (granted) {
                 AssistantService.start(this, if (chip != null) Trigger.SuggestionChip(chip) else Trigger.MicTap)
             } else {
-                ConversationHub.postNotice("Microphone access is needed to talk to Jarvis. Enable it in your device settings.")
+                ConversationHub.postNotice(
+                    "Microphone access is needed to talk to Jarvis. Enable it in your device settings.",
+                )
             }
         }
 

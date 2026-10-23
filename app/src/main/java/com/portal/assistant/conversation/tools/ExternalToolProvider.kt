@@ -17,7 +17,8 @@ import java.util.concurrent.TimeoutException
  * Pure policy (allowlist, namespace, shape, collisions) lives in [ExternalToolSpec]; this is the Android shell.
  *
  * **Snapshot once:** discovery runs lazily the first time [declarations] or [promptLines] is read for a
- * session and is cached, so declarations and prompt bullets stay fixed at session setup (same as built-ins). One instance per conversation (held by
+ * session and is cached, so declarations and prompt bullets stay fixed at session setup (same as built-ins). One
+ * instance per conversation (held by
  * [ToolRegistry]); [dispose] shuts the invoke executor down on teardown.
  *
  * **Self-timeout:** the engine's stall watchdog is gated off while a tool is in flight, so a hung provider
@@ -53,7 +54,9 @@ class ExternalToolProvider(context: Context) {
     private fun discover(): ExternalTools {
         val enabled = AppPrefs.enabledProviders(appContext)
         if (enabled.isEmpty()) return ExternalTools(emptyList(), emptyMap())
-        val parsed = ExternalToolSpec.parse(providerSnapshot(enabled), enabled) { DebugLog.log("ext-tool dropped: $it") }
+        val parsed = ExternalToolSpec.parse(providerSnapshot(enabled), enabled) {
+            DebugLog.log("ext-tool dropped: $it")
+        }
         if (parsed.declarations.isNotEmpty()) {
             DebugLog.log("ext-tool enabled: ${parsed.authorityByName.keys}")
         }
@@ -134,7 +137,13 @@ class ExternalToolProvider(context: Context) {
                 val json = prov.metaData?.getString(ToolContract.META_DECLARATIONS)
                 val authority = prov.authority
                 val summary = prov.metaData?.getString(ToolContract.META_SUMMARY)?.trim()?.takeIf { it.isNotEmpty() }
-                if (json == null || authority == null) null else DiscoveredProvider(prov.packageName, authority, json, summary)
+                if (json == null ||
+                    authority == null
+                ) {
+                    null
+                } else {
+                    DiscoveredProvider(prov.packageName, authority, json, summary)
+                }
             }
         }.getOrElse {
             DebugLog.log("ext-tool discovery failed: ${it.message}")

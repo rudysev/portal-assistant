@@ -122,7 +122,13 @@ object ListeningTone {
     }
 
     /** Mix one partial into [mix] from [onsetSample]: hammer attack, then the two-stage (prompt + ring) decay. */
-    private fun addPartial(mix: DoubleArray, onsetSample: Int, frequencyHz: Double, level: Double, decaySpeedup: Double) {
+    private fun addPartial(
+        mix: DoubleArray,
+        onsetSample: Int,
+        frequencyHz: Double,
+        level: Double,
+        decaySpeedup: Double,
+    ) {
         val attackSec = ATTACK_MS / 1000
         val promptDecaySec = PROMPT_DECAY_MS / 1000 / decaySpeedup
         val ringDecaySec = RING_DECAY_MS / 1000 / decaySpeedup

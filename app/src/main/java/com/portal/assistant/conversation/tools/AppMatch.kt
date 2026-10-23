@@ -42,7 +42,13 @@ object AppMatch {
         if (tokens.isEmpty() || apps.isEmpty()) return Result(null, emptyList(), "none", 0)
         val raw = match(tokens, apps)
         // Only consult the alias map if the literal name didn't resolve — so a real "Browser" label still wins.
-        val aliased = if (raw.pick == null) ALIASES[tokens.joinToString("")]?.let { alias -> match(listOf(alias), apps) } else null
+        val aliased = if (raw.pick ==
+            null
+        ) {
+            ALIASES[tokens.joinToString("")]?.let { alias -> match(listOf(alias), apps) }
+        } else {
+            null
+        }
         return aliased?.takeIf { it.pick != null } ?: raw
     }
 

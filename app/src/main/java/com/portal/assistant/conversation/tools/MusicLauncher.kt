@@ -42,7 +42,11 @@ class MusicLauncher(context: Context) {
             ?: JSONObject().put("error", target.reason ?: "couldn't find a music app to play on")
     }
 
-    private fun playOn(pkg: String, label: String, q: String, type: String?): JSONObject = when (MediaRouting.strategyFor(pkg, PackageCatalog.SPOTIFY_PKGS) { hasPlayFromSearch(pkg) }) {
+    private fun playOn(pkg: String, label: String, q: String, type: String?): JSONObject = when (
+        MediaRouting.strategyFor(pkg, PackageCatalog.SPOTIFY_PKGS) {
+            hasPlayFromSearch(pkg)
+        }
+    ) {
         MediaRouting.PlayStrategy.DEEP_LINK -> playSpotify(pkg, q, label)
         MediaRouting.PlayStrategy.PLAY_FROM_SEARCH -> playFromSearch(pkg, q, label, MediaRouting.playType(type))
         MediaRouting.PlayStrategy.LAUNCH_ONLY -> launchOnly(pkg, q, label)
@@ -65,15 +69,16 @@ class MusicLauncher(context: Context) {
         JSONObject().put("error", "couldn't start $label: ${it.message}")
     }
 
-    private fun playFromSearch(pkg: String, q: String, label: String, type: MediaRouting.PlayType?): JSONObject = runCatching {
-        appContext.startActivity(playFromSearchIntent(pkg, q, type))
-        DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
-        JSONObject().put("playing", true).put("query", q).put("app", label)
-    }.getOrElse {
-        // The activity resolved but failed to start — fall back to just opening the app.
-        DebugLog.log("play_music play_from_search failed for $pkg: ${it.message}")
-        launchOnly(pkg, q, label)
-    }
+    private fun playFromSearch(pkg: String, q: String, label: String, type: MediaRouting.PlayType?): JSONObject =
+        runCatching {
+            appContext.startActivity(playFromSearchIntent(pkg, q, type))
+            DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
+            JSONObject().put("playing", true).put("query", q).put("app", label)
+        }.getOrElse {
+            // The activity resolved but failed to start — fall back to just opening the app.
+            DebugLog.log("play_music play_from_search failed for $pkg: ${it.message}")
+            launchOnly(pkg, q, label)
+        }
 
     private fun launchOnly(pkg: String, q: String, label: String): JSONObject {
         val launch = pm.getLaunchIntentForPackage(pkg)
@@ -94,17 +99,19 @@ class MusicLauncher(context: Context) {
 
     /** True if [pkg] declares an activity for the generic `MEDIA_PLAY_FROM_SEARCH` intent. Activity
      *  resolution matches on action/package, not the query, so no query is needed to probe capability. */
-    private fun hasPlayFromSearch(pkg: String): Boolean = pm.resolveActivity(Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg), 0) != null
+    private fun hasPlayFromSearch(pkg: String): Boolean =
+        pm.resolveActivity(Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg), 0) != null
 
-    private fun playFromSearchIntent(pkg: String, q: String, type: MediaRouting.PlayType?) = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
-        setPackage(pkg)
-        putExtra(SearchManager.QUERY, q)
-        // Pin the search kind (from the model's type hint) so apps that honor it play the right type;
-        // unknown/none → generic audio focus. The consumer app reads QUERY + focus — we deliberately don't
-        // fake structured artist/title extras out of a blob query.
-        putExtra(MediaStore.EXTRA_MEDIA_FOCUS, focusFor(type))
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
+    private fun playFromSearchIntent(pkg: String, q: String, type: MediaRouting.PlayType?) =
+        Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+            setPackage(pkg)
+            putExtra(SearchManager.QUERY, q)
+            // Pin the search kind (from the model's type hint) so apps that honor it play the right type;
+            // unknown/none → generic audio focus. The consumer app reads QUERY + focus — we deliberately don't
+            // fake structured artist/title extras out of a blob query.
+            putExtra(MediaStore.EXTRA_MEDIA_FOCUS, focusFor(type))
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
     /** Map a parsed [MediaRouting.PlayType] to the Android MEDIA_PLAY_FROM_SEARCH focus mime. */
     private fun focusFor(type: MediaRouting.PlayType?): String = when (type) {

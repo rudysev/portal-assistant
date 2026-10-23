@@ -30,7 +30,10 @@ class PrebuiltTrackTest {
     /** Builds [FakeTrack]s, in order, from [usableInBuildOrder]; records every track built. */
     private class FakeBuilder(vararg val usableInBuildOrder: Boolean) {
         val built = mutableListOf<FakeTrack>()
-        fun build(): PrebuiltTrack.Track = FakeTrack(usableInBuildOrder.getOrElse(built.size) { true }).also { built += it }
+        fun build(): PrebuiltTrack.Track = FakeTrack(usableInBuildOrder.getOrElse(built.size) { true }).also {
+            built +=
+                it
+        }
     }
 
     @Test fun aPreparedTrackIsReplayedForEveryPlayWithoutRebuilding() {

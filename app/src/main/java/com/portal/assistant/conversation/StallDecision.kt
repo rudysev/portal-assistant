@@ -15,7 +15,8 @@ enum class StallDecision { Arm, Cancel, None }
  * |---|---|---|
  * | CONNECTING / ENDED | any | None |
  * | LISTENING | ModelActivity | Arm (enter SPEAKING, pre-audio) |
- * | LISTENING | ToolCallReceived | Arm (enter SPEAKING; StallTimeout is ignored while tools run, so this is mostly a no-op until ToolResultsReady re-arms — preserved) |
+ * | LISTENING | ToolCallReceived | Arm (enter SPEAKING; StallTimeout is ignored while tools run, so this is mostly a
+ * no-op until ToolResultsReady re-arms — preserved) |
  * | SPEAKING | PlaybackBusy | Cancel |
  * | SPEAKING | ModelActivity | Arm iff dead air (idle + no tools) |
  * | SPEAKING | PlaybackIdle | Cancel if turn ends; else Arm iff no tools |

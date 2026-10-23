@@ -274,7 +274,12 @@ private fun stalledTurnEnd(multiTurn: Boolean): Decision = if (multiTurn) {
  * Stall cancel is appended by [reduce] via [stallDecision].
  */
 private fun endOfTurn(state: ConversationState, multiTurn: Boolean): Decision {
-    if (!(state.turnComplete && state.playbackIdle && state.toolsInFlight.isEmpty())) return Decision(state, emptyList())
+    if (!(state.turnComplete && state.playbackIdle && state.toolsInFlight.isEmpty())) {
+        return Decision(
+            state,
+            emptyList(),
+        )
+    }
     return if (multiTurn) {
         Decision(
             ConversationState(phase = Phase.LISTENING),

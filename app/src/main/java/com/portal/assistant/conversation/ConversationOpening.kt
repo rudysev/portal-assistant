@@ -109,7 +109,9 @@ object ConversationOpening {
      * IP-geo guess, else unknown.
      */
     private fun deviceContextLines(inputs: OpeningInputs): List<String> {
-        val localDateTime = inputs.now.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy 'at' h:mm a", Locale.getDefault()))
+        val localDateTime = inputs.now.format(
+            DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy 'at' h:mm a", Locale.getDefault()),
+        )
         val location = when {
             inputs.locationOverride != null -> SystemContext.overrideLine(inputs.locationOverride)
             inputs.deviceLocation != null -> SystemContext.locationLine(inputs.deviceLocation)
@@ -123,7 +125,9 @@ object ConversationOpening {
         if (backendChoice.credential.isNotBlank()) return null
         return Refusal(
             when (backendChoice.kind) {
-                AppPrefs.VoiceBackendKind.LOCAL -> "Jarvis isn’t set up yet — add your local server address in Settings."
+                AppPrefs.VoiceBackendKind.LOCAL ->
+                    "Jarvis isn’t set up yet — add your local server address in Settings."
+
                 AppPrefs.VoiceBackendKind.GEMINI -> "Jarvis isn’t set up yet — a Gemini API key is missing."
             },
         )

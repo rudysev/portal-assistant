@@ -30,14 +30,11 @@ object Backends {
 
     /**
      * Result of [resolve]: which backend, its factory, and the credential string that backend expects (blank =
-     * none — whether that refuses a conversation is [ConversationOpening.refusalFor][com.portal.assistant.conversation.ConversationOpening.refusalFor]'s
+     * none — whether that refuses a conversation is
+     * [ConversationOpening.refusalFor][com.portal.assistant.conversation.ConversationOpening.refusalFor]'s
      * call). Session options are **not** set here — [BackendConfig] is assembled at the conversation's opening.
      */
-    data class Choice(
-        val kind: AppPrefs.VoiceBackendKind,
-        val factory: VoiceBackendFactory,
-        val credential: String,
-    )
+    data class Choice(val kind: AppPrefs.VoiceBackendKind, val factory: VoiceBackendFactory, val credential: String)
 
     /**
      * Resolve the user's backend pref into a [Choice], reading the matching credential per call so a change
@@ -86,7 +83,8 @@ object Backends {
     /**
      * Pre-resolve DNS for whichever backend is selected — best-effort, off the hot path. Call after the user
      * changes backend or local host in Settings (and from service prewarm at boot) so the next connect doesn't
-     * wait on lookup. Hostnames come from each backend's own factory object ([GeminiBackend.dnsHost], [LocalBackend.dnsHost]).
+     * wait on lookup. Hostnames come from each backend's own factory object ([GeminiBackend.dnsHost],
+     * [LocalBackend.dnsHost]).
      */
     fun warmDns(context: Context) {
         val appContext = context.applicationContext
