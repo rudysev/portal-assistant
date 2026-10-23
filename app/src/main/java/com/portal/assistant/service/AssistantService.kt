@@ -308,7 +308,7 @@ class AssistantService : Service() {
                 com.portal.assistant.util.Http.shared // builds the OkHttpClient (dispatcher + pool)
                 com.portal.assistant.util.Http.lanVoice // local voice trust-all client
                 Class.forName("com.portal.assistant.gemini.LiveClient")
-                Class.forName("com.portal.assistant.conversation.backend.local.LocalBackend")
+                Class.forName("com.portal.assistant.local.LocalBackend")
                 Class.forName("com.portal.assistant.conversation.AssistantEngine")
                 Class.forName("com.portal.assistant.audio.MicCapture")
                 Class.forName("com.portal.assistant.audio.PcmPlayer")

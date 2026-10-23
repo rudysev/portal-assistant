@@ -78,8 +78,8 @@ import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.gemini.GeminiSpeaker
 import com.portal.assistant.gemini.SpeakerPreview
 import com.portal.assistant.gemini.SpeakerPreviewPlayer
+import com.portal.assistant.local.LocalVoiceHost
 import com.portal.assistant.system.AppPrefs
-import com.portal.assistant.system.LocalVoiceHost
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.Dims

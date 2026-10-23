@@ -2,10 +2,10 @@ package com.portal.assistant.conversation.backend
 
 import android.content.Context
 import com.portal.assistant.BuildConfig
-import com.portal.assistant.conversation.backend.local.LocalBackend
 import com.portal.assistant.gemini.GeminiBackend
+import com.portal.assistant.local.LocalBackend
+import com.portal.assistant.local.LocalVoiceHost
 import com.portal.assistant.system.AppPrefs
-import com.portal.assistant.system.LocalVoiceHost
 import java.util.concurrent.Executors
 
 /**

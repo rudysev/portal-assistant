@@ -1,8 +1,8 @@
 package com.portal.assistant.conversation.backend
 
 import com.portal.assistant.gemini.GeminiBackend
+import com.portal.assistant.local.LocalVoiceHost
 import com.portal.assistant.system.AppPrefs
-import com.portal.assistant.system.LocalVoiceHost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test

@@ -1,4 +1,4 @@
-package com.portal.assistant.conversation.backend.local
+package com.portal.assistant.local
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals

@@ -1,11 +1,14 @@
-package com.portal.assistant.system
+package com.portal.assistant.local
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure JVM tests for LAN voice-host parsing — the contract Settings and [AppPrefs] rely on. */
+/**
+ * Pure JVM tests for LAN voice-host parsing — the contract Settings and
+ * [AppPrefs][com.portal.assistant.system.AppPrefs] rely on.
+ */
 class LocalVoiceHostTest {
 
     @Test fun hostPortNormalizesToWss() {

@@ -1,7 +1,7 @@
-package com.portal.assistant.conversation.backend.local
+package com.portal.assistant.local
 
 import com.portal.assistant.conversation.ToolResult
-import com.portal.assistant.conversation.backend.local.LocalBackend.ServerEvent
+import com.portal.assistant.local.LocalBackend.ServerEvent
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

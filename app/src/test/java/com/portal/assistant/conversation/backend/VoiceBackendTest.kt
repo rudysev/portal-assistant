@@ -2,9 +2,9 @@ package com.portal.assistant.conversation.backend
 
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
-import com.portal.assistant.conversation.backend.local.LocalBackend
 import com.portal.assistant.gemini.GeminiBackend
 import com.portal.assistant.gemini.LiveClient
+import com.portal.assistant.local.LocalBackend
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
