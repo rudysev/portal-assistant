@@ -63,7 +63,7 @@ come later as plugins. minSdk 28 / targetSdk 29 / compileSdk 36. No Google Mobil
   (`ui/SettingsScreen`): model picker, voice picker (Gemini only — the Chosen speaker from the
   `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
   `LiveClient.buildSetup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
-  it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's `LiveClient` setup) driven by the thin
+  it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's session config, built by `GeminiBackend.Factory` like a conversation's) driven by the thin
   `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one
   "introduce yourself" text turn, its own `PcmPlayer`; one preview at a time, stopped when the dialog closes,
   paused while a conversation is live — independent of the engine; a preview that played to completion is

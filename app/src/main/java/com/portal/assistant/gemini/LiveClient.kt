@@ -28,16 +28,17 @@ import java.util.concurrent.TimeUnit
  * [com.portal.assistant.conversation] reducer/engine. Inbound parsing is the pure, unit-tested
  * [parseServerMessage]; the socket callbacks just feed it and relay [ServerEvent]s to [listener].
  *
- * Auth: the API key is the `?key=` query param (fine for this private appliance). Callbacks arrive on
- * OkHttp's thread; the engine marshals them onto its single orchestration thread.
+ * Auth: the API key is the `?key=` query param of [connectUrl] (fine for this private appliance), built by
+ * [GeminiBackend.Factory] — the one place a Gemini session is assembled. Callbacks arrive on OkHttp's thread;
+ * the engine marshals them onto its single orchestration thread.
  */
 class LiveClient(
-    private val apiKey: String,
+    /** The full connect address — endpoint plus the URL-encoded `key` query param. */
+    internal val connectUrl: String,
     private val model: String,
     private val systemPrompt: String,
     private val functionDeclarations: List<JSONObject> = emptyList(),
     private val speaker: String? = null,
-    private val wsBase: String = WS_BASE,
     private val listener: VoiceBackend.Listener,
 ) : VoiceBackend {
 
@@ -55,11 +56,7 @@ class LiveClient(
     internal fun setupMessage(): String = buildSetup(model, systemPrompt, functionDeclarations, speaker)
 
     override fun connect() {
-        if (apiKey.isBlank()) {
-            listener.onError("No Gemini API key is set. Add one in Settings → API key.")
-            return
-        }
-        val request = Request.Builder().url("$wsBase?key=$apiKey").build()
+        val request = Request.Builder().url(connectUrl).build()
         DebugLog.log("live connecting model=$model")
         ws = http.newWebSocket(request, socketListener)
     }

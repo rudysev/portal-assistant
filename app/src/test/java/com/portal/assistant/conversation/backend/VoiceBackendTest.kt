@@ -182,8 +182,31 @@ class VoiceBackendTest {
     }
 
     @Test
+    fun `Gemini adapter URL-encodes the API key into the default endpoint`() {
+        val liveClient = GeminiBackend.Factory.create(
+            BackendConfig(credential = "a+b/c=d&e f", model = "m", systemPrompt = "p"),
+            RecordingListener(),
+        ) as LiveClient
+        assertEquals("${LiveClient.WS_BASE}?key=a%2Bb%2Fc%3Dd%26e%20f", liveClient.connectUrl)
+    }
+
+    @Test
+    fun `Gemini adapter connects to a configured endpoint`() {
+        val liveClient = GeminiBackend.Factory.create(
+            BackendConfig(
+                credential = "a+b",
+                model = "m",
+                systemPrompt = "p",
+                gemini = GeminiWireOptions(endpointUrl = "wss://example.test/live"),
+            ),
+            RecordingListener(),
+        ) as LiveClient
+        assertEquals("wss://example.test/live?key=a%2Bb", liveClient.connectUrl)
+    }
+
+    @Test
     fun `Gemini adapter tolerates a null credential`() {
-        // A local backend needs no credential; the adapter must not NPE mapping it to Gemini's apiKey.
+        // A local backend needs no credential; the adapter must not NPE mapping it into Gemini's connect address.
         val backend = GeminiBackend.Factory.create(
             BackendConfig(credential = null, model = "m", systemPrompt = "p"),
             RecordingListener(),
