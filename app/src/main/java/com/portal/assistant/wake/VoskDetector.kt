@@ -1,7 +1,6 @@
 package com.portal.assistant.wake
 
 import android.content.Context
-import com.portal.commons.audio.CaptureLoss
 import com.portal.commons.audio.WakeDetectors
 import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
@@ -11,24 +10,18 @@ import java.io.File
 
 /**
  * The production [Detector]: the commons [WakeMicEngine] running Vosk on the downloaded model, listening for
- * "hey jarvis". Its wake arrives on the capture thread, its unavailable report and capture loss on main;
- * [ForegroundWake] hops all three.
+ * "hey jarvis". Its wake reaches the [Detector.Listener] on the capture thread, its unavailable report and capture
+ * loss on main; [ForegroundWake] hops all three.
  */
-class VoskDetector(
-    context: Context,
-    modelDir: File,
-    onWake: (wakeId: String) -> Unit,
-    onUnavailable: () -> Unit,
-    onCaptureLost: (CaptureLoss) -> Unit,
-) : Detector {
+class VoskDetector(context: Context, modelDir: File, listener: Detector.Listener) : Detector {
     private val engine = WakeMicEngine(
         context = context,
         config = WakeMicConfig(
             wakeWords = listOf(WAKE_WORD),
             detectors = listOf(WakeDetectors.vosk(modelDir = modelDir)),
-            onDetectorUnavailable = { onUnavailable() },
-            onWake = { event -> onWake(event.wakeId) },
-            onCaptureLost = onCaptureLost,
+            onDetectorUnavailable = { listener.onUnavailable() },
+            onWake = { event -> listener.onWake(event.wakeId) },
+            onCaptureLost = listener::onCaptureLost,
         ),
     )
 
