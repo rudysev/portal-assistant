@@ -96,8 +96,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   music app, or an app the user names in the request (`app` param) which is honoured over the default; an
   optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
   honour it. Pure
-  routing is `MediaRouting` (target selection + per-app play strategy); `MusicLauncher.play` (behind
-  `MediaControl.play`) fires it via a
+  routing is `MediaRouting` (target selection + per-app play strategy); `MusicLauncher.play` (called by
+  `PlayMusicTool` directly) fires it via a
   fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
   on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
   which can't on-demand-play one exact track but *can* shuffle-play an artist/playlist), else the generic

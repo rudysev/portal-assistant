@@ -22,6 +22,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
     private val brightness = BrightnessController(appContext)
     private val dnd = DoNotDisturbController(appContext, afterSpeech)
     private val media = MediaControl(appContext)
+    private val music = MusicLauncher(appContext)
     private val appLauncher = AppLauncher(appContext)
     private val external = ExternalToolProvider(appContext)
 
@@ -42,7 +43,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
         MediaControlTool(media),
         SetRepeatTool(media),
         NowPlayingTool(media),
-        PlayMusicTool(media),
+        PlayMusicTool(music),
         OpenAppTool(appLauncher),
     )
 
