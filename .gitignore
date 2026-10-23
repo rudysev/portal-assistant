@@ -51,6 +51,11 @@ docs/*
 !docs/img/
 # ...and the agent-skills config CLAUDE.md points at.
 !docs/agents/
+# ...and the on-demand detail CLAUDE.md points at.
+!docs/architecture.md
+!docs/ui.md
+!docs/tooling.md
+!docs/history.md
 
 # portal-gemini-chat specifics (kept from the original .gitignore)
 build/
