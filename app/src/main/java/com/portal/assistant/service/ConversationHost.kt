@@ -15,8 +15,10 @@ interface ConversationWake {
 
 /** What [ConversationHost] shows the user outside a conversation: the hub's notice banner and transcript. */
 interface ConversationNotices {
+    /** Show [notice] (a refusal) on the banner. */
     fun postNotice(notice: String)
 
+    /** Clear the transcript back to the greeting. */
     fun clearHistory()
 }
 
@@ -27,9 +29,9 @@ interface ConversationNotices {
  * the only refusal rule is the engine's. Every call, and `onEnded`, runs on the main thread.
  */
 class ConversationHost(
-    private val conversations: (onEnded: () -> Unit) -> Conversation,
-    private val wake: ConversationWake,
-    private val notices: ConversationNotices,
+    private val buildConversation: (onEnded: () -> Unit) -> Conversation,
+    private val conversationWake: ConversationWake,
+    private val conversationNotices: ConversationNotices,
     private val onActiveChanged: (active: Boolean) -> Unit,
 ) {
     private var conversation: Conversation? = null
@@ -42,20 +44,22 @@ class ConversationHost(
         // LISTENING/multi-turn re-listen (a second wake/tap can't start a parallel conversation or "refresh"
         // the turn — the user just keeps talking).
         if (conversation != null) return
-        wake.conversationStarting() // free the single mic slot before the conversation opens it
-        DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
-        val newConversation = conversations {
+        conversationWake.conversationStarting() // free the single mic slot before the conversation opens it
+        val builtConversation = buildConversation {
             // The engine has already torn down (mic released, bar hidden) before this fires.
             DebugLog.log("conversation ended → standby")
             returnToStandby()
         }
-        val refusal = newConversation.start(trigger)
+        // The "AssistantService …" log lines keep their pre-host wording: the latency method greps debug.txt for
+        // them.
+        DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
+        val refusal = builtConversation.start(trigger)
         if (refusal != null) {
-            notices.postNotice(refusal.notice)
-            wake.conversationEnded() // nothing opened — re-arm if still on screen
+            conversationNotices.postNotice(refusal.notice)
+            conversationWake.conversationEnded() // nothing opened — re-arm if still on screen
             return
         }
-        conversation = newConversation
+        conversation = builtConversation
         onActiveChanged(true)
     }
 
@@ -76,7 +80,7 @@ class ConversationHost(
      */
     fun newConversation() {
         end()
-        notices.clearHistory()
+        conversationNotices.clearHistory()
     }
 
     /** The service is going away: stop the conversation but skip [returnToStandby] — its notification is moot. */
@@ -89,6 +93,6 @@ class ConversationHost(
     private fun returnToStandby() {
         conversation = null
         onActiveChanged(false)
-        wake.conversationEnded()
+        conversationWake.conversationEnded()
     }
 }

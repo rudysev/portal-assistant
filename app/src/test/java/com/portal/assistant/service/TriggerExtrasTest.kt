@@ -10,6 +10,10 @@ class TriggerExtrasTest {
 
     private fun roundTrip(trigger: Trigger): Trigger? = TriggerExtras.decode(TriggerExtras.encode(trigger)::get)
 
+    /** [trigger]'s extras with the entry holding [value] dropped (the keys are private to [TriggerExtras]). */
+    private fun extrasWithout(trigger: Trigger, value: String) =
+        TriggerExtras.encode(trigger).filterValues { it != value }
+
     @Test fun aWakeWordKeepsItsWakeId() {
         assertEquals(Trigger.WakeWord("w-42"), roundTrip(Trigger.WakeWord("w-42")))
     }
@@ -33,13 +37,11 @@ class TriggerExtrasTest {
     }
 
     @Test fun aWakeWordWithoutItsWakeIdDecodesToNull() {
-        val extras = TriggerExtras.encode(Trigger.WakeWord("w-42"))
-        assertNull(TriggerExtras.decode { key -> extras[key]?.takeIf { it != "w-42" } })
+        assertNull(TriggerExtras.decode(extrasWithout(Trigger.WakeWord("w-42"), value = "w-42")::get))
     }
 
     @Test fun aSuggestionChipWithoutTextDecodesToNull() {
-        val extras = TriggerExtras.encode(Trigger.SuggestionChip("hello"))
-        assertNull(TriggerExtras.decode { key -> extras[key]?.takeIf { it != "hello" } })
+        assertNull(TriggerExtras.decode(extrasWithout(Trigger.SuggestionChip("hello"), value = "hello")::get))
     }
 
     @Test fun aSuggestionChipWithBlankTextDecodesToNull() {

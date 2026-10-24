@@ -51,7 +51,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/Trigger.kt` + `conversation/ConversationOpening.kt` — **how a conversation opens**. A closed
   `Trigger` (`WakeWord(wakeId)` / `MicTap` / `SuggestionChip(text)`) is typed end to end; the only untyped hop is
   the Intent into the service (pure `service/TriggerExtras` encodes it to string extras and decodes them back, null
-  for a partial one, which starts nothing; `TriggerExtrasTest`). Pure `ConversationOpening.refusalFor(choice)` says whether the backend choice refuses, and
+  for a partial one, which starts nothing; `TriggerExtrasTest`). Pure `ConversationOpening.refusalFor(choice)` says
+  whether the backend choice refuses, and
   pure `ConversationOpening.open(trigger, OpeningInputs)` says how a conversation it let through opens, as an
   `Opening`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model, Chosen speaker,
   Listening tone setting, `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt
@@ -173,7 +174,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 `WakeModel`/`Detector` and their adapters `WakeModelInstaller`/`VoskDetector`, `WakeSetupStatus` (the model
 setup the idle home shows) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
-one conversation, its rules in `ConversationHost`, the start Intent's extras in `TriggerExtras`; `START_STICKY`, returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
+one conversation, its rules in `ConversationHost`, the start Intent's extras in `TriggerExtras`; `START_STICKY`,
+returns to standby — not `stopSelf`; `prewarm()` warms OkHttp +
 classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationState` reducer + `AssistantEngine` + the `MicGate` frame path; `Trigger` +
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
