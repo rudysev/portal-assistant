@@ -41,7 +41,7 @@ class AssistantEngine(
     private val openingReads: OpeningReads,
     private val toolRunners: (deliver: Executor) -> ToolRunner,
     private val onEnded: () -> Unit,
-) {
+) : Conversation {
     private val stallMs: Long = backendChoice.factory.deadAirStallMs
 
     // This conversation's tools, their after-speech effects and each batch's bookkeeping; results come back on
@@ -118,7 +118,7 @@ class AssistantEngine(
      * @return null once started, or the [Refusal] (no credential) — then nothing was built, opened or published (no
      * tool runner, no connecting flash), [onEnded] is never called, and the caller posts the notice.
      */
-    fun start(trigger: Trigger): Refusal? {
+    override fun start(trigger: Trigger): Refusal? {
         ConversationOpening.refusalFor(backendChoice)?.let { refusal ->
             DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
             ended = true
@@ -203,7 +203,7 @@ class AssistantEngine(
     }
 
     /** Tear down without firing [onEnded] (the service is already stopping). Idempotent. */
-    fun stop() {
+    override fun stop() {
         if (ended) return
         ended = true
         teardown()
