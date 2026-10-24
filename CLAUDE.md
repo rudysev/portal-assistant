@@ -36,7 +36,7 @@ Pure reducer + thin I/O shell. Logic lives in pure, JVM-unit-tested classes; And
 
 | Piece | Contract |
 |---|---|
-| `service/AssistantService` | Resident `START_STICKY` foreground host: standby ↔ one conversation, `prewarm()`, receives Triggers, posts refusals, re-arms wake. Never decides how a conversation opens/runs. |
+| `service/AssistantService` | Resident `START_STICKY` foreground host: `prewarm()`, notification, Intent dispatch (`TriggerExtras`). Its rules live in pure `ConversationHost`: standby ↔ one conversation, posts refusals, re-arms wake. Never decides how a conversation opens/runs. |
 | `conversation/AssistantEngine` | One conversation, Trigger → end, discarded after. Collaborators injected via four ports (`EnginePorts.kt`: clock, audio, sink, opening reads; adapters in `AndroidEnginePorts.kt`, wired by `create`). All state on **one thread** (`EngineClock`); every callback posts an event (no locks). Every `BackendEvent` reaction lives in `onBackendEvent`. Never touches wake, notifications, standby. |
 | `ConversationState.reduce(state, event, multiTurn)` | CONNECTING → LISTENING → SPEAKING → ENDED. Turn end = `turnComplete && playbackIdle && no tools in flight`. |
 | `ConversationOpening.refusalFor` + `open(Trigger, OpeningInputs)` | `refusalFor` is the **only** credential rule, asked before the engine builds anything; `open` → `Opening`. Pure (no clock/I/O). Mic tap resumes; chip / "+" / wake start fresh. |
