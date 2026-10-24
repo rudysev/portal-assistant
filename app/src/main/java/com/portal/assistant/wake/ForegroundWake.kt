@@ -1,5 +1,6 @@
 package com.portal.assistant.wake
 
+import com.portal.assistant.service.ConversationWake
 import com.portal.commons.DebugLog
 import com.portal.commons.audio.CaptureLoss
 import java.io.File
@@ -37,7 +38,7 @@ class ForegroundWake(
     later: (delayMs: Long, task: Runnable) -> Unit,
     private val onWake: (wakeId: String) -> Unit,
     private val onSetup: (ModelSetup) -> Unit,
-) {
+) : ConversationWake {
     private var onScreen = false
     private var inConversation = false
     private var closed = false
@@ -72,13 +73,13 @@ class ForegroundWake(
     }
 
     /** The conversation is about to open its mic — the single slot — so stop listening first. */
-    fun conversationStarting() {
+    override fun conversationStarting() {
         inConversation = true
         pauseDetector()
     }
 
     /** A conversation ended, or a Trigger was refused before one opened: re-arm if still on screen. */
-    fun conversationEnded() {
+    override fun conversationEnded() {
         inConversation = false
         armIfAllowed()
     }
