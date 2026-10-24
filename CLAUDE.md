@@ -60,7 +60,7 @@ Pure reducer + thin I/O shell. Logic lives in pure, JVM-unit-tested classes; And
 - **Background trigger = orange bar only** (`RecordingOverlay`); the Activity opens only when the user opens it.
 - **Orange bar only while LISTENING.**
 - **Mic**: `VOICE_RECOGNITION`, 16 kHz mono, no effects. Audio contract: 16 kHz in / 24 kHz out PCM.
-- **Gain only the conversation stream** (`PcmGain`), never wake capture (masks portal-wake's dead-mic signal).
+- **Gain only the conversation stream** (`PcmGain`), never wake capture (processing there could hide a *silenced* capture loss).
 - **Settings**: opening settings (backend, model, speaker, tone, location) are read once per conversation; a tool
   reads its own setting when it runs.
 - **Contracts**: inbound wake strings (`com.portal.wake.action.WAKE` / `…extra.ID`) are mirrored as literals in

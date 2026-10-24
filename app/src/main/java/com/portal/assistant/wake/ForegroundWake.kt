@@ -17,8 +17,8 @@ import java.util.concurrent.Executor
  * [MAX_MODEL_DOWNLOAD_ATTEMPTS] failed downloads, or a model that still won't load after one fresh copy — lasts for
  * the process, so a doomed setup doesn't re-fetch or grab the mic on every foreground.
  *
- * A capture loss while armed goes to [CaptureDropRetry]: "dropped" retries [Detector.start] once after a short delay,
- * "not granted" waits for the next arm — [foregrounded] or [conversationEnded].
+ * A capture loss while armed goes to [CaptureDropRetry]: "dropped" or "silenced" retries [Detector.start] once after a
+ * short delay, "not granted" waits for the next arm — [foregrounded] or [conversationEnded].
  *
  * Every call and callback runs on the main thread: the download runs on [io], and its progress and result, like
  * the detector's callbacks, come back through [main]; the drop retry runs through [later] (main, after a delay).
