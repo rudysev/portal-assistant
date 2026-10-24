@@ -318,6 +318,31 @@ class ForegroundWakeTest {
         assertEquals(4, detector.starts)
     }
 
+    @Test fun aSilencedCaptureRetriesStartOnceAfterADelayThenWaitsForTheNextArm() {
+        model.installed = true
+        val wake = foregroundWake()
+        wake.foregrounded()
+
+        detector.loses(CaptureLoss.Silenced("digital silence for 2000ms"))
+        main.runAll()
+        assertEquals(listOf(1_000L), later.delays)
+        later.runAll()
+        assertEquals(2, detector.starts)
+
+        detector.loses(CaptureLoss.Silenced("digital silence for 2000ms")) // the retry came back silent too
+        main.runAll()
+        later.runAll()
+        assertEquals(2, detector.starts)
+
+        wake.backgrounded()
+        wake.foregrounded() // the next arm restarts, and earns a fresh retry
+        assertEquals(3, detector.starts)
+        detector.loses(CaptureLoss.Silenced("digital silence for 2000ms"))
+        main.runAll()
+        later.runAll()
+        assertEquals(4, detector.starts)
+    }
+
     @Test fun aRetryDueAfterTheMicWasReleasedStartsNothing() {
         model.installed = true
         val wake = foregroundWake()

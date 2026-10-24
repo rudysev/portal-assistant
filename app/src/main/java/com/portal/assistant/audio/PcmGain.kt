@@ -12,7 +12,8 @@ package com.portal.assistant.audio
  * (voice and faint noise scale together).
  *
  * This is safe here precisely because it's the *conversation* stream — unlike portal-wake's always-on
- * *wake* capture, where any gain/AGC masks the dead-mic silence signal the background-rebuild depends on.
+ * *wake* capture, which must reach the engine unprocessed: its *silenced* capture loss (portal-commons `GLOSSARY.md`)
+ * looks for a silenced mic's exact zeros, and AGC or noise processing would turn them into noise and hide it.
  *
  * Pure (no Android, no I/O) so it is unit-tested.
  */
