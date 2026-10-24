@@ -15,6 +15,7 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.portal.assistant.conversation.AssistantEngine
+import com.portal.assistant.conversation.Conversation
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.conversation.backend.Backends
@@ -45,7 +46,9 @@ import java.io.File
  */
 class AssistantService : Service() {
 
-    private var engine: AssistantEngine? = null
+    // Standby <-> one conversation: the live guard, refusals and every way back to standby. This service only builds
+    // the conversation and shows the notification; the host owns the rules (see ConversationHostTest).
+    private lateinit var host: ConversationHost
 
     // Foreground wake: gen2 "hey jarvis" while the app is on screen (gen1 is portal-wake's). This service only forwards
     // what happened; the module owns the detector, the model download and the retry rules.
@@ -82,21 +85,31 @@ class AssistantService : Service() {
             },
             main = { task -> mainHandler.post(task) },
             later = { delayMs, task -> mainHandler.postDelayed(task, delayMs) },
-            onWake = { wakeId -> startConversation(Trigger.WakeWord(wakeId)) },
+            onWake = { wakeId -> host.start(Trigger.WakeWord(wakeId)) },
             onSetup = WakeSetupStatus::set,
+        )
+        host = ConversationHost(
+            conversations = ::buildConversation,
+            wake = foregroundWake,
+            notices = object : ConversationNotices {
+                override fun postNotice(notice: String) = ConversationHub.postNotice(notice)
+
+                override fun clearHistory() = ConversationHub.clearHistory()
+            },
+            onActiveChanged = { active -> startForeground(NOTIFICATION_ID, buildNotification(active)) },
         )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification(active = engine != null)) // resident; comes up fast
+        startForeground(NOTIFICATION_ID, buildNotification(active = host.live)) // resident; comes up fast
         when (intent?.action) {
-            ACTION_STOP -> endConversation()
+            ACTION_STOP -> host.end()
 
-            ACTION_NEW_CONVERSATION -> newConversation()
+            ACTION_NEW_CONVERSATION -> host.newConversation()
 
             ACTION_START -> when (val trigger = TriggerExtras.decode(intent::getStringExtra)) {
                 null -> DebugLog.log("START ignored — the intent carries no trigger")
-                else -> startConversation(trigger)
+                else -> host.start(trigger)
             }
 
             ACTION_FOREGROUND -> foregroundWake.foregrounded()
@@ -113,53 +126,23 @@ class AssistantService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Service dying: stop the engine and clear the flags, but NOT via returnToStandby() — its
-        // notification update is pointless when the service is going away.
-        engine?.stop()
-        engine = null
+        host.close() // stop any conversation, without the standby notification update
         foregroundWake.close() // tear down the resident wake detector (releases its model)
         DebugLog.log("AssistantService destroyed → mic released")
     }
 
-    private fun startConversation(trigger: Trigger) {
-        // Idempotent: a trigger (tap or wake) while a turn is already live is a no-op — a deliberate product
-        // choice. This holds in BOTH phases: during SPEAKING (half-duplex, mic muted, no barge-in) and during
-        // LISTENING/multi-turn re-listen (a second wake/tap can't start a parallel conversation or "refresh"
-        // the turn — the user just keeps talking).
-        if (engine != null) return
-        foregroundWake.conversationStarting() // free the single mic slot before the conversation opens it
-        // Which backend + how it authenticates is resolved in one place ([Backends.resolve]), read per
-        // conversation so a change in Settings → Backend applies on the next turn with no restart.
+    /**
+     * One conversation for the host, built per trigger. Which backend + how it authenticates is resolved in one place
+     * ([Backends.resolve]), read per conversation so a change in Settings → Backend applies on the next turn with no
+     * restart. A foreground tap opens the mic immediately; portal-wake yields by detecting our recording (no broadcast
+     * needed). On a wake trigger portal-wake has already paused for the handoff.
+     */
+    private fun buildConversation(onEnded: () -> Unit): Conversation {
         val backendChoice = Backends.resolve(applicationContext)
         // Retry a failed/stale IP-geo lookup (prewarm is one-shot); guarded internally, a no-op when fresh.
         // Result lands for the NEXT conversation — this one opens with whatever's already cached.
         LocationProvider.refreshIfStale(applicationContext)
-        DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
-        // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
-        // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
-        val newEngine = AssistantEngine.create(applicationContext, backendChoice) {
-            // The engine has already torn down (mic released, bar hidden) before this fires.
-            DebugLog.log("conversation ended → standby")
-            returnToStandby()
-        }
-        val refusal = newEngine.start(trigger)
-        if (refusal != null) {
-            ConversationHub.postNotice(refusal.notice)
-            foregroundWake.conversationEnded() // nothing opened — re-arm if still on screen
-            return
-        }
-        engine = newEngine
-        startForeground(NOTIFICATION_ID, buildNotification(active = true))
-    }
-
-    /**
-     * Back to resident standby: drop the engine, restore the idle notification, re-arm Foreground wake. Shared by
-     * the engine's own `onEnded` (it has already torn down) and [endConversation] (which tears down first).
-     */
-    private fun returnToStandby() {
-        engine = null
-        startForeground(NOTIFICATION_ID, buildNotification(active = false))
-        foregroundWake.conversationEnded()
+        return AssistantEngine.create(applicationContext, backendChoice, onEnded)
     }
 
     /**
@@ -199,27 +182,6 @@ class AssistantService : Service() {
             isDaemon = true
             name = "assistant-prewarm"
         }.start()
-    }
-
-    /**
-     * End the current turn (if any) but keep the service resident & warm. Idempotent. `engine.stop()` tears
-     * the engine down **without** invoking its `onEnded` callback, so this external-stop path runs the same
-     * [returnToStandby] cleanup itself.
-     */
-    private fun endConversation() {
-        DebugLog.log("AssistantService STOP → standby")
-        engine?.stop() // releases mic + hides bar; does NOT call the onEnded above
-        returnToStandby()
-    }
-
-    /**
-     * "New conversation": tear the current turn down, then clear the on-screen transcript. Both run here on
-     * the main thread in order (after the synchronous [AssistantEngine.stop]), so a still-live engine can't
-     * repopulate the hub after the clear — the race a UI-thread `stop()` + `clearHistory()` would have.
-     */
-    private fun newConversation() {
-        endConversation()
-        ConversationHub.clearHistory()
     }
 
     private fun buildNotification(active: Boolean): Notification {
