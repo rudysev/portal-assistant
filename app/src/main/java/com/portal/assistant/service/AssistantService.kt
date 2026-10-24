@@ -48,7 +48,7 @@ class AssistantService : Service() {
 
     // Standby <-> one conversation: the live guard, refusals and every way back to standby. This service only builds
     // the conversation and shows the notification; the host owns the rules (see ConversationHostTest).
-    private lateinit var host: ConversationHost
+    private lateinit var conversationHost: ConversationHost
 
     // Foreground wake: gen2 "hey jarvis" while the app is on screen (gen1 is portal-wake's). This service only forwards
     // what happened; the module owns the detector, the model download and the retry rules.
@@ -85,13 +85,13 @@ class AssistantService : Service() {
             },
             main = { task -> mainHandler.post(task) },
             later = { delayMs, task -> mainHandler.postDelayed(task, delayMs) },
-            onWake = { wakeId -> host.start(Trigger.WakeWord(wakeId)) },
+            onWake = { wakeId -> conversationHost.start(Trigger.WakeWord(wakeId)) },
             onSetup = WakeSetupStatus::set,
         )
-        host = ConversationHost(
-            conversations = ::buildConversation,
-            wake = foregroundWake,
-            notices = object : ConversationNotices {
+        conversationHost = ConversationHost(
+            buildConversation = ::buildConversation,
+            conversationWake = foregroundWake,
+            conversationNotices = object : ConversationNotices {
                 override fun postNotice(notice: String) = ConversationHub.postNotice(notice)
 
                 override fun clearHistory() = ConversationHub.clearHistory()
@@ -101,15 +101,15 @@ class AssistantService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification(active = host.live)) // resident; comes up fast
+        startForeground(NOTIFICATION_ID, buildNotification(active = conversationHost.live)) // resident; comes up fast
         when (intent?.action) {
-            ACTION_STOP -> host.end()
+            ACTION_STOP -> conversationHost.end()
 
-            ACTION_NEW_CONVERSATION -> host.newConversation()
+            ACTION_NEW_CONVERSATION -> conversationHost.newConversation()
 
             ACTION_START -> when (val trigger = TriggerExtras.decode(intent::getStringExtra)) {
                 null -> DebugLog.log("START ignored — the intent carries no trigger")
-                else -> host.start(trigger)
+                else -> conversationHost.start(trigger)
             }
 
             ACTION_FOREGROUND -> foregroundWake.foregrounded()
@@ -126,7 +126,7 @@ class AssistantService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        host.close() // stop any conversation, without the standby notification update
+        conversationHost.close() // stop any conversation, without the standby notification update
         foregroundWake.close() // tear down the resident wake detector (releases its model)
         DebugLog.log("AssistantService destroyed → mic released")
     }

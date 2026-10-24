@@ -22,11 +22,11 @@ class ConversationHostTest {
     private var nextRefusal: Refusal? = null
 
     private val host = ConversationHost(
-        conversations = { onEnded ->
+        buildConversation = { onEnded ->
             log += "build"
             FakeConversation(log, nextRefusal, onEnded).also { conversations += it }
         },
-        wake = object : ConversationWake {
+        conversationWake = object : ConversationWake {
             override fun conversationStarting() {
                 log += "wake starting"
             }
@@ -35,7 +35,7 @@ class ConversationHostTest {
                 log += "wake ended"
             }
         },
-        notices = object : ConversationNotices {
+        conversationNotices = object : ConversationNotices {
             override fun postNotice(notice: String) {
                 log += "notice($notice)"
             }
