@@ -13,9 +13,10 @@ package com.portal.assistant.conversation
  * the server never confirms (i.e. noise), so background noise can't pin the mic. A server transcript resets
  * the budget (the engine re-arms via the normal path), making genuine speech effectively unbounded.
  *
- * Kept pure (no Android, no clock) so it's unit-tested on the JVM; the engine owns the timer + the energy.
+ * Pure (no Android, no clock) and internal to the engine, which owns the timer and the energy; AssistantEngineTest
+ * covers it through the timer.
  */
-object NoSpeechGrace {
+internal object NoSpeechGrace {
     /** [com.portal.commons.PcmLevel.normalized] of the **gained** frame at/above which it counts as speech. */
     const val VAD_LEVEL = 0.10f
 

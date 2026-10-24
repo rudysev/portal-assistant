@@ -257,26 +257,67 @@ class AssistantEngine(
     }
 
     /**
-     * Engine's thread. [BackendEventMapping] says what [event] means to the transcript and the reducer; this adds only
-     * what is the engine's own: [connectedOk] and the pending first text on ready, the notice on a failure or close.
-     * (Closing soon maps to nothing: [Event.Disconnected] on the close that follows ends the conversation.)
+     * Engine's thread. Every reaction to a [BackendEvent] is here: what it adds to the transcript (applied first), the
+     * reducer [Event] it dispatches, and the engine's own bookkeeping — [connectedOk] and the pending first text on
+     * ready, the notice on a failure or close.
      */
     private fun onBackendEvent(event: BackendEvent) {
+        val playedBytes = audio.playedBytes()
         when (event) {
-            BackendEvent.Ready -> connectedOk = true
-            is BackendEvent.Failed -> postDisconnectNotice(event.error)
-            BackendEvent.Closed -> postDisconnectNotice(backendError = null)
-            else -> Unit
-        }
-        val mapped = BackendEventMapping.map(event, state.phase, audio.playedBytes())
-        mapped.transcriptEvent?.let(::advanceTranscript)
-        mapped.conversationEvent?.let(::dispatch)
-        // A tapped suggestion goes as the first turn now that Ready put us in LISTENING with the session set up.
-        if (event == BackendEvent.Ready) {
-            pendingInitialText?.let { text ->
-                pendingInitialText = null
-                sendInitialText(text)
+            BackendEvent.Ready -> onReady()
+
+            is BackendEvent.InputTranscript -> {
+                advanceTranscript(Transcript.Event.UserText(event.text))
+                dispatch(Event.UserSpeaking)
             }
+
+            is BackendEvent.OutputTranscript -> {
+                advanceTranscript(Transcript.Event.JarvisText(event.text, state.phase))
+                // Model activity only while already SPEAKING: a belated frame after listening restarted must not enter
+                // SPEAKING (and mute the mic) on its own.
+                if (state.phase == Phase.SPEAKING) dispatch(Event.ModelActivity)
+            }
+
+            is BackendEvent.Audio -> {
+                advanceTranscript(Transcript.Event.AudioReceived(event.pcm24k.size, playedBytes))
+                dispatch(Event.PlaybackBusy)
+            }
+
+            BackendEvent.ModelGenerating -> dispatch(Event.ModelActivity)
+
+            BackendEvent.TurnComplete -> dispatch(Event.TurnComplete)
+
+            BackendEvent.Interrupted -> {
+                advanceTranscript(Transcript.Event.Interrupted(playedBytes))
+                dispatch(Event.Interrupted)
+            }
+
+            is BackendEvent.ToolCall -> dispatch(Event.ToolCallReceived(event.calls))
+
+            is BackendEvent.ToolCancel -> dispatch(Event.ToolCancelled(event.ids))
+
+            // The close that follows ends the conversation.
+            is BackendEvent.ClosingSoon -> Unit
+
+            is BackendEvent.Failed -> {
+                postDisconnectNotice(event.error)
+                dispatch(Event.Disconnected)
+            }
+
+            BackendEvent.Closed -> {
+                postDisconnectNotice(backendError = null)
+                dispatch(Event.Disconnected)
+            }
+        }
+    }
+
+    /** The session is ready: dispatch it, then send a tapped suggestion as the first turn now that we're LISTENING. */
+    private fun onReady() {
+        connectedOk = true
+        dispatch(Event.Ready)
+        pendingInitialText?.let { text ->
+            pendingInitialText = null
+            sendInitialText(text)
         }
     }
 
