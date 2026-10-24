@@ -51,8 +51,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/Trigger.kt` + `conversation/ConversationOpening.kt` — **how a conversation opens**. A closed
   `Trigger` (`WakeWord(wakeId)` / `MicTap` / `SuggestionChip(text)`) is typed end to end; the only untyped hop is
   the Intent into the service (encoded + decoded side by side in `AssistantService`'s companion; an undecodable
-  Intent starts nothing). Pure `ConversationOpening.decide(trigger, OpeningInputs)` returns an `Opening` or a
-  `Refusal`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model, Chosen speaker,
+  Intent starts nothing). Pure `ConversationOpening.refusalFor(choice)` says whether the backend choice refuses, and
+  pure `ConversationOpening.open(trigger, OpeningInputs)` says how a conversation it let through opens, as an
+  `Opening`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model, Chosen speaker,
   Listening tone setting, `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt
   lines); `Opening` is the transcript seed (fresh / resume with turns shown + replayed, within `RESUME_MAX_CHARS`),
   the `BackendConfig` with the finished session prompt (assembled here via pure `SessionPrompt`: built-in
@@ -60,22 +61,35 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   declarations + `SystemContext` time/location — override > IP-geo > unknown — + `ResumeContext` on a resume),
   voice query (false only for a chip), Listening tone plays (setting on ∧ voice query) and first text.
   `refusalFor(choice)` is the **only** credential rule (blank credential → the backend's "isn't set up yet"
-  notice); `decide` calls it first and the idle home's setup nudge calls it too. No Android, no I/O, no clock
-  reads — fully unit-tested (`ConversationOpeningTest`).
-- `conversation/AssistantEngine.kt` — the impure shell: `start(trigger)` gathers `OpeningInputs`, calls
-  `ConversationOpening.decide`, and returns the `Refusal` (nothing opened) or starts: wires the `VoiceBackend`
-  (factory from `Backends.Choice`, config from the opening) + `MicCapture` + `PcmPlayer`
-  + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
-  → no locks). Backend events arrive on the one `onEvent`: `Audio` is enqueued on the player synchronously on the
-  socket thread (latency), then every event is posted; on the handler, pure `conversation/BackendEventMapping`
-  (`BackendEventMappingTest`) turns it into a `Transcript.Event` (applied first) and/or a reducer `Event` — it
-  owns the rule that an output transcript is `ModelActivity` only while already SPEAKING.
-  Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
-  outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto it.
-  Also: the opening's `firstText` (chip-send) is sent on `Event.Ready` (`sendInitialText`); an unexpected socket
-  drop (`Failed`/`Closed` while not ended) posts a user-facing `ConversationHub.notice` (`postDisconnectNotice`;
-  pure `DisconnectNotice`: offline copy first, then a server message as is, else "Connection lost" / "Couldn't
-  reach Jarvis" by `connectedOk` — raw socket text is only logged).
+  notice); the engine asks it before it builds anything, and the idle home's setup nudge asks it too. No Android, no
+  I/O, no clock reads — fully unit-tested (`ConversationOpeningTest`).
+- `conversation/AssistantEngine.kt` — the impure shell, one conversation from Trigger to end. Every collaborator is
+  injected: four role ports (`conversation/EnginePorts.kt`) — `EngineClock` (the one thread every event is posted
+  onto, the one monotonic clock, and the two timers), `EngineAudio` (mic, player, Listening tone),
+  `ConversationSink` (the `ConversationHub` writes and the orange bar) and `OpeningReads` (settings, location,
+  on-screen turns, the online check) — plus the `VoiceBackendFactory` (from `Backends.Choice`) and a `ToolRunner`
+  factory. `AssistantEngine.create(context, choice, onEnded)` wires the production adapters
+  (`conversation/AndroidEnginePorts.kt`: `MainLooperClock`, `DeviceAudio` over `MicCapture` + `PcmPlayer` +
+  `ListeningTonePlayer`, `HubSink`, `PrefsOpeningReads`); the service only calls that factory. `HubSink` owns the
+  `UiVisibility.inForeground` check, so the engine never sees it. `start(trigger)` asks
+  `ConversationOpening.refusalFor` first and returns the `Refusal` with nothing built (no tool runner, no socket, no
+  Hub write); otherwise it builds the tool runner, gathers `OpeningInputs`, calls `ConversationOpening.open`, then
+  connects, opens the mic and starts the player, in that order. All state lives on the clock's thread (main looper in
+  production; every callback posts an event → no locks). Backend events arrive on the one `onEvent`: `Audio` is
+  enqueued on the player synchronously on the socket thread (latency), then every event is posted; on the engine's
+  thread, `onBackendEvent` holds every reaction to it — the `Transcript.Event` (applied first), the reducer `Event`
+  (an output transcript is `ModelActivity` only while already SPEAKING), `connectedOk` and the first text on Ready,
+  and the disconnect notice.
+  Every mic frame goes through the **Mic gate** (below), straight from the capture thread; the capture callback only
+  applies its outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto
+  it. Also: the opening's `firstText` (chip-send) is sent once `Event.Ready` is dispatched (`sendInitialText`); an
+  unexpected socket drop (`Failed`/`Closed` while not ended) posts one user-facing `ConversationHub.notice`
+  (`postDisconnectNotice`; internal `DisconnectNotice`: offline copy first, then a server message as is, else
+  "Connection lost" / "Couldn't reach Jarvis" by `connectedOk` — raw socket text is only logged). The **no-speech
+  grace** (internal `NoSpeechGrace`) defers the no-speech end while the mic still hears local speech, up to
+  `MAX_GRACES` re-arms of the same timer; a server transcript re-arms it in full and resets the budget.
+  `AssistantEngineTest` drives all of this on the test thread with recording fakes (`AssistantEngineFakes.kt`): a
+  hand-stepped clock, a backend and a mic that call in synchronously.
   The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up
   re-listen) when the opening says so, played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
@@ -84,7 +98,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (voice query? tone plays?), fed listening started/stopped from the handler and tone started/failed from the tone
   player, it turns each frame (+ its capture time — it never reads a clock) into a plain `FrameOutcome`: the ordered
   audio to send, the indicator (none / bar at rest / level → Hub level + orange bar, gated on
-  `UiVisibility.inForeground` by the engine), speech heard (→ the no-speech grace's last-local-speech stamp) and log
+  `UiVisibility.inForeground` by `HubSink`), speech heard (→ the no-speech grace's last-local-speech stamp) and log
   lines. Inside, in order: **Listening tone suppression** (frames captured while the tone is pending — a failed tone
   ends the wait — or before its window ends, tone start + `DURATION_MS` + device-measured `ECHO_TAIL_MS`, are
   dropped: not connect-buffered, sent, or levelled; while listening they show the bar at rest so the tone never
