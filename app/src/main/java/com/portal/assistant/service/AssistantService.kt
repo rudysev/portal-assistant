@@ -136,7 +136,7 @@ class AssistantService : Service() {
         DebugLog.log("AssistantService START (trigger=${trigger.logLabel}) → conversation")
         // A foreground tap opens the mic immediately; portal-wake yields by detecting our recording
         // (no broadcast needed). On a wake trigger portal-wake has already paused for the handoff.
-        val newEngine = AssistantEngine(applicationContext, backendChoice) {
+        val newEngine = AssistantEngine.create(applicationContext, backendChoice) {
             // The engine has already torn down (mic released, bar hidden) before this fires.
             DebugLog.log("conversation ended → standby")
             returnToStandby()
