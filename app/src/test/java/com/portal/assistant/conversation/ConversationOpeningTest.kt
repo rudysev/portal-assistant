@@ -13,8 +13,9 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
- * What [ConversationOpening] decides from a [Trigger] and a snapshot of the conversation's inputs: refuse or open,
- * resume or fresh, what is replayed, voice query, Listening tone, first text, and what the backend is told.
+ * What [ConversationOpening] decides: whether a backend choice refuses ([ConversationOpening.refusalFor]), and from
+ * a [Trigger] and a snapshot of the conversation's inputs, resume or fresh, what is replayed, voice query, Listening
+ * tone, first text, and what the backend is told. That a refused trigger opens nothing is [AssistantEngineTest]'s.
  * Prompt wording and truncation edges are [SessionPromptTest], [ResumeContextTest] and [SystemContextTest]'s.
  */
 class ConversationOpeningTest {
@@ -50,20 +51,6 @@ class ConversationOpeningTest {
     @Test fun noRefusalWithACredential() {
         assertNull(ConversationOpening.refusalFor(geminiChoice(apiKey = "user-key")))
         assertNull(ConversationOpening.refusalFor(localChoice(hostUrl = "wss://192.168.1.5:8080")))
-    }
-
-    @Test fun decideRefusesEveryTriggerWithoutACredential() {
-        val refusals = mapOf(
-            geminiChoice(apiKey = "") to Refusal("Jarvis isn’t set up yet — a Gemini API key is missing."),
-            localChoice(hostUrl = null) to
-                Refusal("Jarvis isn’t set up yet — add your local server address in Settings."),
-        )
-        for ((backendChoice, refusal) in refusals) {
-            for (trigger in allTriggers) {
-                val decision = ConversationOpening.decide(trigger, inputs().copy(backendChoice = backendChoice))
-                assertEquals("${backendChoice.kind} ${trigger.logLabel}", refusal, decision)
-            }
-        }
     }
 
     // --- Resume or fresh ---
@@ -232,8 +219,7 @@ class ConversationOpeningTest {
 
     private val seattle = DeviceLocation("Seattle", "Washington", "United States", lat = 47.6062, lon = -122.3321)
 
-    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening =
-        ConversationOpening.decide(trigger, inputs) as Opening
+    private fun open(trigger: Trigger, inputs: OpeningInputs): Opening = ConversationOpening.open(trigger, inputs)
 
     private val allTriggers =
         listOf(Trigger.WakeWord("jarvis"), Trigger.MicTap, Trigger.SuggestionChip("What's the weather?"))
