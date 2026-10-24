@@ -15,6 +15,10 @@ import com.portal.commons.audio.AudioRecordPcmDevice
  * silent until the no-speech timer ends it (the reported "assistant silence" symptom). The error-count
  * rebuild is left off; the idle (no-frame) watchdog already covers sustained errors and stalls.
  *
+ * A capture that dies on its own (the mic won't open, a rebuild fails, the stream goes digitally silent) is logged
+ * with its [com.portal.commons.audio.CaptureLoss] cause; the turn then goes quiet until the no-speech timer ends it.
+ * One instance captures once: [start] after [stop] is a no-op, so build a new one per capture.
+ *
  * Caller must hold RECORD_AUDIO. [onFrame] runs on the capture thread; keep it cheap and non-blocking.
  */
 class MicCapture(onFrame: (ByteArray, Int) -> Unit) {
@@ -22,13 +26,18 @@ class MicCapture(onFrame: (ByteArray, Int) -> Unit) {
     private val session = PcmCaptureSession(
         device = AudioRecordPcmDevice(),
         onFrame = onFrame,
-        onError = { DebugLog.log("mic capture error: $it") },
+        // A data class: logs the cause and its reason, e.g. "Dropped(reason=…)".
+        onLost = { DebugLog.log("mic capture lost: $it") },
         log = { DebugLog.log(it) },
         threadName = "assistant-capture",
         idleRebuildMs = PcmCaptureSession.DEFAULT_IDLE_REBUILD_MS,
     )
 
-    fun start() = session.start()
+    fun start() {
+        session.start()
+    }
 
-    fun stop() = session.stop()
+    fun stop() {
+        session.stop()
+    }
 }
