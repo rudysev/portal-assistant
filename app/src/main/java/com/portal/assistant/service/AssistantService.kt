@@ -94,7 +94,7 @@ class AssistantService : Service() {
 
             ACTION_NEW_CONVERSATION -> newConversation()
 
-            ACTION_START -> when (val trigger = decodeTrigger(intent)) {
+            ACTION_START -> when (val trigger = TriggerExtras.decode(intent::getStringExtra)) {
                 null -> DebugLog.log("START ignored — the intent carries no trigger")
                 else -> startConversation(trigger)
             }
@@ -243,14 +243,6 @@ class AssistantService : Service() {
         const val ACTION_FOREGROUND = "com.portal.assistant.action.FOREGROUND"
         const val ACTION_BACKGROUND = "com.portal.assistant.action.BACKGROUND"
 
-        // The Trigger's Intent encoding — written by [start], read by [decodeTrigger]; nothing else knows these.
-        private const val EXTRA_TRIGGER = "com.portal.assistant.extra.TRIGGER"
-        private const val EXTRA_WAKE_ID = "com.portal.assistant.extra.WAKE_ID"
-        private const val EXTRA_CHIP_TEXT = "com.portal.assistant.extra.CHIP_TEXT"
-        private const val TRIGGER_WAKE_WORD = "wake"
-        private const val TRIGGER_MIC_TAP = "tap"
-        private const val TRIGGER_SUGGESTION_CHIP = "chip"
-
         private const val CHANNEL_ID = "assistant_listening"
         private const val NOTIFICATION_ID = 1001
 
@@ -283,39 +275,9 @@ class AssistantService : Service() {
 
         /** Start a conversation for [trigger] (a no-op while one is live). */
         fun start(context: Context, trigger: Trigger) {
-            ContextCompat.startForegroundService(
-                context,
-                encodeTrigger(Intent(context, AssistantService::class.java).setAction(ACTION_START), trigger),
-            )
-        }
-
-        private fun encodeTrigger(intent: Intent, trigger: Trigger): Intent = when (trigger) {
-            is Trigger.WakeWord -> intent.putExtra(
-                EXTRA_TRIGGER,
-                TRIGGER_WAKE_WORD,
-            ).putExtra(EXTRA_WAKE_ID, trigger.wakeId)
-
-            Trigger.MicTap -> intent.putExtra(EXTRA_TRIGGER, TRIGGER_MIC_TAP)
-
-            is Trigger.SuggestionChip -> intent.putExtra(
-                EXTRA_TRIGGER,
-                TRIGGER_SUGGESTION_CHIP,
-            ).putExtra(EXTRA_CHIP_TEXT, trigger.text)
-        }
-
-        /**
-         * The [Trigger] [encodeTrigger] wrote, or null when the Intent doesn't carry a whole one — then nothing starts.
-         */
-        private fun decodeTrigger(intent: Intent): Trigger? = when (intent.getStringExtra(EXTRA_TRIGGER)) {
-            TRIGGER_WAKE_WORD -> intent.getStringExtra(EXTRA_WAKE_ID)?.let(Trigger::WakeWord)
-
-            TRIGGER_MIC_TAP -> Trigger.MicTap
-
-            TRIGGER_SUGGESTION_CHIP -> intent.getStringExtra(EXTRA_CHIP_TEXT)?.takeIf {
-                it.isNotBlank()
-            }?.let(Trigger::SuggestionChip)
-
-            else -> null
+            val intent = Intent(context, AssistantService::class.java).setAction(ACTION_START)
+            TriggerExtras.encode(trigger).forEach(intent::putExtra)
+            ContextCompat.startForegroundService(context, intent)
         }
 
         fun stop(context: Context) {
