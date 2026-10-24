@@ -27,6 +27,7 @@ class AssistantEngineTest {
     private val reads = FakeOpeningReads()
     private val backends = FakeBackendFactory(log, deadAirStallMs = STALL_MS)
     private val toolSet = FakeToolSet(log)
+    private val toolExecutor = FakeToolExecutor()
     private var ends = 0
     private var toolRunnersBuilt = 0
 
@@ -38,7 +39,7 @@ class AssistantEngineTest {
         openingReads = reads,
         toolRunners = { deliver ->
             toolRunnersBuilt++
-            ToolRunner(toolSet, AfterSpeech(), InlineExecutorService(), deliver)
+            ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver)
         },
         onEnded = { ends++ },
     )
@@ -149,6 +150,21 @@ class AssistantEngineTest {
         assertEquals(0, sink.turnWrites)
         audio.frame(FakeAudio.LOUD)
         assertEquals(1, backend.sentAudio.size) // the mic still forwards: nothing muted it
+    }
+
+    @Test fun anOutputTranscriptWhileSpeakingIsModelActivityAndHoldsOffTheStall() {
+        listening()
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(4_800)))
+        audio.drained(bytes = 4_800)
+        clock.runPosted()
+
+        clock.advanceBy(STALL_MS - 1)
+        emit(BackendEvent.OutputTranscript("Sure,")) // the model is still at it: the stall re-arms in full
+        clock.advanceBy(STALL_MS - 1)
+        assertEquals(ConversationHub.UiPhase.SPEAKING, phase)
+        clock.advanceBy(1)
+        assertEquals(ConversationHub.UiPhase.LISTENING, phase)
     }
 
     @Test fun anInterruptionFlushesPlayback() {
@@ -407,6 +423,19 @@ class AssistantEngineTest {
         val result = backend.toolResponses.single().single()
         assertEquals("call-1", result.id)
         assertEquals("portal.get_time", result.response.getString("ok"))
+    }
+
+    @Test fun aToolCancelledBeforeItRunsIsNeverRunNorAnswered() {
+        listening()
+        toolExecutor.holding = true
+        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.get_time", JSONObject()))))
+        emit(BackendEvent.ToolCancel(listOf("call-1")))
+        toolExecutor.holding = false
+        toolExecutor.queued.forEach(Runnable::run)
+        clock.runPosted()
+
+        assertTrue(toolSet.invoked.isEmpty())
+        assertTrue(backend.toolResponses.isEmpty()) // the model withdrew it: nothing goes back
     }
 
     // ---- teardown --------------------------------------------------------------------------------------------------

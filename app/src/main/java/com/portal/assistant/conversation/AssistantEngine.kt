@@ -1,24 +1,19 @@
 package com.portal.assistant.conversation
 
-import android.content.Context
 import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.tools.ToolRunner
-import com.portal.assistant.ui.RecordingOverlay
-import com.portal.assistant.ui.UiVisibility
 import com.portal.commons.DebugLog
 import java.util.concurrent.Executor
 
 /**
  * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], the [ToolRunner] and the two
  * timers, drives the mic, player and tone ([EngineAudio]) and the UI ([ConversationSink]), and runs the conversation
- * as an ongoing
- * multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens for a
- * follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on
- * error. Every mic frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later
- * milestone.)
+ * as an ongoing multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens for a
+ * follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on error. Every mic
+ * frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later milestone.)
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the [EngineClock]'s thread (the main
  * looper in production): the backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the
@@ -31,11 +26,12 @@ import java.util.concurrent.Executor
  * service can return to standby (mic released, so portal-wake reclaims by detection).
  *
  * Every collaborator comes in through the constructor (the role ports in EnginePorts.kt, the backend through
- * [backendChoice], the [ToolRunner] through [toolRunners]); [create] wires the production adapters.
+ * [backendChoice], the [ToolRunner] through [toolRunners]); `AssistantEngine.create` (AndroidEnginePorts.kt) wires
+ * the production adapters.
  */
 // The one impure shell: a function per lifecycle step, Action and hot-path callback. The decisions already live in
 // the pure reducer, MicGate, Transcript and ToolRunner; what is left here is the wiring between them. Every
-// collaborator is an injected port or seam so the unit tests drive it without Android; [create] passes them by name.
+// collaborator is an injected port or seam so the unit tests drive it without Android; the factory passes them by name.
 @Suppress("TooManyFunctions", "LongParameterList")
 class AssistantEngine(
     private val backendChoice: Backends.Choice,
@@ -80,7 +76,7 @@ class AssistantEngine(
     /** [EngineClock.now] of the last LISTENING frame whose gained level cleared the VAD threshold (capture thread). */
     @Volatile private var lastSpeechAtMs = 0L
 
-    /** Consecutive server-unconfirmed no-speech graces granted this listening window (handler-thread only). */
+    /** Consecutive server-unconfirmed no-speech graces granted this listening window (engine thread only). */
     private var noSpeechGraces = 0
 
     private val noSpeechTimer: Runnable = Runnable {
@@ -174,12 +170,12 @@ class AssistantEngine(
         // Built before mic.start() spawns the capture thread, so its initial state is visible to it. With the tone
         // on, the gate starts with it pending: from the first frame nothing is sent until the tone has started.
         val gate = MicGate(opening.voiceQuery, opening.listeningTonePlays).also { micGate = it }
-        audio.openMic { buf, n -> onFrame(gate, buf, n) }
+        audio.openMic { pcm, length -> onFrame(gate, pcm, length) }
         if (opening.listeningTonePlays) playListeningTone(gate)
         audio.startPlayer(
             onDrained = { clock.post { dispatch(Event.PlaybackIdle) } },
-            onLevel = { lvl ->
-                sink.setAudioLevel(lvl) // drives the speaking visualizer
+            onLevel = { level ->
+                sink.setAudioLevel(level) // drives the speaking visualizer
                 // The writer thread: hop to the engine's thread, the transcript's only thread, to pace the reveal.
                 clock.post { advanceTranscript(Transcript.Event.AudioPlayed(audio.playedBytes())) }
             },
@@ -216,8 +212,8 @@ class AssistantEngine(
     // ---- hot audio path (off the orchestration thread) ---------------------------------------------
 
     /** Capture thread. The [MicGate] decides what this frame sends, shows and logs; this only applies its outcome. */
-    private fun onFrame(gate: MicGate, buf: ByteArray, n: Int) {
-        val outcome = gate.onFrame(buf, n, clock.now())
+    private fun onFrame(gate: MicGate, pcm: ByteArray, length: Int) {
+        val outcome = gate.onFrame(pcm, length, clock.now())
         outcome.logLines.forEach(DebugLog::log)
         outcome.audioToSend.forEach { audio -> backend?.sendAudio(audio) }
         // Local speech signal for the no-speech grace, on the same clock its timer reads.
@@ -393,8 +389,8 @@ class AssistantEngine(
         val next = transcript.on(event)
         val changed = next.turns !== transcript.turns
         transcript = next
-        // After teardown, a handler message queued just before stop() must not repopulate the hub — e.g. the
-        // user tapped "New conversation" (clearHistory) the instant this turn ended.
+        // After teardown, a message queued on the engine's thread just before stop() must not repopulate the hub — e.g.
+        // the user tapped "New conversation" (clearHistory) the instant this turn ended.
         if (changed && !ended) sink.setTurns(next.turns)
     }
 
@@ -462,21 +458,6 @@ class AssistantEngine(
     }
 
     companion object {
-        /** The production engine: the main looper, the handset's audio, the Hub and orange bar, the app's settings. */
-        fun create(context: Context, backendChoice: Backends.Choice, onEnded: () -> Unit): AssistantEngine {
-            val appContext = context.applicationContext
-            val overlay = RecordingOverlay(appContext)
-            return AssistantEngine(
-                backendChoice = backendChoice,
-                clock = MainLooperClock(),
-                audio = DeviceAudio(),
-                sink = HubSink(setRecording = overlay::setRecording, inForeground = { UiVisibility.inForeground }),
-                openingReads = PrefsOpeningReads(appContext),
-                toolRunners = { deliver -> ToolRunner.create(appContext, deliver) },
-                onEnded = onEnded,
-            )
-        }
-
         // Phase 2.b: ongoing conversation — re-open the mic after each answer (the no-speech timer
         // ends it on silence). The mic stays open across turns (frames dropped while SPEAKING), so
         // portal-wake can't reclaim mid-conversation.
