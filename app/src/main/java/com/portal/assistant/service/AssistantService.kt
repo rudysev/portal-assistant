@@ -18,6 +18,7 @@ import com.portal.assistant.conversation.AssistantEngine
 import com.portal.assistant.conversation.ConversationHub
 import com.portal.assistant.conversation.Trigger
 import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.create
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus

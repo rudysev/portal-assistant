@@ -6,12 +6,35 @@ import android.os.Looper
 import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
+import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.DeviceLocation
 import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
+import com.portal.assistant.ui.RecordingOverlay
+import com.portal.assistant.ui.UiVisibility
 import java.time.ZoneId
 import java.time.ZonedDateTime
+
+/** The production engine: the main looper, the handset's audio, the Hub and orange bar, the app's settings. */
+fun AssistantEngine.Companion.create(
+    context: Context,
+    backendChoice: Backends.Choice,
+    onEnded: () -> Unit,
+): AssistantEngine {
+    val appContext = context.applicationContext
+    val overlay = RecordingOverlay(appContext)
+    return AssistantEngine(
+        backendChoice = backendChoice,
+        clock = MainLooperClock(),
+        audio = DeviceAudio(),
+        sink = HubSink(setRecording = overlay::setRecording, inForeground = { UiVisibility.inForeground }),
+        openingReads = PrefsOpeningReads(appContext),
+        toolRunners = { deliver -> ToolRunner.create(appContext, deliver) },
+        onEnded = onEnded,
+    )
+}
 
 /** [EngineClock] on the main looper, on [SystemClock.elapsedRealtime] — the clock the tone player reports in. */
 internal class MainLooperClock : EngineClock {

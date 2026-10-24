@@ -268,12 +268,18 @@ class FakeToolSet(private val log: MutableList<String>) : ToolSet {
     }
 }
 
-/** The `tool-exec` thread, run inline: a call runs the moment it is handed over. */
-class InlineExecutorService : AbstractExecutorService() {
+/** The `tool-exec` thread: a call runs the moment it is handed over, unless [holding] keeps it queued unstarted. */
+class FakeToolExecutor : AbstractExecutorService() {
     private var shutdown = false
+    var holding = false
+    val queued = mutableListOf<Runnable>()
 
     override fun execute(command: Runnable) {
-        if (!shutdown) command.run()
+        when {
+            shutdown -> Unit
+            holding -> queued += command
+            else -> command.run()
+        }
     }
 
     override fun shutdown() {

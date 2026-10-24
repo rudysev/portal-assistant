@@ -95,7 +95,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
   (default on), read once in the snapshot; the tone's start/failure callbacks feed the Mic gate.
 - `conversation/MicGate.kt` — the **Mic gate**, the whole mic frame path: built once per conversation at mic open
-  (voice query? tone plays?), fed listening started/stopped from the handler and tone started/failed from the tone
+  (voice query? tone plays?), fed listening started/stopped from the engine's thread and tone started/failed from the tone
   player, it turns each frame (+ its capture time — it never reads a clock) into a plain `FrameOutcome`: the ordered
   audio to send, the indicator (none / bar at rest / level → Hub level + orange bar, gated on
   `UiVisibility.inForeground` by `HubSink`), speech heard (→ the no-speech grace's last-local-speech stamp) and log
