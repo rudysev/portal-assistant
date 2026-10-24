@@ -9,11 +9,11 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** What [ConversationOpening.decide] returns: the conversation's [Opening], or a [Refusal]. */
-sealed interface OpeningDecision
-
-/** No conversation opens — the selected backend has no credential. [notice] is the backend's "isn't set up yet". */
-data class Refusal(val notice: String) : OpeningDecision
+/**
+ * No conversation opens — the selected backend has no credential ([ConversationOpening.refusalFor]). [notice] is the
+ * backend's "isn't set up yet".
+ */
+data class Refusal(val notice: String)
 
 /** Everything a conversation opens with. */
 data class Opening(
@@ -26,7 +26,7 @@ data class Opening(
     val listeningTonePlays: Boolean,
     /** Sent as the user's first turn once the session is ready (the chip's text), or null. */
     val firstText: String?,
-) : OpeningDecision {
+) {
     /** The finished session system instruction, as the backend is told it. */
     val sessionPrompt: String get() = backendConfig.systemPrompt
 }
@@ -56,11 +56,12 @@ data class OpeningInputs(
 )
 
 /**
- * Decides how one conversation opens — or that it can't — from its [Trigger] and a plain-value snapshot
- * ([OpeningInputs]): resume or fresh and what is replayed, voice query or not, whether the Listening tone plays, the
- * first text, and everything the voice backend is told up front (the session prompt, via [SessionPrompt], and its
- * [BackendConfig]). Every opening decision lives here; the engine gathers the snapshot and runs the I/O, the service
- * routes triggers and reacts to a [Refusal].
+ * Decides whether a conversation can open ([refusalFor], from the backend choice alone) and then how it opens
+ * ([open], from its [Trigger] and a plain-value snapshot, [OpeningInputs]): resume or fresh and what is replayed, voice
+ * query or not, whether the Listening tone plays, the first text, and everything the voice backend is told up front
+ * (the session prompt, via [SessionPrompt], and its [BackendConfig]). Every opening decision lives here; the engine
+ * asks [refusalFor] before it builds anything, then gathers the snapshot and runs the I/O, and the service routes
+ * triggers and reacts to a [Refusal].
  *
  * Pure: no Android, no I/O, no clock reads (the clock is [OpeningInputs.now]) — so it's unit-tested end to end.
  */
@@ -70,8 +71,8 @@ object ConversationOpening {
     // replayed to the model as context — bounds the prompt as a continued chat grows. Device-tunable.
     const val RESUME_MAX_CHARS = 4_000
 
-    fun decide(trigger: Trigger, inputs: OpeningInputs): OpeningDecision {
-        refusalFor(inputs.backendChoice)?.let { return it }
+    /** How a conversation that [refusalFor] let through opens for [trigger]. */
+    fun open(trigger: Trigger, inputs: OpeningInputs): Opening {
         val onScreenTurns = inputs.onScreenTurns
         val transcriptSeed = if (trigger == Trigger.MicTap && onScreenTurns.isNotEmpty()) {
             TranscriptSeed.Resume(onScreenTurns, ResumeContext.recentContext(onScreenTurns, RESUME_MAX_CHARS))
@@ -120,7 +121,10 @@ object ConversationOpening {
         return listOf(SystemContext.timeLine(localDateTime, inputs.now.zone.id), location)
     }
 
-    /** The only credential rule: a blank credential refuses, with the selected backend's notice. */
+    /**
+     * The only credential rule: a blank credential refuses, with the selected backend's notice. Asked before a
+     * conversation builds anything, and by the idle home's setup nudge.
+     */
     fun refusalFor(backendChoice: Backends.Choice): Refusal? {
         if (backendChoice.credential.isNotBlank()) return null
         return Refusal(

@@ -28,14 +28,18 @@ class AssistantEngineTest {
     private val backends = FakeBackendFactory(log, deadAirStallMs = STALL_MS)
     private val toolSet = FakeToolSet(log)
     private var ends = 0
+    private var toolRunnersBuilt = 0
 
-    private fun engine() = AssistantEngine(
-        backendChoice = Backends.Choice(AppPrefs.VoiceBackendKind.GEMINI, backends, credential = "user-key"),
+    private fun engine(credential: String = "user-key") = AssistantEngine(
+        backendChoice = Backends.Choice(AppPrefs.VoiceBackendKind.GEMINI, backends, credential),
         clock = clock,
         audio = audio,
         sink = sink,
         openingReads = reads,
-        toolRunners = { deliver -> ToolRunner(toolSet, AfterSpeech(), InlineExecutorService(), deliver) },
+        toolRunners = { deliver ->
+            toolRunnersBuilt++
+            ToolRunner(toolSet, AfterSpeech(), InlineExecutorService(), deliver)
+        },
         onEnded = { ends++ },
     )
 
@@ -61,6 +65,22 @@ class AssistantEngineTest {
     }
 
     private val phase get() = sink.phases.last()
+
+    // ---- refusal ---------------------------------------------------------------------------------------------------
+
+    @Test fun aRefusedTriggerReturnsItsNoticeAndOpensNothing() {
+        val conversation = engine(credential = "")
+
+        val refusal = conversation.start(Trigger.WakeWord("jarvis"))
+        conversation.stop()
+
+        assertEquals("Jarvis isn’t set up yet — a Gemini API key is missing.", refusal?.notice)
+        assertEquals(0, toolRunnersBuilt)
+        assertTrue(backends.built.isEmpty())
+        assertTrue(log.isEmpty()) // no mic, no player, no teardown
+        assertTrue(sink.starts.isEmpty())
+        assertEquals(0, ends)
+    }
 
     // ---- fresh vs resume -------------------------------------------------------------------------------------------
 

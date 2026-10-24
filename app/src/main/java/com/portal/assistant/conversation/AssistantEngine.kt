@@ -43,14 +43,14 @@ class AssistantEngine(
     private val audio: EngineAudio,
     private val sink: ConversationSink,
     private val openingReads: OpeningReads,
-    toolRunners: (deliver: Executor) -> ToolRunner,
+    private val toolRunners: (deliver: Executor) -> ToolRunner,
     private val onEnded: () -> Unit,
 ) {
     private val stallMs: Long = backendChoice.factory.deadAirStallMs
 
     // This conversation's tools, their after-speech effects and each batch's bookkeeping; results come back on
-    // the handler. Disposed on teardown.
-    private val toolRunner = toolRunners(Executor { clock.post(it) })
+    // the engine's thread. Built in [start] once the trigger isn't refused; disposed on teardown.
+    private var toolRunner: ToolRunner? = null
 
     private var backend: VoiceBackend? = null
 
@@ -114,15 +114,22 @@ class AssistantEngine(
     }
 
     /**
-     * Open the conversation for [trigger]: snapshot its inputs, let [ConversationOpening] decide the opening, then
-     * connect and open the mic. Settings are read here once; nothing after the snapshot reads [OpeningReads] (bar the
-     * online check behind a disconnect notice).
-     * Multi-turn *within* this conversation is the live backend session, not replayed context.
+     * Open the conversation for [trigger]: refuse it if the backend has no credential, else build the tool runner,
+     * snapshot the inputs, let [ConversationOpening] decide the opening, then connect and open the mic. Settings are
+     * read here once; nothing after the snapshot reads [OpeningReads] (bar the online check behind a disconnect
+     * notice). Multi-turn *within* this conversation is the live backend session, not replayed context.
      *
-     * @return null once started, or the [Refusal] (no credential) — then nothing was opened or published (no
-     * connecting flash), [onEnded] is never called, and the caller posts the notice.
+     * @return null once started, or the [Refusal] (no credential) — then nothing was built, opened or published (no
+     * tool runner, no connecting flash), [onEnded] is never called, and the caller posts the notice.
      */
     fun start(trigger: Trigger): Refusal? {
+        ConversationOpening.refusalFor(backendChoice)?.let { refusal ->
+            DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
+            ended = true
+            return refusal
+        }
+        val conversationTools = toolRunners(Executor { clock.post(it) })
+        toolRunner = conversationTools
         val inputs = OpeningInputs(
             backendChoice = backendChoice,
             modelId = openingReads.modelId(),
@@ -132,18 +139,10 @@ class AssistantEngine(
             locationOverride = openingReads.locationOverride(),
             deviceLocation = openingReads.deviceLocation(),
             onScreenTurns = openingReads.onScreenTurns(),
-            toolDeclarations = toolRunner.declarations(),
-            externalPromptLines = toolRunner.externalPromptLines(),
+            toolDeclarations = conversationTools.declarations(),
+            externalPromptLines = conversationTools.externalPromptLines(),
         )
-        val opening = when (val decision = ConversationOpening.decide(trigger, inputs)) {
-            is Refusal -> {
-                DebugLog.log("no credential → cannot start (kind=${backendChoice.kind})")
-                ended = true
-                return decision
-            }
-
-            is Opening -> decision
-        }
+        val opening = ConversationOpening.open(trigger, inputs)
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onBackendEvent.
         pendingInitialText = opening.firstText
         when (val seed = opening.transcriptSeed) {
@@ -331,7 +330,7 @@ class AssistantEngine(
         }
         state = decision.state
         // Cancel any tool the reducer no longer waits on (cancelled or interrupted).
-        toolRunner.keepOnly(state.toolsInFlight)
+        toolRunner?.keepOnly(state.toolsInFlight)
         publishPhase(state.phase)
         decision.actions.forEach(::exec)
     }
@@ -389,11 +388,13 @@ class AssistantEngine(
 
         Action.FlushPlayback -> audio.flushPlayback()
 
-        Action.FireAfterSpeech -> toolRunner.turnEnded()
+        Action.FireAfterSpeech -> toolRunner?.turnEnded()
 
         Action.End -> endNow()
 
-        is Action.ExecuteTools -> toolRunner.run(action.calls) { results -> dispatch(Event.ToolResultsReady(results)) }
+        is Action.ExecuteTools -> toolRunner?.run(action.calls) { results ->
+            dispatch(Event.ToolResultsReady(results))
+        }
 
         is Action.SendToolResponse -> backend?.sendToolResponse(action.results)
     }
@@ -410,7 +411,7 @@ class AssistantEngine(
         micGate?.listeningStopped()
         clock.cancel(noSpeechTimer)
         clock.cancel(stallTimer)
-        toolRunner.dispose() // interrupt running tools; drop deferred mute / DND-enable; deliver no more results
+        toolRunner?.dispose() // interrupt running tools; drop deferred mute / DND-enable; deliver no more results
         runCatching { audio.closeMic() }
         runCatching { backend?.close() }
         backend = null
