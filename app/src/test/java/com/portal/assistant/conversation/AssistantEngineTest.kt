@@ -139,6 +139,38 @@ class AssistantEngineTest {
         assertEquals(1, backend.sentTexts.size)
     }
 
+    // ---- what a backend event means ---------------------------------------------------------------------------------
+
+    @Test fun aStrayOutputTranscriptWhileListeningNeitherShowsNorEntersSpeaking() {
+        listening()
+        emit(BackendEvent.OutputTranscript("…and that's the forecast."))
+
+        assertEquals(ConversationHub.UiPhase.LISTENING, phase)
+        assertEquals(0, sink.turnWrites)
+        audio.frame(FakeAudio.LOUD)
+        assertEquals(1, backend.sentAudio.size) // the mic still forwards: nothing muted it
+    }
+
+    @Test fun anInterruptionFlushesPlayback() {
+        listening()
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(4_800)))
+        emit(BackendEvent.Interrupted)
+
+        assertEquals(1, audio.flushes)
+        assertEquals(ConversationHub.UiPhase.SPEAKING, phase) // the model resumes, or the stall ends the turn
+    }
+
+    @Test fun closingSoonChangesNothingUntilTheClose() {
+        listening()
+        emit(BackendEvent.ClosingSoon(graceMs = 5_000))
+        assertEquals(ConversationHub.UiPhase.LISTENING, phase)
+        assertEquals(0, ends)
+
+        emit(BackendEvent.Closed)
+        assertEquals(1, ends)
+    }
+
     // ---- the no-speech timer and its grace -------------------------------------------------------------------------
 
     @Test fun silenceEndsTheConversationAtTheNoSpeechDeadline() {

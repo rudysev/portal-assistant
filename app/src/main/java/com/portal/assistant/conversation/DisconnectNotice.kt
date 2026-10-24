@@ -10,9 +10,10 @@ import com.portal.assistant.conversation.backend.BackendError
  * error, gets the generic copy — "Connection lost" if the session had been ready, else "Couldn't reach Jarvis" —
  * never the raw socket text.
  *
- * Android-free so it's unit-tested; [AssistantEngine] supplies [offline] and [connectedOk].
+ * Internal to the engine: [AssistantEngine] supplies [offline] and [connectedOk], and AssistantEngineTest covers each
+ * wording through a backend's failure or close.
  */
-object DisconnectNotice {
+internal object DisconnectNotice {
 
     const val OFFLINE = "You’re offline. Check your Wi-Fi connection and try again."
     const val CONNECTION_LOST = "Connection lost. Please try again."
