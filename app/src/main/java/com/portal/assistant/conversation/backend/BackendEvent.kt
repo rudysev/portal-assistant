@@ -3,13 +3,19 @@ package com.portal.assistant.conversation.backend
 import com.portal.assistant.conversation.FunctionCall
 
 /**
- * One decoded thing a voice backend told us, in the order it appeared — the neutral event every [WireFormat]
- * decodes into and [WebSocketVoiceBackend] relays to [VoiceBackend.Listener] (one case per callback, bar
- * closed). A wire format simply never produces the events its backend lacks.
+ * One thing a voice backend told us, in the order it appeared — the neutral event every [WireFormat] decodes into
+ * and [WebSocketVoiceBackend] hands to [VoiceBackend.Listener.onEvent] as is, alongside its own socket outcomes
+ * ([Failed] with a [BackendError.Transport], [Closed]). A wire format simply never produces the events its backend
+ * lacks, and leaves [Closed] to the transport.
  */
 sealed interface BackendEvent {
+    /** The session is set up and ready; the transport opens its setup gate on it. */
     data object Ready : BackendEvent
+
+    /** A delta of the user's transcribed speech. */
     data class InputTranscript(val text: String) : BackendEvent
+
+    /** A delta of the model's own words, transcribed as it speaks. */
     data class OutputTranscript(val text: String) : BackendEvent
 
     /** 24 kHz mono 16-bit PCM — compared by content so decode tests can assert on it. */
@@ -19,13 +25,31 @@ sealed interface BackendEvent {
         override fun toString() = "Audio(${pcm24k.size}b)"
     }
 
+    /**
+     * The model has started this turn — on its first content, including a text-only "thinking" part before any
+     * audio (e.g. while it runs a search). Always before the turn's first [Audio] (see [VoiceBackend]).
+     */
     data object ModelGenerating : BackendEvent
     data object TurnComplete : BackendEvent
+
+    /** The model's in-progress turn was interrupted (barge-in / server cut). */
     data object Interrupted : BackendEvent
+
+    /** The model wants on-device tools run; the engine answers with [VoiceBackend.sendToolResponse]. */
     data class ToolCall(val calls: List<FunctionCall>) : BackendEvent
+
+    /** The model cancelled the listed tool calls (ids). */
     data class ToolCancel(val ids: List<String>) : BackendEvent
+
+    /** The server will end this session within about [graceMs]. A backend without a bounded session never says so. */
     data class ClosingSoon(val graceMs: Long) : BackendEvent
 
-    /** The server reported an error in words meant for the user — relayed as a [BackendError.Server]. */
-    data class Error(val message: String) : BackendEvent
+    /**
+     * The session failed (see [BackendError] for the two kinds): a wire format reports the server's own words as a
+     * [BackendError.Server]; the transport reports a broken socket as a [BackendError.Transport].
+     */
+    data class Failed(val error: BackendError) : BackendEvent
+
+    /** The socket closed — reported by the transport only. */
+    data object Closed : BackendEvent
 }

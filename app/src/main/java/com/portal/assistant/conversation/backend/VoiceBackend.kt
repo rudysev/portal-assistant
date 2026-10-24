@@ -12,19 +12,19 @@ import org.json.JSONObject
  * is backend-agnostic.
  *
  * **Audio contract (invariant, not encoded in signatures):** the engine streams **16 kHz mono 16-bit
- * PCM** up via [sendAudio] and expects **24 kHz mono 16-bit PCM** back via [Listener.onAudio]. A
+ * PCM** up via [sendAudio] and expects **24 kHz mono 16-bit PCM** back as [BackendEvent.Audio]. A
  * backend whose model uses other rates must resample on its own side.
  *
- * **First audio (invariant):** [Listener.onModelGenerating] fires before the first [Listener.onAudio] of every
- * turn. The engine relies on it — without it, Jarvis's answer plays while the mic keeps sending and the orange bar
- * stays up. [WebSocketVoiceBackend] guarantees it for every backend on it; any other backend must too.
+ * **First audio (invariant):** [BackendEvent.ModelGenerating] arrives before the first [BackendEvent.Audio] of
+ * every turn. The engine relies on it — without it, Jarvis's answer plays while the mic keeps sending and the
+ * orange bar stays up. [WebSocketVoiceBackend] guarantees it for every backend on it; any other backend must too.
  *
- * **Threading:** callbacks may arrive on any thread (e.g. a socket's reader thread); the engine
+ * **Threading:** events may arrive on any thread (e.g. a socket's reader thread); the engine
  * marshals them onto its single orchestration thread, so implementations need not post — just invoke.
  */
 interface VoiceBackend {
 
-    /** Open the session (connect the transport, send setup). Emits [Listener.onReady] when usable. */
+    /** Open the session (connect the transport, send setup). Emits [BackendEvent.Ready] when usable. */
     fun connect()
 
     /** Stream one chunk of 16 kHz mono 16-bit PCM mic audio to the model. */
@@ -33,57 +33,16 @@ interface VoiceBackend {
     /** Send one complete text turn as the user (e.g. a tapped suggestion); the model answers immediately. */
     fun sendText(text: String)
 
-    /** Send tool results back to the model. [results] order must match the original [Listener.onToolCall] order. */
+    /** Send tool results back to the model. [results] order must match the original [BackendEvent.ToolCall] order. */
     fun sendToolResponse(results: List<ToolResult>)
 
     /** Close the session and release the transport. Idempotent. */
     fun close()
 
-    /** Callbacks the backend raises as the session progresses. Neutral across models. */
-    // One callback per kind of backend event (as in BackendEvent): every backend raises them all on one stream,
-    // so splitting the interface would only make each backend implement several.
-    @Suppress("TooManyFunctions")
-    interface Listener {
-        /** The session is set up and ready — the engine moves CONNECTING → LISTENING. */
-        fun onReady()
-
-        /** A delta of the user's transcribed speech. */
-        fun onInputTranscript(textDelta: String)
-
-        /** The model's own words, transcribed as it speaks — drives the word-by-word chat bubble. */
-        fun onOutputTranscript(textDelta: String)
-
-        /** A chunk of 24 kHz mono 16-bit PCM speech from the model. */
-        fun onAudio(pcm24k: ByteArray)
-
-        fun onTurnComplete()
-
-        /** The model's in-progress turn was interrupted (barge-in / server cut). */
-        fun onInterrupted()
-
-        /**
-         * The model has started this turn — fired on the first content, including a text-only "thinking"
-         * part before any audio (e.g. while it runs a search). Signals the user's turn is over and we're
-         * now waiting on the model. Always before the turn's first [onAudio] (the first-audio invariant above).
-         */
-        fun onModelGenerating()
-
-        /** The model wants to call one or more on-device tools. Engine must respond with [sendToolResponse]. */
-        fun onToolCall(calls: List<FunctionCall>)
-
-        /** The backend cancelled the listed tool calls (ids); engine should abandon them. */
-        fun onToolCancel(ids: List<String>)
-
-        /**
-         * The backend will terminate this session soon; [graceMs] is a best-effort remaining budget.
-         * Backends without a bounded session lifetime (e.g. a local server) simply never fire this.
-         */
-        fun onServerClosingSoon(graceMs: Long)
-
-        /** The session failed (see [BackendError] for the two kinds). The engine surfaces a notice and ends. */
-        fun onError(error: BackendError)
-
-        fun onClosed()
+    /** The one callback the backend raises as the session progresses. Neutral across models. */
+    fun interface Listener {
+        /** The next [BackendEvent] of this session, in order — what the server said, then how the socket ended. */
+        fun onEvent(event: BackendEvent)
     }
 }
 

@@ -19,15 +19,21 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
     transcript/generating while audio is queued — that cuts long answers mid-sentence. Don't "simplify" it
     back to time-since-last-*received* chunk either (same class of bug).
 - `conversation/backend/VoiceBackend.kt` — the **model-neutral seam** the engine depends on (interface:
-  `connect`/`sendAudio`/`sendText`/`sendToolResponse`/`close` + a 12-callback `Listener`, with a documented
-  16 kHz-in / 24 kHz-out PCM audio contract). `BackendConfig` carries the session inputs (Gemini's API key
+  `connect`/`sendAudio`/`sendText`/`sendToolResponse`/`close` + a one-method `Listener.onEvent(BackendEvent)`,
+  with a documented 16 kHz-in / 24 kHz-out PCM audio contract and the **first-audio invariant**: a turn's
+  `BackendEvent.ModelGenerating` always arrives before its first `BackendEvent.Audio`).
+  `BackendConfig` carries the session inputs (Gemini's API key
   becomes the generic `credential`); `VoiceBackendFactory` builds one. `conversation/backend/Backends.kt` is
   the **single composition point** that picks the concrete backend — deliberately the only file in
   `conversation/` that imports `gemini` (and `local`). **Both backends run on one transport**,
   `conversation/backend/WebSocketVoiceBackend` (the only code that owns a socket: dial, setup frame on open, the
-  setup gate holding back audio/text/tool results until ready, the first-audio guarantee, typed errors — one labelled
-  `BackendError.Transport` on failure, a close reason the wire format finds a user message in
-  (`closeMessage` — Gemini's, e.g. a rejected key) or its error frame as a `BackendError.Server` — closed/closing, idempotent close); each backend supplies only a pure `WireFormat` (encode setup / audio /
+  setup gate holding back audio/text/tool results until ready, the first-audio guarantee — it injects
+  `ModelGenerating` before a turn's first `Audio` when the wire format didn't decode one — and otherwise hands each
+  decoded `BackendEvent` on as is, plus its own socket outcomes: `Failed(BackendError.Transport)` on failure,
+  `Failed(BackendError.Server)` for a close reason the wire format finds a user message in (`closeMessage` —
+  Gemini's, e.g. a rejected key), then `Closed`; a wire format's own error frame decodes to
+  `Failed(BackendError.Server)`; idempotent close);
+  each backend supplies only a pure `WireFormat` (encode setup / audio /
   user text / tool results, decode text + binary frames into `BackendEvent`s, plus its "Live"/"Local" error label),
   with tool calls parsed and results framed by the shared `ToolCallWire`. Each backend is a top-level package whose
   factory object hands the transport its wire format, connect address and TLS client: `gemini/GeminiBackend`
@@ -60,10 +66,14 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ConversationOpening.decide`, and returns the `Refusal` (nothing opened) or starts: wires the `VoiceBackend`
   (factory from `Backends.Choice`, config from the opening) + `MicCapture` + `PcmPlayer`
   + the reducer + the two timers + the overlay on **one Handler thread** (every callback posts an event
-  → no locks). Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
+  → no locks). Backend events arrive on the one `onEvent`: `Audio` is enqueued on the player synchronously on the
+  socket thread (latency), then every event is posted; on the handler, pure `conversation/BackendEventMapping`
+  (`BackendEventMappingTest`) turns it into a `Transcript.Event` (applied first) and/or a reducer `Event` — it
+  owns the rule that an output transcript is `ModelActivity` only while already SPEAKING.
+  Every mic frame goes through the **Mic gate** (below); the capture callback only applies its
   outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto it.
   Also: the opening's `firstText` (chip-send) is sent on `Event.Ready` (`sendInitialText`); an unexpected socket
-  drop (`onError`/`onClosed` while not ended) posts a user-facing `ConversationHub.notice` (`surfaceDisconnect`;
+  drop (`Failed`/`Closed` while not ended) posts a user-facing `ConversationHub.notice` (`postDisconnectNotice`;
   pure `DisconnectNotice`: offline copy first, then a server message as is, else "Connection lost" / "Couldn't
   reach Jarvis" by `connectedOk` — raw socket text is only logged).
   The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up

@@ -1,6 +1,7 @@
 package com.portal.assistant.local
 
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Frame
 import com.portal.assistant.conversation.backend.ToolCallWire
@@ -59,10 +60,17 @@ class LocalWireFormat(
     /** The frame types that carry data; an unknown type → empty. */
     private fun payloadEvents(type: String, json: JSONObject): List<BackendEvent> = when (type) {
         "input_transcript" -> ifPresent(json.optString("text"), BackendEvent::InputTranscript)
+
         "output_transcript" -> ifPresent(json.optString("text"), BackendEvent::OutputTranscript)
-        "error" -> listOf(BackendEvent.Error(json.optString("message").ifEmpty { "Local server error" }))
+
+        "error" -> listOf(
+            BackendEvent.Failed(BackendError.Server(json.optString("message").ifEmpty { "Local server error" })),
+        )
+
         "tool_call" -> ifPresent(ToolCallWire.parseCalls(json.optJSONArray("calls")), BackendEvent::ToolCall)
+
         "tool_cancel" -> ifPresent(ToolCallWire.parseCancelIds(json.optJSONArray("ids")), BackendEvent::ToolCancel)
+
         else -> emptyList()
     }
 

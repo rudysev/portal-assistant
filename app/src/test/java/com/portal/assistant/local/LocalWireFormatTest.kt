@@ -1,6 +1,7 @@
 package com.portal.assistant.local
 
 import com.portal.assistant.conversation.ToolResult
+import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Frame
 import org.json.JSONObject
@@ -44,12 +45,15 @@ class LocalWireFormatTest {
     }
 
     @Test
-    fun `error frame carries a message, with a fallback`() {
+    fun `error frame is a server failure carrying its message, with a fallback`() {
         assertEquals(
-            listOf(BackendEvent.Error("model offline")),
+            listOf(BackendEvent.Failed(BackendError.Server("model offline"))),
             wireFormat.decode("""{"type":"error","message":"model offline"}"""),
         )
-        assertEquals(listOf(BackendEvent.Error("Local server error")), wireFormat.decode("""{"type":"error"}"""))
+        assertEquals(
+            listOf(BackendEvent.Failed(BackendError.Server("Local server error"))),
+            wireFormat.decode("""{"type":"error"}"""),
+        )
     }
 
     @Test

@@ -56,59 +56,37 @@ class WebSocketVoiceBackendTest {
                 "interrupted" -> BackendEvent.Interrupted
                 "in" -> BackendEvent.InputTranscript("hi")
                 "out" -> BackendEvent.OutputTranscript("hello")
-                "toolCall" -> BackendEvent.ToolCall(listOf(FunctionCall("a", "portal.get_time", JSONObject())))
+                "toolCall" -> BackendEvent.ToolCall(listOf(CALL))
                 "toolCancel" -> BackendEvent.ToolCancel(listOf("a"))
                 "closingSoon" -> BackendEvent.ClosingSoon(5_000)
-                "error" -> BackendEvent.Error("boom")
+                "error" -> BackendEvent.Failed(BackendError.Server("boom"))
                 else -> error("unknown tag $tag")
             }
         }
         override fun decode(bytes: ByteArray): List<BackendEvent> = listOf(BackendEvent.Audio(bytes))
         override fun closeMessage(code: Int, reason: String) = reason.takeIf { code == 4000 }
+
+        companion object {
+            /** One instance: [FunctionCall]'s JSON arguments compare by identity. */
+            val CALL = FunctionCall("a", "portal.get_time", JSONObject())
+        }
     }
 
     private class RecordingListener : VoiceBackend.Listener {
-        val events = mutableListOf<String>()
-        override fun onReady() {
-            events += "ready"
-        }
-        override fun onInputTranscript(textDelta: String) {
-            events += "in:$textDelta"
-        }
-        override fun onOutputTranscript(textDelta: String) {
-            events += "out:$textDelta"
-        }
-        override fun onAudio(pcm24k: ByteArray) {
-            events += "audio:${pcm24k.size}"
-        }
-        override fun onTurnComplete() {
-            events += "turnComplete"
-        }
-        override fun onInterrupted() {
-            events += "interrupted"
-        }
-        override fun onModelGenerating() {
-            events += "generating"
-        }
-        override fun onToolCall(calls: List<FunctionCall>) {
-            events += "toolCall:${calls.map { it.name }}"
-        }
-        override fun onToolCancel(ids: List<String>) {
-            events += "toolCancel:$ids"
-        }
-        override fun onServerClosingSoon(graceMs: Long) {
-            events += "closingSoon:$graceMs"
-        }
-        override fun onError(error: BackendError) {
-            events += when (error) {
-                is BackendError.Transport -> "transport:${error.detail}"
-                is BackendError.Server -> "server:${error.message}"
-            }
-        }
-        override fun onClosed() {
-            events += "closed"
+        val events = mutableListOf<BackendEvent>()
+        override fun onEvent(event: BackendEvent) {
+            events += event
         }
     }
+
+    // The events the test wire format decodes its tags into, and the transport's own.
+    private val ready = BackendEvent.Ready
+    private val generating = BackendEvent.ModelGenerating
+    private val audio4 = BackendEvent.Audio(ByteArray(4))
+    private val turnComplete = BackendEvent.TurnComplete
+    private val closed = BackendEvent.Closed
+
+    private fun transportFailure(detail: String) = BackendEvent.Failed(BackendError.Transport(detail))
 
     private val listener = RecordingListener()
     private var dials = 0
@@ -161,12 +139,12 @@ class WebSocketVoiceBackendTest {
         val backend = opened()
         socketListener.onMessage(socket, "ready")
         backend.sendOneOfEach()
-        assertEquals(listOf("ready"), listener.events)
+        assertEquals(listOf(ready), listener.events)
         assertEquals(listOf("setup", "bin:8", "text:hi", "tools:[a]"), socket.sent)
     }
 
     @Test
-    fun `every backend event is relayed to its callback, in order`() {
+    fun `every backend event is handed on as is, in order`() {
         opened()
         socketListener.onMessage(
             socket,
@@ -174,17 +152,17 @@ class WebSocketVoiceBackendTest {
         )
         assertEquals(
             listOf(
-                "ready",
-                "in:hi",
-                "generating",
-                "toolCall:[portal.get_time]",
-                "toolCancel:[a]",
-                "out:hello",
-                "audio:4",
-                "interrupted",
-                "closingSoon:5000",
-                "turnComplete",
-                "server:boom",
+                ready,
+                BackendEvent.InputTranscript("hi"),
+                generating,
+                BackendEvent.ToolCall(listOf(TestWireFormat.CALL)),
+                BackendEvent.ToolCancel(listOf("a")),
+                BackendEvent.OutputTranscript("hello"),
+                audio4,
+                BackendEvent.Interrupted,
+                BackendEvent.ClosingSoon(5_000),
+                turnComplete,
+                BackendEvent.Failed(BackendError.Server("boom")),
             ),
             listener.events,
         )
@@ -195,31 +173,28 @@ class WebSocketVoiceBackendTest {
         opened()
         socketListener.onMessage(socket, "ready,generating")
         socketListener.onMessage(socket, ByteString.of(*ByteArray(6)))
-        assertEquals(listOf("ready", "generating", "audio:6"), listener.events)
+        assertEquals(listOf(ready, generating, BackendEvent.Audio(ByteArray(6))), listener.events)
     }
 
     @Test
     fun `model generating is reported once before the first audio of a turn`() {
         opened()
         socketListener.onMessage(socket, "ready,audio,audio")
-        assertEquals(listOf("ready", "generating", "audio:4", "audio:4"), listener.events)
+        assertEquals(listOf(ready, generating, audio4, audio4), listener.events)
     }
 
     @Test
     fun `no extra model generating when the wire format already reported it`() {
         opened()
         socketListener.onMessage(socket, "ready,generating,audio")
-        assertEquals(listOf("ready", "generating", "audio:4"), listener.events)
+        assertEquals(listOf(ready, generating, audio4), listener.events)
     }
 
     @Test
     fun `every turn gets the first-audio guarantee after turn complete`() {
         opened()
         socketListener.onMessage(socket, "ready,audio,turnComplete,audio")
-        assertEquals(
-            listOf("ready", "generating", "audio:4", "turnComplete", "generating", "audio:4"),
-            listener.events,
-        )
+        assertEquals(listOf(ready, generating, audio4, turnComplete, generating, audio4), listener.events)
     }
 
     @Test
@@ -228,7 +203,7 @@ class WebSocketVoiceBackendTest {
         socketListener.onMessage(socket, "ready")
         socketListener.onFailure(socket, IOException("connection reset"), null)
         backend.sendOneOfEach()
-        assertEquals(listOf("ready", "transport:Test connection failed: connection reset"), listener.events)
+        assertEquals(listOf(ready, transportFailure("Test connection failed: connection reset")), listener.events)
         assertEquals(listOf("setup"), socket.sent)
     }
 
@@ -236,7 +211,7 @@ class WebSocketVoiceBackendTest {
     fun `a failure with no message names the exception`() {
         opened()
         socketListener.onFailure(socket, IOException(), null)
-        assertEquals(listOf("transport:Test connection failed: IOException"), listener.events)
+        assertEquals(listOf(transportFailure("Test connection failed: IOException")), listener.events)
     }
 
     @Test
@@ -246,7 +221,7 @@ class WebSocketVoiceBackendTest {
         socketListener.onFailure(socket, IOException("x"), null)
         socketListener.onMessage(socket, "audio")
         assertEquals(
-            listOf("ready", "generating", "transport:Test connection failed: x", "generating", "audio:4"),
+            listOf(ready, generating, transportFailure("Test connection failed: x"), generating, audio4),
             listener.events,
         )
     }
@@ -258,7 +233,7 @@ class WebSocketVoiceBackendTest {
         socketListener.onClosed(socket, 1000, "bye")
         backend.sendOneOfEach()
         socketListener.onMessage(socket, "audio")
-        assertEquals(listOf("ready", "generating", "closed", "generating", "audio:4"), listener.events)
+        assertEquals(listOf(ready, generating, closed, generating, audio4), listener.events)
         assertEquals(listOf("setup"), socket.sent)
     }
 
@@ -267,7 +242,7 @@ class WebSocketVoiceBackendTest {
         opened()
         socketListener.onClosing(socket, 4000, "key rejected")
         socketListener.onClosed(socket, 4000, "key rejected")
-        assertEquals(listOf("server:key rejected", "closed"), listener.events)
+        assertEquals(listOf(BackendEvent.Failed(BackendError.Server("key rejected")), closed), listener.events)
     }
 
     @Test
@@ -275,7 +250,7 @@ class WebSocketVoiceBackendTest {
         opened()
         socketListener.onClosing(socket, 1011, "internal")
         socketListener.onClosed(socket, 1011, "internal")
-        assertEquals(listOf("closed"), listener.events)
+        assertEquals(listOf(closed), listener.events)
     }
 
     @Test
@@ -288,8 +263,8 @@ class WebSocketVoiceBackendTest {
     @Test
     fun `a malformed address gives one transport failure and never dials`() {
         transport(address = "not an address").connect()
-        assertEquals(1, listener.events.size)
-        assertEquals(true, listener.events.single().startsWith("transport:Test connection failed: "))
+        val failure = (listener.events.single() as BackendEvent.Failed).error as BackendError.Transport
+        assertEquals(true, failure.detail.startsWith("Test connection failed: "))
         assertEquals(0, dials)
     }
 
@@ -313,7 +288,7 @@ class WebSocketVoiceBackendTest {
         socketListener.onOpen(socket, openResponse(socket.request()))
         backend.sendOneOfEach()
         socketListener.onMessage(socket, "audio")
-        assertEquals(listOf("ready", "generating", "generating", "audio:4"), listener.events)
+        assertEquals(listOf(ready, generating, generating, audio4), listener.events)
         assertEquals(listOf("setup"), socket.sent)
     }
 

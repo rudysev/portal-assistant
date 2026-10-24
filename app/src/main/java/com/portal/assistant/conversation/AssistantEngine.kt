@@ -7,6 +7,7 @@ import android.os.SystemClock
 import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.BackendError
+import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.tools.ToolRunner
@@ -145,7 +146,7 @@ class AssistantEngine(context: Context, private val backendChoice: Backends.Choi
 
             is Opening -> decision
         }
-        // Sent as the first user turn once the socket is ready (a tapped suggestion); see onReady.
+        // Sent as the first user turn once the socket is ready (a tapped suggestion); see onBackendEvent.
         pendingInitialText = opening.firstText
         when (val seed = opening.transcriptSeed) {
             is TranscriptSeed.Resume -> {
@@ -165,7 +166,7 @@ class AssistantEngine(context: Context, private val backendChoice: Backends.Choi
         // Lead with the two real-latency operations — the WebSocket handshake (the connect long pole) and the
         // AudioRecord open — so the synchronous player setup below (~27 ms of AudioTrack alloc + writer thread)
         // overlaps the network round-trip instead of delaying it. Playback isn't needed until the model speaks
-        // (long after Ready), and nothing reads `player` before it's started — onAudio can't fire pre-Ready,
+        // (long after Ready), and nothing reads `player` before it's started — no audio can arrive pre-Ready,
         // onFrame never touches it — so starting it after connect()/mic is safe.
         backend = backendChoice.factory.create(opening.backendConfig, backendListener).also { it.connect() }
         if (!opening.listeningTonePlays) {
@@ -237,87 +238,66 @@ class AssistantEngine(context: Context, private val backendChoice: Backends.Choi
         }
     }
 
-    // Implements every VoiceBackend.Listener callback (see the reason on that interface).
-    @Suppress("TooManyFunctions")
-    private val backendListener = object : VoiceBackend.Listener {
-        override fun onReady() {
-            handler.post {
-                connectedOk = true
-                dispatch(Event.Ready) // CONNECTING → LISTENING (mic armed)
-                // If a suggestion was tapped, send it now as the first turn (we're LISTENING + setupDone).
-                pendingInitialText?.let { text ->
-                    pendingInitialText = null
-                    sendInitialText(text)
-                }
+    /**
+     * Socket thread. Audio is enqueued on the player right here (latency) before anything is posted; every event,
+     * audio included, then goes to [onBackendEvent] on the handler.
+     */
+    private val backendListener = VoiceBackend.Listener { event ->
+        when (event) {
+            is BackendEvent.Audio -> {
+                lastAudioAtMs = System.currentTimeMillis()
+                player.enqueue(event.pcm24k)
             }
+
+            is BackendEvent.Failed -> DebugLog.log("backend error: ${event.error}")
+
+            is BackendEvent.ClosingSoon -> DebugLog.log("backend closing soon (grace=${event.graceMs}ms)")
+
+            else -> Unit
         }
-        override fun onInputTranscript(textDelta: String) {
-            handler.post {
-                advanceTranscript(Transcript.Event.UserText(textDelta))
-                dispatch(Event.UserSpeaking)
+        handler.post { onBackendEvent(event) }
+    }
+
+    /**
+     * Handler thread. [BackendEventMapping] says what [event] means to the transcript and the reducer; this adds only
+     * what is the engine's own: [connectedOk] and the pending first text on ready, the notice on a failure or close.
+     * (Closing soon maps to nothing: [Event.Disconnected] on the close that follows ends the conversation.)
+     */
+    private fun onBackendEvent(event: BackendEvent) {
+        when (event) {
+            BackendEvent.Ready -> connectedOk = true
+            is BackendEvent.Failed -> postDisconnectNotice(event.error)
+            BackendEvent.Closed -> postDisconnectNotice(backendError = null)
+            else -> Unit
+        }
+        val mapped = BackendEventMapping.map(event, state.phase, player.playedBytes())
+        mapped.transcriptEvent?.let(::advanceTranscript)
+        mapped.conversationEvent?.let(::dispatch)
+        // A tapped suggestion goes as the first turn now that Ready put us in LISTENING with the session set up.
+        if (event == BackendEvent.Ready) {
+            pendingInitialText?.let { text ->
+                pendingInitialText = null
+                sendInitialText(text)
             }
-        }
-        override fun onOutputTranscript(textDelta: String) {
-            handler.post {
-                advanceTranscript(Transcript.Event.JarvisText(textDelta, state.phase))
-                // A belated frame after listening restarted must not enter SPEAKING (and mute the mic) on its own.
-                if (state.phase == Phase.SPEAKING) dispatch(Event.ModelActivity)
-            }
-        }
-        override fun onAudio(pcm24k: ByteArray) {
-            lastAudioAtMs = System.currentTimeMillis()
-            player.enqueue(pcm24k) // enqueue synchronously (low latency)
-            val size = pcm24k.size
-            handler.post {
-                advanceTranscript(Transcript.Event.AudioReceived(size, player.playedBytes()))
-                dispatch(Event.PlaybackBusy)
-            }
-        }
-        override fun onTurnComplete() = post(Event.TurnComplete)
-        override fun onInterrupted() {
-            handler.post {
-                advanceTranscript(Transcript.Event.Interrupted(player.playedBytes()))
-                dispatch(Event.Interrupted)
-            }
-        }
-        override fun onModelGenerating() {
-            post(Event.ModelActivity)
-        }
-        override fun onToolCall(calls: List<FunctionCall>) {
-            handler.post { dispatch(Event.ToolCallReceived(calls)) }
-        }
-        override fun onToolCancel(ids: List<String>) {
-            handler.post { dispatch(Event.ToolCancelled(ids)) }
-        }
-        override fun onServerClosingSoon(graceMs: Long) {
-            DebugLog.log("backend closing soon (grace=${graceMs}ms)") // handled in 2.c; let onClosed end it
-        }
-        override fun onError(error: BackendError) {
-            DebugLog.log("backend error: $error")
-            handler.post { surfaceDisconnect(error) }
-        }
-        override fun onClosed() {
-            handler.post { surfaceDisconnect() }
         }
     }
 
     /**
-     * An error or close from the socket. A *normal* end (user went silent) sets [ended] before it closes the
+     * A failure or close from the socket. A *normal* end (user went silent) sets [ended] before it closes the
      * socket, so reaching here with `ended == false` means the connection dropped on us unexpectedly — show a
-     * banner before letting [Event.Disconnected] tear the conversation down. (When `ended` is already true this
-     * is just our own teardown closing the socket; [dispatch] ignores the event and we post nothing.)
+     * banner before the mapped [Event.Disconnected] tears the conversation down. (When `ended` is already true this
+     * is just our own teardown closing the socket; we post nothing and [dispatch] ignores the event.)
      *
-     * Double-fire safe: an error can be followed by a close (a server close reason reports onError, then onClosed).
+     * Double-fire safe: a failure can be followed by a close (a server close reason reports Failed, then Closed).
      * The first posts the notice and ends the turn (so `ended` flips true); the second sees `ended == true` → posts
      * nothing and its dispatch no-ops.
      * (Even a redundant post would be idempotent — [ConversationHub.notice] is a StateFlow that drops an
      * equal value.)
      */
-    private fun surfaceDisconnect(backendError: BackendError? = null) {
+    private fun postDisconnectNotice(backendError: BackendError?) {
         if (!ended) {
             ConversationHub.postNotice(userDisconnectNotice(backendError))
         }
-        dispatch(Event.Disconnected)
     }
 
     private fun userDisconnectNotice(backendError: BackendError?): String = DisconnectNotice.message(
@@ -342,10 +322,6 @@ class AssistantEngine(context: Context, private val backendChoice: Backends.Choi
     }
 
     // ---- orchestration (main thread) ---------------------------------------------------------------
-
-    private fun post(event: Event) {
-        handler.post { dispatch(event) }
-    }
 
     private fun dispatch(event: Event) {
         if (ended) return

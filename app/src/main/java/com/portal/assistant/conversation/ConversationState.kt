@@ -37,10 +37,10 @@ sealed interface Event {
 
     /**
      * Model-side activity proving the turn is not wedged (generating, tool pass, output transcript
-     * while already speaking). LISTENING → enter SPEAKING (and arm the dead-air stall) — the engine
-     * posts this enter path from model-generating / tool calls only, never from a standalone
-     * output-transcript frame (it posts one only while already SPEAKING); SPEAKING → re-arm only while
-     * playback is idle and no tools are in flight (see [stallDecision]).
+     * while already speaking). LISTENING → enter SPEAKING (and arm the dead-air stall) — only from
+     * model-generating / tool calls, never from a standalone output-transcript frame: [BackendEventMapping]
+     * enforces that, mapping an output transcript to this only while already SPEAKING; SPEAKING → re-arm only
+     * while playback is idle and no tools are in flight (see [stallDecision]).
      */
     data object ModelActivity : Event
 
