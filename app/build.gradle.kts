@@ -120,3 +120,17 @@ detekt {
 // rather than unhooked from `check`, so this holds however the plugin wires it.
 tasks.named("detekt") { enabled = false }
 tasks.check { dependsOn("detektMain", "detektTest") }
+
+// The plugin's variant detekt classpath (the Kotlin compile classpath) lacks BuildConfig, which javac compiles, so
+// type resolution reports it unresolved ("compiler errors found during analysis"). The plugin sets the classpath only
+// as a convention, which any from() discards, so restate it in full: Kotlin libraries plus the variant's javac classes.
+listOf("Debug", "Release").forEach { variant ->
+  tasks.matching { it.name == "detekt$variant" }.configureEach {
+    val kotlinc = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compile${variant}Kotlin")
+    val javac = tasks.named<JavaCompile>("compile${variant}JavaWithJavac")
+    (this as dev.detekt.gradle.Detekt).classpath.setFrom(
+      kotlinc.map { it.libraries },
+      javac.flatMap { it.destinationDirectory },
+    )
+  }
+}
