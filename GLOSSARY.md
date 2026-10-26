@@ -54,8 +54,16 @@ _Avoid_: Goodbye (that's only one way to ask), fast-exit, hang-up, last turn
 
 **Music command**:
 A request to start or steer playback: play something, resume, pause, skip, go back, set repeat. Asking what's
-playing is not one; it expects an answer.
+playing is not one; it expects an answer. During a conversation the music is under a **Hush**; a pause
+outlasts it.
 _Avoid_: Media command (too broad), music request
+
+**Hush**:
+Other apps' audio (music, videos) going quiet for the length of a conversation, so the mic hears only the user.
+It starts when the conversation starts — whatever its trigger — and lifts when it ends, however it ends; each app
+then resumes on its own. A pause music command during a conversation outlasts the hush: that app stays paused.
+Best effort: an app that ignores it keeps playing, and the conversation runs the same either way.
+_Avoid_: Mute, pause, duck, audio focus (that's how, not what)
 
 **Transcript**:
 The conversation's turns as shown on screen, in words. While Jarvis is speaking, its turn appears word by word
