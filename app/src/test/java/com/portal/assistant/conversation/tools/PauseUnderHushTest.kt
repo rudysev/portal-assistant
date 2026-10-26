@@ -43,6 +43,18 @@ class PauseUnderHushTest {
         assertSame(inner.result, result)
     }
 
+    @Test fun aPauseWhoseKeptPauseIsDeniedGoesToTheMediaSession() {
+        val deniedHush = FakeHush(held = true, keepPausedGranted = false)
+        val args = JSONObject().put("action", "pause")
+
+        val result = PauseUnderHush(inner, deniedHush).invoke(args)
+
+        assertEquals(1, deniedHush.keepPausedCalls)
+        assertEquals(1, inner.calls)
+        assertSame(args, inner.lastArgs)
+        assertSame(inner.result, result)
+    }
+
     @Test fun everyOtherActionUnderAHeldHushPassesThrough() {
         listOf("next", "previous", "play", "resume", "skip", "back").forEach { action ->
             PauseUnderHush(inner, hush).invoke(JSONObject().put("action", action))
