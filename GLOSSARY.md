@@ -54,8 +54,7 @@ _Avoid_: Goodbye (that's only one way to ask), fast-exit, hang-up, last turn
 
 **Music command**:
 A request to start or steer playback: play something, resume, pause, skip, go back, set repeat. Asking what's
-playing is not one;
-it expects an answer.
+playing is not one; it expects an answer.
 _Avoid_: Media command (too broad), music request
 
 **Transcript**:
