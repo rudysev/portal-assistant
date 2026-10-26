@@ -166,7 +166,7 @@ class AssistantService : Service() {
                 Class.forName("com.portal.assistant.local.LocalBackend")
                 Class.forName("com.portal.assistant.local.LocalWireFormat")
                 Class.forName("com.portal.assistant.conversation.AssistantEngine")
-                Class.forName("com.portal.assistant.audio.MicCapture")
+                Class.forName("com.portal.commons.PcmCapture")
                 Class.forName("com.portal.assistant.audio.PcmPlayer")
                 Backends.warmDns(applicationContext)
                 LocationProvider.refreshIfStale(applicationContext) // cache IP-geo
