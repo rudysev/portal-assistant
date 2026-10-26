@@ -5,6 +5,7 @@ import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AfterSpeech
 import com.portal.assistant.conversation.tools.EndConversationTool
+import com.portal.assistant.conversation.tools.FinalTurnOnSuccess
 import com.portal.assistant.conversation.tools.FinalTurnRequests
 import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
@@ -43,6 +44,7 @@ class AssistantEngineTest {
             toolRunnersBuilt++
             val finalTurn = FinalTurnRequests(requestFinalTurn)
             toolSet.builtIns += EndConversationTool(finalTurn::request)
+            toolSet.builtIns += FinalTurnOnSuccess(MusicCommand(), finalTurn::request)
             ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver, finalTurn)
         },
         onEnded = { ends++ },
@@ -82,7 +84,7 @@ class AssistantEngineTest {
         assertEquals("Jarvis isn’t set up yet — a Gemini API key is missing.", refusal?.notice)
         assertEquals(0, toolRunnersBuilt)
         assertTrue(backends.built.isEmpty())
-        assertTrue(log.isEmpty()) // no mic, no player, no teardown
+        assertTrue(log.isEmpty()) // no hush, no mic, no player, no teardown
         assertTrue(sink.starts.isEmpty())
         assertEquals(0, ends)
     }
@@ -112,21 +114,42 @@ class AssistantEngineTest {
     @Test fun connectsBeforeOpeningTheMicAndStartsThePlayerLast() {
         engine().start(Trigger.WakeWord("jarvis"))
 
-        assertEquals(listOf("connect", "mic open", "player start"), log)
+        assertEquals(listOf("connect", "hush start", "mic open", "player start"), log)
     }
 
     @Test fun theListeningTonePlaysAtTheMicOpenWhenTheOpeningSaysSo() {
         reads.listeningToneEnabled = true
         engine().start(Trigger.WakeWord("jarvis"))
 
-        assertEquals(listOf("connect", "mic open", "tone", "player start"), log)
+        assertEquals(listOf("connect", "hush start", "mic open", "tone", "player start"), log)
     }
 
     @Test fun aSuggestionChipPlaysNoToneEvenWithTheSettingOn() {
         reads.listeningToneEnabled = true
         engine().start(Trigger.SuggestionChip("What's the weather?"))
 
-        assertEquals(listOf("connect", "mic open", "player start"), log)
+        assertEquals(listOf("connect", "hush start", "mic open", "player start"), log)
+    }
+
+    @Test fun everyTriggerStartsTheHushBeforeTheMicOpensAndTheTonePlays() {
+        reads.listeningToneEnabled = true
+        val onScreen = listOf(Turn(Role.USER, "set a timer"), Turn(Role.MODEL, "Done."))
+        val opens: List<Pair<Trigger, List<Turn>>> = listOf(
+            Trigger.WakeWord("jarvis") to emptyList(),
+            Trigger.MicTap to emptyList(),
+            Trigger.SuggestionChip("What's the weather?") to emptyList(),
+            Trigger.MicTap to onScreen, // a resume
+        )
+
+        opens.forEach { (trigger, turnsOnScreen) ->
+            reads.onScreenTurns = turnsOnScreen
+            log.clear()
+            engine().start(trigger)
+
+            assertEquals(listOf("hush start"), log.filter { it.startsWith("hush") })
+            val tone = log.indexOf("tone").takeIf { it >= 0 } ?: log.size
+            assertTrue(log.indexOf("hush start") < minOf(log.indexOf("mic open"), tone))
+        }
     }
 
     // ---- a suggestion chip's text ----------------------------------------------------------------------------------
@@ -510,6 +533,89 @@ class AssistantEngineTest {
         assertTrue(clock.timersDueAt.isEmpty())
     }
 
+    // ---- the hush ------------------------------------------------------------------------------------------------
+
+    /** The hush was lifted exactly once, after the mic closed, and nothing after the end lifts it again. */
+    private fun assertHushLiftedOnceAfterTheMic(conversation: AssistantEngine) {
+        conversation.stop()
+        emit(BackendEvent.Closed)
+        clock.advanceBy(NO_SPEECH_MS * 2)
+
+        assertEquals(listOf("hush start", "hush lift"), log.filter { it.startsWith("hush") })
+        assertTrue(log.indexOf("mic close") < log.indexOf("hush lift"))
+    }
+
+    /** Jarvis says a sign-off of [bytes] and the model completes its turn, then the player drains it. */
+    private fun signOff(bytes: Int = 4_800) {
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(bytes)))
+        emit(BackendEvent.TurnComplete)
+        audio.drained(bytes = bytes.toLong())
+        clock.runPosted()
+    }
+
+    @Test fun silenceLiftsTheHush() {
+        val conversation = listening()
+        clock.advanceBy(NO_SPEECH_MS)
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun aGoodbyeLiftsTheHush() {
+        val conversation = listening()
+        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.end_conversation", JSONObject()))))
+        signOff()
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun aMusicCommandsFinalTurnLiftsTheHush() {
+        val conversation = listening()
+        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.media_control", JSONObject()))))
+        signOff()
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun aStalledFinalTurnLiftsTheHush() {
+        val conversation = listening()
+        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.end_conversation", JSONObject()))))
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(4_800)))
+        audio.drained(bytes = 4_800) // played out, but the model never completes the turn
+        clock.advanceBy(STALL_MS)
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun aBackendFailureLiftsTheHush() {
+        val conversation = listening()
+        emit(BackendEvent.Failed(TRANSPORT_FAILURE))
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun aBackendCloseLiftsTheHush() {
+        val conversation = listening()
+        emit(BackendEvent.Closed)
+
+        assertEquals(1, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
+    @Test fun stopLiftsTheHush() {
+        val conversation = listening()
+        conversation.stop()
+
+        assertEquals(0, ends)
+        assertHushLiftedOnceAfterTheMic(conversation)
+    }
+
     private companion object {
         const val START_MS = 1_000_000L
         const val NO_SPEECH_MS = 5_000L
@@ -518,6 +624,7 @@ class AssistantEngineTest {
         val TRANSPORT_FAILURE = BackendError.Transport("Live connection failed: Unable to resolve host")
         val REJECTED_KEY = BackendError.Server("API key not valid. Please pass a valid API key.")
 
-        val TEARDOWN = listOf("tools disposed", "mic close", "backend close", "player stop", "bar hide", "hub idle")
+        val TEARDOWN =
+            listOf("tools disposed", "mic close", "hush lift", "backend close", "player stop", "bar hide", "hub idle")
     }
 }

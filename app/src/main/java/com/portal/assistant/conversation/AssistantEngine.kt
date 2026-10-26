@@ -10,10 +10,10 @@ import java.util.concurrent.Executor
 
 /**
  * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], the [ToolRunner] and the two
- * timers, drives the mic, player and tone ([EngineAudio]) and the UI ([ConversationSink]), and runs the conversation
- * as an ongoing multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens for a
- * follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on error. Every mic
- * frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later milestone.)
+ * timers, drives the mic, player, tone and hush ([EngineAudio]) and the UI ([ConversationSink]), and runs the
+ * conversation as an ongoing multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens
+ * for a follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on error. Every
+ * mic frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later milestone.)
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the [EngineClock]'s thread (the main
  * looper in production): the backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the
@@ -173,6 +173,9 @@ class AssistantEngine(
         // Built before mic.start() spawns the capture thread, so its initial state is visible to it. With the tone
         // on, the gate starts with it pending: from the first frame nothing is sent until the tone has started.
         val gate = MicGate(opening.voiceQuery, opening.listeningTonePlays).also { micGate = it }
+        // Other apps' audio goes quiet before the mic opens and the tone plays. Best effort: whether the hush is held
+        // is never read here, so a denied or lost hush changes nothing about how the conversation runs or ends.
+        audio.startHush()
         audio.openMic { pcm, length -> onFrame(gate, pcm, length) }
         if (opening.listeningTonePlays) playListeningTone(gate)
         audio.startPlayer(
@@ -453,6 +456,7 @@ class AssistantEngine(
         clock.cancel(stallTimer)
         toolRunner?.dispose() // interrupt running tools; drop deferred mute / DND-enable; deliver no more results
         runCatching { audio.closeMic() }
+        runCatching { audio.liftHush() } // after the mic closes, on every ending: other apps' audio comes back
         runCatching { backend?.close() }
         backend = null
         audio.stopPlayer()

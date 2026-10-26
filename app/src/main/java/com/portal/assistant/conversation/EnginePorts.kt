@@ -25,8 +25,14 @@ interface EngineClock {
     fun cancel(task: Runnable)
 }
 
-/** The conversation's mic, its player and the Listening tone. */
+/** The conversation's mic, its player, the Listening tone and the hush on other apps' audio. */
 interface EngineAudio {
+    /** Put other apps' audio under the conversation's hush; best effort, a denied hush changes nothing. */
+    fun startHush()
+
+    /** Let other apps' audio come back; a no-op once the hush is no longer held. */
+    fun liftHush()
+
     /** Open the mic; [onFrame] runs on the capture thread until [closeMic]. */
     fun openMic(onFrame: (pcm: ByteArray, length: Int) -> Unit)
 

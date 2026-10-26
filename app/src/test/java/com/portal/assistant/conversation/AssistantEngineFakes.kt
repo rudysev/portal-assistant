@@ -64,7 +64,7 @@ class SteppedClock(var nowMs: Long) : EngineClock {
     fun advanceBy(deltaMs: Long) = advanceTo(nowMs + deltaMs)
 }
 
-/** The mic, player and tone. [frame] plays the capture thread; [drained] and [played] the playback thread. */
+/** The mic, the hush, player and tone. [frame] plays the capture thread; [drained] and [played] the playback thread. */
 class FakeAudio(private val log: MutableList<String>) : EngineAudio {
     private var onFrame: ((ByteArray, Int) -> Unit)? = null
     private var onDrained: (() -> Unit)? = null
@@ -82,6 +82,14 @@ class FakeAudio(private val log: MutableList<String>) : EngineAudio {
     override fun closeMic() {
         log += "mic close"
         onFrame = null
+    }
+
+    override fun startHush() {
+        log += "hush start"
+    }
+
+    override fun liftHush() {
+        log += "hush lift"
     }
 
     override fun startPlayer(onDrained: () -> Unit, onLevel: (level: Float) -> Unit) {
@@ -270,6 +278,15 @@ class FakeToolSet(private val log: MutableList<String>) : ToolSet {
     override fun dispose() {
         log += "tools disposed"
     }
+}
+
+/** `portal.media_control` as a music command that worked: wrapped in a final turn by the test's tool runner. */
+class MusicCommand : Tool {
+    override val name: String = "portal.media_control"
+
+    override val declaration: JSONObject = JSONObject().put("name", name)
+
+    override fun invoke(args: JSONObject): JSONObject = JSONObject().put("ok", true)
 }
 
 /** The `tool-exec` thread: a call runs the moment it is handed over, unless [holding] keeps it queued unstarted. */
