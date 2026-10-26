@@ -165,10 +165,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media session (no
   notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
   other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through. `HushedFlag`
-  wraps `now_playing`: while the hush is held and not kept paused, the result gains `"hushed": true`, and the
-  description tells the model to describe the track as playing. Both pure, tested with a fake `Hush`
-  (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and
-  `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
+  wraps `now_playing`: while the hush is held and not kept paused, a found track reports `"playing": true` with
+  `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a gen2). Both pure, tested
+  with a fake `Hush` (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`,
+  `toolResults` and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production

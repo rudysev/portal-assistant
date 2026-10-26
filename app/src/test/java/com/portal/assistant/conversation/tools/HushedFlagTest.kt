@@ -7,18 +7,20 @@ import org.junit.Test
 
 /**
  * Pure JVM tests for the hushed flag: while the hush is held (and not kept paused), now-playing says the app is
- * paused only by the hush, so the model describes the track as playing.
+ * paused only by the hush, so it reports the track as playing and the model describes it that way.
  */
 class HushedFlagTest {
 
     private val hush = FakeHush(held = true)
-    private val inner = FixedTool(JSONObject().put("playing", false).put("title", "One More Time"))
+    private val inner = FixedTool(
+        JSONObject().put("playing", false).put("app", "Spotify").put("title", "One More Time"),
+    )
 
-    @Test fun nowPlayingUnderAHeldHushIsFlaggedHushed() {
+    @Test fun nowPlayingUnderAHeldHushReportsTheTrackPlayingAndHushed() {
         val result = HushedFlag(inner, hush).invoke(JSONObject())
 
         assertEquals(true, result.getBoolean("hushed"))
-        assertEquals(false, result.getBoolean("playing"))
+        assertEquals(true, result.getBoolean("playing"))
         assertEquals("One More Time", result.getString("title"))
     }
 
@@ -27,7 +29,8 @@ class HushedFlagTest {
 
         val result = HushedFlag(inner, hush).invoke(JSONObject())
 
-        assertEquals(setOf("playing", "title"), result.keys().asSequence().toSet())
+        assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
     }
 
     @Test fun nowPlayingAfterAKeptPauseIsUnchanged() {
@@ -35,7 +38,21 @@ class HushedFlagTest {
 
         val result = HushedFlag(inner, hush).invoke(JSONObject())
 
-        assertEquals(setOf("playing", "title"), result.keys().asSequence().toSet())
+        assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
+    }
+
+    @Test fun noSessionFoundUnderAHeldHushIsUnchanged() {
+        val result = HushedFlag(FixedTool(JSONObject().put("playing", false)), hush).invoke(JSONObject())
+
+        assertEquals(setOf("playing"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
+    }
+
+    @Test fun anErrorUnderAHeldHushIsUnchanged() {
+        val result = HushedFlag(FixedTool(JSONObject().put("error", "no access")), hush).invoke(JSONObject())
+
+        assertEquals(setOf("error"), result.keys().asSequence().toSet())
     }
 
     @Test fun nameAndDeclarationPassThrough() {
