@@ -1,6 +1,7 @@
 package com.portal.assistant.conversation.tools
 
 import android.content.Context
+import com.portal.assistant.audio.Hush
 import com.portal.commons.DebugLog
 import org.json.JSONObject
 
@@ -15,7 +16,7 @@ import org.json.JSONObject
  * uses the same external-provider parse snapshot for the session system instruction.
  * [invoke] is called on the tool-executor thread, may block (HTTP / cross-process call), must not touch UI.
  */
-class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn: () -> Unit) : ToolSet {
+class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn: () -> Unit, hush: Hush) : ToolSet {
     private val appContext = context.applicationContext
     private val timerScheduler = TimerScheduler(appContext)
     private val volume = VolumeController(appContext, afterSpeech)
@@ -27,7 +28,8 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
     private val external = ExternalToolProvider(appContext)
 
     // The **music commands** (play_music, media_control, set_repeat) are wrapped where they're built: one that
-    // works makes its turn final. Not now_playing: it expects an answer.
+    // works makes its turn final. Not now_playing: it expects an answer. The hush decorators sit inside: a pause under
+    // the hush is kept past it (and is a working music command); now_playing flags a hushed track.
     private val tools: List<Tool> = listOf(
         GetTimeTool,
         SetTimerTool(timerScheduler),
@@ -42,9 +44,9 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
         AdjustBrightnessTool(brightness),
         GetDoNotDisturbTool(dnd),
         SetDoNotDisturbTool(dnd),
-        FinalTurnOnSuccess(MediaControlTool(media), requestFinalTurn),
+        FinalTurnOnSuccess(PauseUnderHush(MediaControlTool(media), hush), requestFinalTurn),
         FinalTurnOnSuccess(SetRepeatTool(media), requestFinalTurn),
-        NowPlayingTool(media),
+        HushedFlag(NowPlayingTool(media), hush),
         FinalTurnOnSuccess(PlayMusicTool(music), requestFinalTurn),
         OpenAppTool(appLauncher),
         EndConversationTool(requestFinalTurn),
