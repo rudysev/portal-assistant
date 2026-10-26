@@ -21,8 +21,8 @@ import java.util.concurrent.Executor
  * thing off this thread is the hot audio path: mic frames go straight to the socket and audio chunks straight to
  * the player (both thread-safe), to keep latency low.
  *
- * Lifecycle: [start] connects + opens the mic; the conversation ends itself (the user goes silent or
- * an error) via the [Action.End] action, which tears everything down and calls [onEnded] so the
+ * Lifecycle: [start] connects + opens the mic; the conversation ends itself (the user goes silent, a final turn
+ * or an error) via the [Action.End] action, which tears everything down and calls [onEnded] so the
  * service can return to standby (mic released, so portal-wake reclaims by detection).
  *
  * Every collaborator comes in through the constructor (the role ports in EnginePorts.kt, the backend through
@@ -39,7 +39,7 @@ class AssistantEngine(
     private val audio: EngineAudio,
     private val sink: ConversationSink,
     private val openingReads: OpeningReads,
-    private val toolRunners: (deliver: Executor) -> ToolRunner,
+    private val toolRunners: (deliver: Executor, requestFinalTurn: () -> Unit) -> ToolRunner,
     private val onEnded: () -> Unit,
 ) : Conversation {
     private val stallMs: Long = backendChoice.factory.deadAirStallMs
@@ -124,7 +124,10 @@ class AssistantEngine(
             ended = true
             return refusal
         }
-        val conversationTools = toolRunners(Executor { clock.post(it) })
+        // A tool's final-turn request is posted before its batch's results (both on this thread, in that order).
+        val conversationTools = toolRunners(Executor { clock.post(it) }) {
+            clock.post { dispatch(Event.FinalTurnRequested) }
+        }
         toolRunner = conversationTools
         val inputs = OpeningInputs(
             backendChoice = backendChoice,

@@ -32,8 +32,8 @@ _Avoid_: Default speaker, Puck (not known to be Gemini's default), none
 ### Conversation
 
 **Conversation**:
-One exchange with Jarvis, from its trigger until the user goes silent or the connection drops. Multi-turn: after
-each answer Jarvis listens again for a follow-up. At most one conversation runs at a time.
+One exchange with Jarvis, from its trigger until the user goes silent, asks to end it, or the connection drops.
+Multi-turn: after each answer Jarvis listens again for a follow-up. At most one conversation runs at a time.
 _Avoid_: Session, turn (a turn is one side's part of a conversation)
 
 **Turn**:
@@ -46,6 +46,11 @@ The moment Jarvis's turn is over: the voice backend has finished the answer, all
 every action it asked for (a timer, a volume change) has been carried out — whichever of those happens last.
 Only then does Jarvis listen again (or the conversation end).
 _Avoid_: Turn complete (that's only the voice backend's part), done
+
+**Final turn**:
+A Jarvis turn after which the conversation ends at turn end instead of Jarvis listening again — because the user
+asked to end it. Jarvis still finishes speaking it.
+_Avoid_: Goodbye (that's only one way to ask), fast-exit, hang-up, last turn
 
 **Transcript**:
 The conversation's turns as shown on screen, in words. While Jarvis is speaking, its turn appears word by word

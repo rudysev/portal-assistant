@@ -104,11 +104,14 @@ class ToolRunner(
     }
 
     companion object {
-        /** Production wiring: one after-speech queue, the [ToolRegistry] given it, and the `tool-exec` thread. */
-        fun create(context: Context, deliver: Executor): ToolRunner {
+        /**
+         * Production wiring: one after-speech queue and [requestFinalTurn], the [ToolRegistry] given them, and the
+         * `tool-exec` thread.
+         */
+        fun create(context: Context, deliver: Executor, requestFinalTurn: () -> Unit): ToolRunner {
             val afterSpeech = AfterSpeech()
             return ToolRunner(
-                toolSet = ToolRegistry(context, afterSpeech),
+                toolSet = ToolRegistry(context, afterSpeech, requestFinalTurn),
                 afterSpeech = afterSpeech,
                 toolExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "tool-exec") },
                 deliver = deliver,

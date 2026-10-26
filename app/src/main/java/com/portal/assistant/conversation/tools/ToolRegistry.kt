@@ -15,7 +15,7 @@ import org.json.JSONObject
  * uses the same external-provider parse snapshot for the session system instruction.
  * [invoke] is called on the tool-executor thread, may block (HTTP / cross-process call), must not touch UI.
  */
-class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
+class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn: () -> Unit) : ToolSet {
     private val appContext = context.applicationContext
     private val timerScheduler = TimerScheduler(appContext)
     private val volume = VolumeController(appContext, afterSpeech)
@@ -45,6 +45,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech) : ToolSet {
         NowPlayingTool(media),
         PlayMusicTool(music),
         OpenAppTool(appLauncher),
+        EndConversationTool(requestFinalTurn),
     )
 
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }

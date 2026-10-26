@@ -9,6 +9,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   **no-speech** (release the mic when the user stops; re-armed on transcription) and a **stall
   watchdog** (model took the turn but produced no audio/`turnComplete`). Race-free turn end =
   `turnComplete && playbackIdle && no tools in flight` — replaces the reference app's CAS latch.
+  - **Final turn.** `Event.FinalTurnRequested` (posted by a tool through the `requestFinalTurn` port the engine hands
+    the tool-runner factory, always before that batch's `ToolResultsReady`) sets `ConversationState.finalTurn`; the
+    turn end (normal or stalled) then ends the conversation instead of re-listening. `Interrupted` keeps it. Results
+    sent during a final turn clear `turnComplete` (`awaitsSignOff`): the turn ends on the sign-off's own
+    `turnComplete`, or the stall if the model never replies.
   - **Stall = dead-air clock (arm-on-drain).** The server can stream a long answer's audio *ahead of
     realtime*, so it sits queued in `PcmPlayer` (which paces playback via blocking `AudioTrack` writes). The
     reducer arms/cancels the stall only via `stallDecision(state, event)` (in `conversation/StallDecision.kt`) —
@@ -141,8 +146,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   pure `AppMatch` as `open_app`),
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
-  pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`). Every frame — `setup`, `audio`, `userText`, `toolResults`
-  and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
+  pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
+  to end: makes this turn a **final turn** via `requestFinalTurn`). Every frame — `setup`, `audio`, `userText`,
+  `toolResults` and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production

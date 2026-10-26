@@ -4,6 +4,7 @@ import com.portal.assistant.conversation.backend.BackendError
 import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AfterSpeech
+import com.portal.assistant.conversation.tools.EndConversationTool
 import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
 import org.json.JSONObject
@@ -37,8 +38,9 @@ class AssistantEngineTest {
         audio = audio,
         sink = sink,
         openingReads = reads,
-        toolRunners = { deliver ->
+        toolRunners = { deliver, requestFinalTurn ->
             toolRunnersBuilt++
+            toolSet.builtIns += EndConversationTool(requestFinalTurn)
             ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver)
         },
         onEnded = { ends++ },
@@ -436,6 +438,52 @@ class AssistantEngineTest {
 
         assertTrue(toolSet.invoked.isEmpty())
         assertTrue(backend.toolResponses.isEmpty()) // the model withdrew it: nothing goes back
+    }
+
+    // ---- the final turn --------------------------------------------------------------------------------------------
+
+    @Test fun anEndConversationCallEndsTheConversationOnceTheSignOffHasPlayed() {
+        listening()
+        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.end_conversation", JSONObject()))))
+        assertEquals("call-1", backend.toolResponses.single().single().id)
+
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(4_800)))
+        emit(BackendEvent.TurnComplete)
+        assertEquals(0, ends) // the sign-off is still playing
+        log.clear()
+        audio.drained(bytes = 4_800)
+        clock.runPosted()
+
+        assertEquals(1, ends)
+        assertEquals(TEARDOWN, log) // straight to teardown: the mic never forwards again, the bar never shows
+    }
+
+    @Test fun aFinalTurnRequestIsReducedBeforeItsBatchsResults() {
+        listening()
+        toolExecutor.holding = true
+        emit(
+            BackendEvent.ToolCall(
+                listOf(
+                    FunctionCall("call-1", "portal.get_time", JSONObject()),
+                    FunctionCall("call-2", "portal.end_conversation", JSONObject()),
+                ),
+            ),
+        )
+        emit(BackendEvent.TurnComplete) // nothing plays: the batch's results are the turn's last blocker
+        toolExecutor.holding = false
+        toolExecutor.queued.forEach(Runnable::run)
+        clock.runPosted()
+
+        assertEquals(listOf("call-1", "call-2"), backend.toolResponses.single().map { it.id })
+        assertEquals(ConversationHub.UiPhase.SPEAKING, phase) // waiting for the sign-off, not re-listening
+
+        emit(BackendEvent.ModelGenerating)
+        emit(BackendEvent.Audio(ByteArray(4_800)))
+        emit(BackendEvent.TurnComplete)
+        audio.drained(bytes = 4_800)
+        clock.runPosted()
+        assertEquals(1, ends)
     }
 
     // ---- teardown --------------------------------------------------------------------------------------------------
