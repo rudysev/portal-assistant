@@ -160,7 +160,13 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `FinalTurnOnSuccess` where `ToolRegistry` builds them: a result with neither `error` nor `searchUnsupported` also
   makes the turn final, whatever else the turn held, and gains an `instruction` (briefly confirm, no follow-up
   question); a failed one leaves the conversation open. Either request counts only if its call settles with its own
-  result, not as cancelled (see the Tool runner). Every frame — `setup`, `audio`, `userText`, `toolResults` and
+  result, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush` (passed by
+  `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control` *inside*
+  `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media session (no
+  notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
+  other action, or a pause with no hush held, passes through. `HushedFlag` wraps `now_playing`: while the hush is
+  held and not kept paused, the result gains `"hushed": true`, and the description tells the model to describe the
+  track as playing. Both pure, tested with a fake `Hush` (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and
   `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
