@@ -30,7 +30,7 @@ fun AssistantEngine.Companion.create(
 ): AssistantEngine {
     val appContext = context.applicationContext
     val overlay = RecordingOverlay(appContext)
-    // This conversation's one hush: the engine starts and lifts it through its audio port.
+    // This conversation's one hush: the engine starts and lifts it through its audio port; its tools see it too.
     val hush = AudioFocusHush(appContext)
     return AssistantEngine(
         backendChoice = backendChoice,
@@ -38,7 +38,7 @@ fun AssistantEngine.Companion.create(
         audio = DeviceAudio(hush),
         sink = HubSink(setRecording = overlay::setRecording, inForeground = { UiVisibility.inForeground }),
         openingReads = PrefsOpeningReads(appContext),
-        toolRunners = { deliver, requestFinalTurn -> ToolRunner.create(appContext, deliver, requestFinalTurn) },
+        toolRunners = { deliver, requestFinalTurn -> ToolRunner.create(appContext, deliver, requestFinalTurn, hush) },
         onEnded = onEnded,
     )
 }

@@ -1,6 +1,7 @@
 package com.portal.assistant.conversation.tools
 
 import android.content.Context
+import com.portal.assistant.audio.Hush
 import com.portal.assistant.conversation.FunctionCall
 import com.portal.assistant.conversation.ToolResult
 import org.json.JSONObject
@@ -112,13 +113,14 @@ class ToolRunner(
     companion object {
         /**
          * Production wiring: one after-speech queue and one [FinalTurnRequests] (passing granted requests on to
-         * [requestFinalTurn]), the [ToolRegistry] given them, and the `tool-exec` thread.
+         * [requestFinalTurn]), the [ToolRegistry] given them and the conversation's [hush], and the `tool-exec`
+         * thread.
          */
-        fun create(context: Context, deliver: Executor, requestFinalTurn: () -> Unit): ToolRunner {
+        fun create(context: Context, deliver: Executor, requestFinalTurn: () -> Unit, hush: Hush): ToolRunner {
             val afterSpeech = AfterSpeech()
             val finalTurn = FinalTurnRequests(requestFinalTurn)
             return ToolRunner(
-                toolSet = ToolRegistry(context, afterSpeech, finalTurn::request),
+                toolSet = ToolRegistry(context, afterSpeech, finalTurn::request, hush),
                 afterSpeech = afterSpeech,
                 toolExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "tool-exec") },
                 deliver = deliver,
