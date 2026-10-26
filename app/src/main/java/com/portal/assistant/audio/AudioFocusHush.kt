@@ -54,6 +54,7 @@ class AudioFocusHush(context: Context) : Hush {
     @Synchronized override fun keepPaused() {
         if (!held) return
         val focus = focusRequest(AudioManager.AUDIOFOCUS_GAIN)
+        // Kept even if denied: [lift] abandoning it releases both requests, as focus is keyed by the shared listener.
         request = focus
         keptPaused = audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         DebugLog.log("hush: keep paused (granted=$keptPaused)")
