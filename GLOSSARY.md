@@ -49,8 +49,14 @@ _Avoid_: Turn complete (that's only the voice backend's part), done
 
 **Final turn**:
 A Jarvis turn after which the conversation ends at turn end instead of Jarvis listening again — because the user
-asked to end it. Jarvis still finishes speaking it.
+asked to end it, or because their request expects no reply (a music command). Jarvis still finishes speaking it.
 _Avoid_: Goodbye (that's only one way to ask), fast-exit, hang-up, last turn
+
+**Music command**:
+A request to start or steer playback: play something, resume, pause, skip, go back, set repeat. Asking what's
+playing is not one;
+it expects an answer.
+_Avoid_: Media command (too broad), music request
 
 **Transcript**:
 The conversation's turns as shown on screen, in words. While Jarvis is speaking, its turn appears word by word
