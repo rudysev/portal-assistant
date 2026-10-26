@@ -30,7 +30,7 @@ interface EngineAudio {
     /** Put other apps' audio under the conversation's hush; best effort, a denied hush changes nothing. */
     fun startHush()
 
-    /** Let other apps' audio come back; a no-op once the hush is no longer held. */
+    /** Let other apps' audio come back; idempotent, and a no-op if the hush never started or was already lifted. */
     fun liftHush()
 
     /** Open the mic; [onFrame] runs on the capture thread until [closeMic]. */

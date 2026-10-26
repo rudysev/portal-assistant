@@ -12,8 +12,9 @@ import java.util.concurrent.Executor
  * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], the [ToolRunner] and the two
  * timers, drives the mic, player, tone and hush ([EngineAudio]) and the UI ([ConversationSink]), and runs the
  * conversation as an ongoing multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens
- * for a follow-up, and the conversation ends only when the user goes silent (the no-speech timer) or on error. Every
- * mic frame goes through the conversation's [MicGate]. (A "goodbye" fast-exit is deferred to a later milestone.)
+ * for a follow-up, and the conversation ends when the user goes silent (the no-speech timer), after a final turn
+ * (the user asks to end, or a working music command), or on error. Every mic frame goes through the conversation's
+ * [MicGate].
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the [EngineClock]'s thread (the main
  * looper in production): the backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the
