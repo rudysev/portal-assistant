@@ -75,7 +75,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ConversationSink` (the `ConversationHub` writes and the orange bar) and `OpeningReads` (settings, location,
   on-screen turns, the online check) — plus the `VoiceBackendFactory` (from `Backends.Choice`) and a `ToolRunner`
   factory. `AssistantEngine.create(context, choice, onEnded)` wires the production adapters
-  (`conversation/AndroidEnginePorts.kt`: `MainLooperClock`, `DeviceAudio` over `MicCapture` + `PcmPlayer` +
+  (`conversation/AndroidEnginePorts.kt`: `MainLooperClock`, `DeviceAudio` over one long-lived `PcmCapture` + `PcmPlayer` +
   `ListeningTonePlayer`, `HubSink`, `PrefsOpeningReads`); the service only calls that factory. `HubSink` owns the
   `UiVisibility.inForeground` check, so the engine never sees it. `start(trigger)` asks
   `ConversationOpening.refusalFor` first and returns the `Refusal` with nothing built (no tool runner, no socket, no
@@ -177,7 +177,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   guessing 2.5 s vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
   `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
-  `audio/MicCapture` (16 kHz capture), `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
+  `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
   the local backend's `wss://` socket).
 
 
@@ -193,14 +193,14 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`MicCapture`, `PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
+`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
 `ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
 `TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
 sections, with `SpeakerSettings.kt`, `ConnectionSettings.kt` and the shared `SettingsComponents.kt`),
 `AudioVisualizer`, `theme/` (warm-orange `Theme` + bundled-Inter `Type`), `RecordingOverlay` (the background
 bar) + `UiVisibility` (foreground flag, read only for the orange bar) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
-`com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCaptureSession`/`PcmDevice`, `PcmCaptureFormat`) +
+`com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCapture`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
 shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeDetector` / `WakeDetectors.vosk()` for the
 gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound

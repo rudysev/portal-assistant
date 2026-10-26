@@ -24,7 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Portal Assistant"
 
-// Shared library (DebugLog/PcmLevel/PcmCaptureSession) consumed via composite build — its single source lives
+// Shared library (DebugLog/PcmLevel/PcmCapture) consumed via composite build — its single source lives
 // in the sibling ../portal-commons (pinned by the portal-apps workspace superproject).
 // `implementation("com.portal:commons")` in app/build.gradle.kts is substituted with this included build.
 includeBuild("../portal-commons")

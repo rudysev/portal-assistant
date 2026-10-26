@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import com.portal.assistant.audio.MicCapture
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.ToolRunner
@@ -14,6 +13,10 @@ import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.ui.RecordingOverlay
 import com.portal.assistant.ui.UiVisibility
+import com.portal.commons.DebugLog
+import com.portal.commons.PcmCapture
+import com.portal.commons.audio.AudioRecordPcmDevice
+import com.portal.commons.audio.CaptureLoss
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -53,20 +56,51 @@ internal class MainLooperClock : EngineClock {
     override fun cancel(task: Runnable) = handler.removeCallbacks(task)
 }
 
-/** [EngineAudio] on the handset: a fresh [MicCapture] per open, one [PcmPlayer], the [ListeningTonePlayer]. */
+/**
+ * [EngineAudio] on the handset: one [PcmCapture] for the port's lifetime, one [PcmPlayer], the [ListeningTonePlayer].
+ *
+ * Each [openMic] starts a capture request with a listener bound to that open's frame handler, so frames from an older
+ * request's capture thread never reach a newer one; [closeMic] pauses it, freeing the mic slot before it returns.
+ *
+ * The capture's idle watchdog is on ([PcmCapture.DEFAULT_IDLE_REBUILD_MS]): if the slot is stolen or goes half-dead
+ * mid-conversation (no frame for that long), the device is rebuilt and the mic reacquired in place, otherwise the turn
+ * would go silent until the no-speech timer ends it. The read-error rebuild is off; the idle watchdog already covers
+ * sustained errors and stalls.
+ *
+ * Digital silence rebuilds too: on Portal+ gen1 the system silences our open input when the app leaves the foreground
+ * mid-conversation (Home pressed), and only a reopened mic hears again. [SILENCE_WINDOW_MS] is kept short so the
+ * user's first words after Home aren't lost.
+ *
+ * A capture that dies on its own (the mic won't open, a rebuild fails, the stream stays digitally silent after its
+ * rebuild) is only logged with its [CaptureLoss] cause; the turn then goes quiet until the no-speech timer ends it.
+ *
+ * Caller must hold RECORD_AUDIO. The frame handler runs on the capture thread; keep it cheap and non-blocking.
+ */
 internal class DeviceAudio : EngineAudio {
     private val player = PcmPlayer()
-    private var mic: MicCapture? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mic = PcmCapture(
+        newDevice = ::AudioRecordPcmDevice,
+        postToMain = { mainHandler.post(it) },
+        log = { DebugLog.log(it) },
+        threadName = "assistant-capture",
+        idleRebuildMs = PcmCapture.DEFAULT_IDLE_REBUILD_MS,
+        silenceWindowMs = SILENCE_WINDOW_MS,
+        rebuildOnSilence = true,
+    )
 
     override fun openMic(onFrame: (pcm: ByteArray, length: Int) -> Unit) {
-        mic = MicCapture(onFrame).also { it.start() }
+        mic.start(
+            object : PcmCapture.Listener {
+                override fun onFrame(buf: ByteArray, n: Int) = onFrame(buf, n)
+
+                // A data class: logs the cause and its reason, e.g. "Dropped(reason=…)".
+                override fun onLost(loss: CaptureLoss) = DebugLog.log("mic capture lost: $loss")
+            },
+        )
     }
 
-    override fun closeMic() {
-        val openMic = mic
-        mic = null
-        openMic?.stop()
-    }
+    override fun closeMic() = mic.pause()
 
     override fun startPlayer(onDrained: () -> Unit, onLevel: (level: Float) -> Unit) {
         player.start()
@@ -84,6 +118,12 @@ internal class DeviceAudio : EngineAudio {
 
     override fun playListeningTone(onStarted: (startedAtMs: Long) -> Unit, onFailed: () -> Unit) =
         ListeningTonePlayer.play(onStarted, onFailed)
+
+    private companion object {
+        // Real mics never deliver this long a run of exact zeros (the longest seen on Portal+ gen1 was ~137 ms; see
+        // portal-apps ADR 0002), so a run this long is the system silencing us.
+        const val SILENCE_WINDOW_MS = 500L
+    }
 }
 
 /**

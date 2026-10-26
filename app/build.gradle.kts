@@ -59,7 +59,7 @@ kotlin {
 tasks.check { dependsOn("lintRelease") }
 
 dependencies {
-  // Shared utilities (DebugLog/PcmLevel/PcmCaptureSession/PcmCaptureFormat); composite-build substituted from
+  // Shared utilities (DebugLog/PcmLevel/PcmCapture/PcmCaptureFormat); composite-build substituted from
   // ./commons.
   implementation(libs.portal.commons)
   // Shared Android shells (AudioRecordPcmDevice); composite-build substituted from ./commons-android.
