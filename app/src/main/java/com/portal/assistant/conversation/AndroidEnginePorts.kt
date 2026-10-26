@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.portal.assistant.audio.AudioFocusHush
+import com.portal.assistant.audio.Hush
 import com.portal.assistant.audio.PcmPlayer
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.ToolRunner
@@ -28,10 +30,12 @@ fun AssistantEngine.Companion.create(
 ): AssistantEngine {
     val appContext = context.applicationContext
     val overlay = RecordingOverlay(appContext)
+    // This conversation's one hush: the engine starts and lifts it through its audio port.
+    val hush = AudioFocusHush(appContext)
     return AssistantEngine(
         backendChoice = backendChoice,
         clock = MainLooperClock(),
-        audio = DeviceAudio(),
+        audio = DeviceAudio(hush),
         sink = HubSink(setRecording = overlay::setRecording, inForeground = { UiVisibility.inForeground }),
         openingReads = PrefsOpeningReads(appContext),
         toolRunners = { deliver, requestFinalTurn -> ToolRunner.create(appContext, deliver, requestFinalTurn) },
@@ -57,7 +61,8 @@ internal class MainLooperClock : EngineClock {
 }
 
 /**
- * [EngineAudio] on the handset: one [PcmCapture] for the port's lifetime, one [PcmPlayer], the [ListeningTonePlayer].
+ * [EngineAudio] on the handset: one [PcmCapture] for the port's lifetime, one [PcmPlayer], the [ListeningTonePlayer],
+ * and the conversation's [hush].
  *
  * Each [openMic] starts a capture request with a listener bound to that open's frame handler, so frames from an older
  * request's capture thread never reach a newer one; [closeMic] pauses it, freeing the mic slot before it returns.
@@ -76,7 +81,7 @@ internal class MainLooperClock : EngineClock {
  *
  * Caller must hold RECORD_AUDIO. The frame handler runs on the capture thread; keep it cheap and non-blocking.
  */
-internal class DeviceAudio : EngineAudio {
+internal class DeviceAudio(private val hush: Hush) : EngineAudio {
     private val player = PcmPlayer()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val mic = PcmCapture(
@@ -88,6 +93,10 @@ internal class DeviceAudio : EngineAudio {
         silenceWindowMs = SILENCE_WINDOW_MS,
         rebuildOnSilence = true,
     )
+
+    override fun startHush() = hush.start()
+
+    override fun liftHush() = hush.lift()
 
     override fun openMic(onFrame: (pcm: ByteArray, length: Int) -> Unit) {
         // Named apart from the listener's own onFrame, so the override below plainly forwards rather than recurses.
