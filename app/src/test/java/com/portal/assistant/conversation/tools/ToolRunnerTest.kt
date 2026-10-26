@@ -24,12 +24,17 @@ class ToolRunnerTest {
     private val afterSpeech = AfterSpeech()
     private val tools = FakeToolSet()
     private val toolExec = SteppedExecutor()
-    private val runner = ToolRunner(tools, afterSpeech, toolExec, Executor { it.run() })
+    private val events = mutableListOf<String>()
+    private val finalTurn = FinalTurnRequests { events += "final turn" }
+    private val runner = ToolRunner(tools, afterSpeech, toolExec, Executor { it.run() }, finalTurn)
     private val deliveries = mutableListOf<List<ToolResult>>()
 
     private fun call(id: String, name: String = "tool_$id") = FunctionCall(id, name, JSONObject())
 
-    private fun run(vararg calls: FunctionCall) = runner.run(calls.toList()) { deliveries += it }
+    private fun run(vararg calls: FunctionCall) = runner.run(calls.toList()) {
+        deliveries += it
+        events += "results"
+    }
 
     /** Each delivered result as `id=response`, so a whole batch reads as one comparable list. */
     private fun List<ToolResult>.render() = map { "${it.id}=${it.response}" }
@@ -156,6 +161,48 @@ class ToolRunnerTest {
 
         assertEquals(emptyList<String>(), tools.interruptedWhileRunning)
         assertEquals(listOf("""a={"ok":"a"}""", """b={"ok":"b"}"""), deliveries.single().render())
+    }
+
+    @Test fun aFinalTurnRequestCountsOnceItsCallSettlesAndBeforeTheBatchResults() {
+        var eventsWhileRunning: List<String>? = null
+        tools.script("tool_a") {
+            finalTurn.request() // e.g. end_conversation, or a music command that worked
+            eventsWhileRunning = events.toList()
+            JSONObject().put("ok", "a")
+        }
+        run(call("a"), call("b"))
+
+        toolExec.runAll()
+
+        assertEquals(emptyList<String>(), eventsWhileRunning) // held until the call settles
+        assertEquals(listOf("final turn", "results"), events)
+    }
+
+    @Test fun aCallCancelledAfterRequestingTheFinalTurnRequestsNothing() {
+        tools.script("tool_a") {
+            finalTurn.request() // the tool asks to end...
+            runner.keepOnly(emptySet()) // ...then a barge-in cancels it mid-run, and the cancel wins the settle
+            JSONObject().put("ok", "a")
+        }
+        run(call("a"))
+
+        toolExec.runAll()
+
+        assertEquals(listOf("""a={"error":"cancelled"}"""), deliveries.single().render())
+        assertEquals(listOf("results"), events) // the model was told "cancelled", so no final turn
+    }
+
+    @Test fun aRequestBelongsToItsOwnCallOnly() {
+        tools.script("tool_a") {
+            finalTurn.request()
+            runner.keepOnly(setOf("b")) // A is cancelled; B, which never asked, runs to its own result
+            JSONObject().put("ok", "a")
+        }
+        run(call("a"), call("b"))
+
+        toolExec.runAll()
+
+        assertEquals(listOf("results"), events)
     }
 
     // ---- fakes -------------------------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AfterSpeech
 import com.portal.assistant.conversation.tools.EndConversationTool
+import com.portal.assistant.conversation.tools.FinalTurnRequests
 import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
 import org.json.JSONObject
@@ -40,8 +41,9 @@ class AssistantEngineTest {
         openingReads = reads,
         toolRunners = { deliver, requestFinalTurn ->
             toolRunnersBuilt++
-            toolSet.builtIns += EndConversationTool(requestFinalTurn)
-            ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver)
+            val finalTurn = FinalTurnRequests(requestFinalTurn)
+            toolSet.builtIns += EndConversationTool(finalTurn::request)
+            ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver, finalTurn)
         },
         onEnded = { ends++ },
     )

@@ -148,11 +148,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
   to end: makes this turn a **final turn** via `requestFinalTurn`). The **music commands** `play_music`,
-  `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are wrapped by `ToolRegistry` in
-  `FinalTurnOnSuccess`: a result with neither `error` nor `searchUnsupported` also makes the turn final, whatever
-  else the turn held, and gains an `instruction` (briefly confirm, no follow-up question); a failed one leaves the
-  conversation open. Every frame — `setup`, `audio`, `userText`,
-  `toolResults` and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
+  `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are each wrapped in
+  `FinalTurnOnSuccess` where `ToolRegistry` builds them: a result with neither `error` nor `searchUnsupported` also
+  makes the turn final, whatever else the turn held, and gains an `instruction` (briefly confirm, no follow-up
+  question); a failed one leaves the conversation open. Either request counts only if its call settles with its own
+  result, not as cancelled (see the Tool runner). Every frame — `setup`, `audio`, `userText`, `toolResults` and
+  `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
@@ -163,8 +164,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   teardown; the Opening's inputs read declarations + prompt lines from it. **Batch promise:** N calls in, one
   ordered list of N results out, delivered once on the engine's handler — cancelled → `{"error":"cancelled"}`,
   thrown → `{"error": message}`, each call settled exactly once (a cancel counts it down, so a partially
-  cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. Built per conversation by
-  `create(context, deliver)`; JVM-tested with a fake tool set and a hand-stepped executor (`ToolRunnerTest`).
+  cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. **Final-turn requests** go
+  through `FinalTurnRequests`, scoped to the call that made them: granted (posted before the batch's results) only
+  when that call settles with its own result, so a call cancelled mid-run by a barge-in ends nothing even if it had
+  already asked. Built per conversation by `create(context, deliver, requestFinalTurn)`; JVM-tested with a fake tool set and a hand-stepped executor (`ToolRunnerTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —

@@ -4,8 +4,9 @@ import org.json.JSONObject
 
 /**
  * Ends the conversation when the user asks to: [requestFinalTurn] makes this turn a final turn, so the conversation
- * ends at turn end (once the sign-off has been heard) instead of listening again. Called on the tool-executor thread;
- * a cancelled call never runs, so it never ends anything.
+ * ends at turn end (once the sign-off has been heard) instead of listening again. Called on the tool-executor thread.
+ * The request counts only if this call settles with its own result: a call cancelled before or while it runs ends
+ * nothing ([FinalTurnRequests]).
  */
 class EndConversationTool(private val requestFinalTurn: () -> Unit) : Tool {
 
