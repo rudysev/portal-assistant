@@ -122,8 +122,9 @@ sealed interface Action {
  * @param playbackIdle the player has no audio left to play (true when no audio has been produced yet).
  * @param toolsInFlight function-call IDs currently executing on the tool executor. Turn-end and stall
  *   are gated on this being empty — the model must receive all results before the turn can close.
- * @param finalTurn the user asked to end: the next turn end ends the conversation instead of re-listening. Holds
- *   until the conversation ends (an [Event.Interrupted] keeps it).
+ * @param finalTurn a tool asked for a final turn ([Event.FinalTurnRequested]), because the user asked to end or
+ *   their request expects no reply (a music command that worked): the next turn end ends the conversation instead
+ *   of re-listening. Holds until the conversation ends (an [Event.Interrupted] keeps it).
  */
 data class ConversationState(
     val phase: Phase = Phase.CONNECTING,
