@@ -90,9 +90,11 @@ internal class DeviceAudio : EngineAudio {
     )
 
     override fun openMic(onFrame: (pcm: ByteArray, length: Int) -> Unit) {
+        // Named apart from the listener's own onFrame, so the override below plainly forwards rather than recurses.
+        val deliverFrame = onFrame
         mic.start(
             object : PcmCapture.Listener {
-                override fun onFrame(buf: ByteArray, n: Int) = onFrame(buf, n)
+                override fun onFrame(buf: ByteArray, n: Int) = deliverFrame(buf, n)
 
                 // A data class: logs the cause and its reason, e.g. "Dropped(reason=…)".
                 override fun onLost(loss: CaptureLoss) = DebugLog.log("mic capture lost: $loss")
