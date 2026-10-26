@@ -71,12 +71,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   I/O, no clock reads — fully unit-tested (`ConversationOpeningTest`).
 - `conversation/AssistantEngine.kt` — the impure shell, one conversation from Trigger to end. Every collaborator is
   injected: four role ports (`conversation/EnginePorts.kt`) — `EngineClock` (the one thread every event is posted
-  onto, the one monotonic clock, and the two timers), `EngineAudio` (mic, player, Listening tone),
+  onto, the one monotonic clock, and the two timers), `EngineAudio` (mic, player, Listening tone, hush),
   `ConversationSink` (the `ConversationHub` writes and the orange bar) and `OpeningReads` (settings, location,
   on-screen turns, the online check) — plus the `VoiceBackendFactory` (from `Backends.Choice`) and a `ToolRunner`
   factory. `AssistantEngine.create(context, choice, onEnded)` wires the production adapters
   (`conversation/AndroidEnginePorts.kt`: `MainLooperClock`, `DeviceAudio` over one long-lived `PcmCapture` + `PcmPlayer` +
-  `ListeningTonePlayer`, `HubSink`, `PrefsOpeningReads`); the service only calls that factory. `HubSink` owns the
+  `ListeningTonePlayer` + the conversation's `AudioFocusHush`, `HubSink`, `PrefsOpeningReads`); the service only calls that factory. `HubSink` owns the
   `UiVisibility.inForeground` check, so the engine never sees it. `start(trigger)` asks
   `ConversationOpening.refusalFor` first and returns the `Refusal` with nothing built (no tool runner, no socket, no
   Hub write); otherwise it builds the tool runner, gathers `OpeningInputs`, calls `ConversationOpening.open`, then
@@ -100,6 +100,14 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   re-listen) when the opening says so, played async by `ListeningTonePlayer` on `SpeechAudio`'s attributes (one
   track built at prewarm and replayed — `audio/PrebuiltTrack`); the setting is `AppPrefs.listeningToneEnabled`
   (default on), read once in the snapshot; the tone's start/failure callbacks feed the Mic gate.
+  The **Hush** (ADR 0001) quiets other apps' audio for the conversation: `start()` calls `EngineAudio.startHush`
+  after the refusal check, before the mic opens and the tone plays (every trigger, resume included; a refused
+  trigger never reaches it); teardown calls `liftHush` right after the mic closes, on every ending (`endNow` and
+  `stop()`). The engine never reads whether the hush is held, so a denied or lost hush changes nothing about the
+  conversation; no timer, no setting. One `audio/Hush` per conversation, made by `AssistantEngine.create`
+  (`audio/AudioFocusHush`: `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` on `SpeechAudio`'s attributes, abandoned on lift;
+  any negative focus change marks it no longer held and it never re-requests; keep-paused escalates the held focus
+  to a permanent `AUDIOFOCUS_GAIN`, so the apps it paused drop their resume). Not unit-tested: checked on device.
 - `service/ConversationHost.kt` — the **service's own rules**, standby ↔ at most one conversation: a trigger while
   one is live starts nothing; a refused trigger posts its notice and re-arms wake (the engine never calls `onEnded`
   on a refusal); the engine's own end, STOP and New conversation all return to standby (idle notification, re-arm
@@ -175,7 +183,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   emits `Action.FireAfterSpeech` at **turn-end** (`turnComplete && playbackIdle && no tools in flight`, after
   `PcmPlayer`'s hardware-tail drain) and the Tool runner runs the queue then (`turnEnded`). Replaces the old per-controller fixed `Handler` delays (no more
   guessing 2.5 s vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
-- `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/PcmGain` (pure, tested),
+- `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/Hush` + `audio/AudioFocusHush`,
+  `audio/PcmGain` (pure, tested),
   `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
   `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
   the local backend's `wss://` socket).
@@ -193,7 +202,7 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `PcmGain`, `PrebuiltTrack`) ·
+`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
 `ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
 `TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
