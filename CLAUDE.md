@@ -3,7 +3,8 @@
 **Jarvis**: voice assistant for Meta Portal, `com.portal.assistant`. gen1 = API 28, gen2 = API 29; minSdk 28 /
 targetSdk 29 / compileSdk 36; no GMS. Gemini Live (`gemini-2.5-flash-native-audio-latest`, `googleSearch` +
 function calling) or an opt-in LAN Pipecat host, behind the `VoiceBackend` seam. Multi-turn voice + Compose chat UI
-built. Deferred: "goodbye" fast-exit, better ASR, weather glance. Human docs: `README.md`.
+built, incl. a **final turn** (`portal.end_conversation`: the user asks to end → ends at turn end). Deferred:
+better ASR, weather glance. Human docs: `README.md`.
 
 ## Read on demand
 

@@ -61,7 +61,11 @@ private fun speakingStall(state: ConversationState, event: Event): StallDecision
 
         is Event.ToolCallReceived -> StallDecision.Cancel
 
-        is Event.ToolResultsReady -> toolDrainStall(state, state.toolsInFlight - event.results.map { it.id }.toSet())
+        is Event.ToolResultsReady -> toolDrainStall(
+            state,
+            state.toolsInFlight - event.results.map { it.id }.toSet(),
+            awaitsSignOff = state.awaitsSignOff(event),
+        )
 
         is Event.ToolCancelled -> toolDrainStall(state, state.toolsInFlight - event.ids.toSet())
 
@@ -74,9 +78,13 @@ private fun armIf(condition: Boolean): StallDecision = if (condition) StallDecis
 private fun cancelIf(condition: Boolean): StallDecision = if (condition) StallDecision.Cancel else StallDecision.None
 
 /** Stall after a tool drain: end-of-turn → Cancel; still waiting on the model → Arm; else None. */
-private fun toolDrainStall(state: ConversationState, remaining: Set<String>): StallDecision = when {
+private fun toolDrainStall(
+    state: ConversationState,
+    remaining: Set<String>,
+    awaitsSignOff: Boolean = false,
+): StallDecision = when {
     remaining.isNotEmpty() || state.toolsInFlight.isEmpty() || !state.playbackIdle -> StallDecision.None
-    state.turnComplete -> StallDecision.Cancel
+    state.turnComplete && !awaitsSignOff -> StallDecision.Cancel
     else -> StallDecision.Arm
 }
 

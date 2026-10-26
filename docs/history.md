@@ -20,7 +20,8 @@
   can't reclaim mid-conversation. The **connect buffer** is now built (in the Mic gate, `conversation/MicGate`):
   mic frames captured during CONNECTING are flushed at the LISTENING boundary so the foreground connect
   window's opening words aren't clipped (a one-breath *wake* swoop stays gated by portal-wake's detection
-  upstream — see Known limitations). Still **deferred**: a **"goodbye" fast-exit**.
+  upstream — see Known limitations). The **"goodbye" fast-exit** later shipped as the **final turn**:
+  `portal.end_conversation` makes the current turn end the conversation instead of re-listening.
 
 ## Known limitations
 

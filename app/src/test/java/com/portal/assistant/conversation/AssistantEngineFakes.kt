@@ -4,6 +4,7 @@ import com.portal.assistant.conversation.backend.BackendConfig
 import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.VoiceBackendFactory
+import com.portal.assistant.conversation.tools.Tool
 import com.portal.assistant.conversation.tools.ToolSet
 import com.portal.assistant.system.DeviceLocation
 import org.json.JSONObject
@@ -254,13 +255,16 @@ class FakeBackend(
 class FakeToolSet(private val log: MutableList<String>) : ToolSet {
     val invoked = mutableListOf<String>()
 
+    /** Real tools routed by name; any other name answers `{"ok": <name>}`. */
+    val builtIns = mutableListOf<Tool>()
+
     override fun declarations(): List<JSONObject> = listOf(JSONObject().put("name", "portal.get_time"))
 
     override fun externalPromptLines(): List<String> = emptyList()
 
     override fun invoke(name: String, args: JSONObject): JSONObject {
         invoked += name
-        return JSONObject().put("ok", name)
+        return builtIns.firstOrNull { it.name == name }?.invoke(args) ?: JSONObject().put("ok", name)
     }
 
     override fun dispose() {

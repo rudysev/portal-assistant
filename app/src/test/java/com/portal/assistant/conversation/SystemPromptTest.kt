@@ -20,4 +20,10 @@ class SystemPromptTest {
         assertTrue(prompt.contains("portal.set_volume"))
         assertTrue(prompt.contains("portal.get_time"))
     }
+
+    @Test fun endingRuleNamesTheToolAndNoLongerClaimsConversationsEndAutomatically() {
+        val prompt = SystemPrompt.build()
+        assertTrue(prompt.contains("portal.end_conversation"))
+        assertFalse(prompt.contains("end automatically"))
+    }
 }

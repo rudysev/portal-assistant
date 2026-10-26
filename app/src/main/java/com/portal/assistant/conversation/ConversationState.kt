@@ -73,6 +73,9 @@ sealed interface Event {
 
     /** The server cancelled tool calls with the given ids. */
     data class ToolCancelled(val ids: List<String>) : Event
+
+    /** A tool asked for a final turn: this turn's end ends the conversation instead of re-listening. */
+    data object FinalTurnRequested : Event
 }
 
 /** A side effect for [AssistantEngine] to execute. Pure data — the reducer performs none of these. */
@@ -119,13 +122,20 @@ sealed interface Action {
  * @param playbackIdle the player has no audio left to play (true when no audio has been produced yet).
  * @param toolsInFlight function-call IDs currently executing on the tool executor. Turn-end and stall
  *   are gated on this being empty — the model must receive all results before the turn can close.
+ * @param finalTurn the user asked to end: the next turn end ends the conversation instead of re-listening. Holds
+ *   until the conversation ends (an [Event.Interrupted] keeps it).
  */
 data class ConversationState(
     val phase: Phase = Phase.CONNECTING,
     val turnComplete: Boolean = false,
     val playbackIdle: Boolean = true,
     val toolsInFlight: Set<String> = emptySet(),
-)
+    val finalTurn: Boolean = false,
+) {
+    /** Results sent back during a final turn: the model answers them with its sign-off, so the turn isn't over yet. */
+    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean =
+        finalTurn && event.results.any { it.id in toolsInFlight }
+}
 
 /** The result of [reduce]: the next state and the side effects to run. */
 data class Decision(val state: ConversationState, val actions: List<Action>)
@@ -148,9 +158,12 @@ fun reduce(state: ConversationState, event: Event, multiTurn: Boolean): Decision
 private fun reduceBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (state.phase) {
     Phase.ENDED -> Decision(state, emptyList())
     Phase.CONNECTING -> connectingBody(state, event)
-    Phase.LISTENING -> listeningBody(state, event)
-    Phase.SPEAKING -> speakingBody(state, event, multiTurn)
+    Phase.LISTENING -> if (event == Event.FinalTurnRequested) finalTurn(state) else listeningBody(state, event)
+    Phase.SPEAKING -> if (event == Event.FinalTurnRequested) finalTurn(state) else speakingBody(state, event, multiTurn)
 }
+
+/** Mark a live conversation's final turn: the next turn end, normal or stalled, ends it. Holds until the end. */
+private fun finalTurn(state: ConversationState): Decision = Decision(state.copy(finalTurn = true), emptyList())
 
 private fun connectingBody(state: ConversationState, event: Event): Decision = when (event) {
     Event.Ready -> Decision(
@@ -167,7 +180,7 @@ private fun listeningBody(state: ConversationState, event: Event): Decision = wh
     Event.UserSpeaking -> Decision(state, listOf(Action.ArmNoSpeechTimer))
 
     Event.ModelActivity -> Decision(
-        ConversationState(phase = Phase.SPEAKING),
+        state.copy(phase = Phase.SPEAKING),
         listOf(Action.StopForwarding, Action.CancelNoSpeechTimer),
     )
 
@@ -176,7 +189,7 @@ private fun listeningBody(state: ConversationState, event: Event): Decision = wh
         // Stall arm is [stallDecision]'s LISTENING ToolCallReceived row.
         val newIds = state.toolsInFlight + event.calls.map { it.id }
         Decision(
-            ConversationState(phase = Phase.SPEAKING, toolsInFlight = newIds),
+            state.copy(phase = Phase.SPEAKING, toolsInFlight = newIds),
             listOf(Action.StopForwarding, Action.CancelNoSpeechTimer, Action.ExecuteTools(event.calls)),
         )
     }
@@ -212,7 +225,7 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
     }
 
     // Stall is gated: ignore while tools are in flight (the model is waiting for results, not dead).
-    Event.StallTimeout -> if (state.toolsInFlight.isNotEmpty()) unchanged(state) else stalledTurnEnd(multiTurn)
+    Event.StallTimeout -> if (state.toolsInFlight.isNotEmpty()) unchanged(state) else stalledTurnEnd(state, multiTurn)
 
     Event.Disconnected -> ended()
 
@@ -241,7 +254,9 @@ private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsRe
     // Interrupted or ToolCancelled (e.g. a future that finished just after cancel(true)).
     val validResults = event.results.filter { it.id in inFlight }
     val remaining = inFlight - event.results.map { it.id }.toSet()
-    val next = state.copy(toolsInFlight = remaining)
+    // A final turn's results owe a sign-off: the turn now ends on the reply's own turnComplete (or the stall).
+    val turnComplete = state.turnComplete && !state.awaitsSignOff(event)
+    val next = state.copy(toolsInFlight = remaining, turnComplete = turnComplete)
     val send = if (validResults.isNotEmpty()) {
         listOf(Action.SendToolResponse(validResults))
     } else {
@@ -253,24 +268,27 @@ private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsRe
 }
 
 /**
- * A stalled turn (no audio/completion in time): flush the partial audio, then re-listen or end.
+ * A stalled turn (no audio/completion in time): flush the partial audio, then re-listen (multi-turn, unless it was a
+ * final turn) or end.
  * [Action.FireAfterSpeech] applies any deferred mute/DND — a wedged turn still honours the request (the
  * confirmation already drained, since the stall only arms while nothing is playing).
  * Stall cancel is appended by [reduce] via [stallDecision].
  */
-private fun stalledTurnEnd(multiTurn: Boolean): Decision = if (multiTurn) {
-    Decision(
-        ConversationState(phase = Phase.LISTENING),
-        listOf(Action.FireAfterSpeech, Action.FlushPlayback, Action.StartForwarding, Action.ArmNoSpeechTimer),
-    )
-} else {
-    Decision(ConversationState(phase = Phase.ENDED), listOf(Action.FireAfterSpeech, Action.End))
-}
+private fun stalledTurnEnd(state: ConversationState, multiTurn: Boolean): Decision =
+    if (multiTurn && !state.finalTurn) {
+        Decision(
+            ConversationState(phase = Phase.LISTENING),
+            listOf(Action.FireAfterSpeech, Action.FlushPlayback, Action.StartForwarding, Action.ArmNoSpeechTimer),
+        )
+    } else {
+        Decision(ConversationState(phase = Phase.ENDED), listOf(Action.FireAfterSpeech, Action.End))
+    }
 
 /**
  * Finish the turn once all three conditions hold: turnComplete, playbackIdle, no tools in flight.
- * Re-listen (multi-turn) or end. Otherwise keep waiting. [Action.FireAfterSpeech] is first so a deferred
- * mute/DND applies the instant the confirmation finished playing — and, on the End path, before teardown.
+ * Re-listen (multi-turn, unless it was a final turn) or end. Otherwise keep waiting. [Action.FireAfterSpeech] is
+ * first so a deferred mute/DND applies the instant the confirmation finished playing — and, on the End path, before
+ * teardown.
  * Stall cancel is appended by [reduce] via [stallDecision].
  */
 private fun endOfTurn(state: ConversationState, multiTurn: Boolean): Decision {
@@ -280,7 +298,7 @@ private fun endOfTurn(state: ConversationState, multiTurn: Boolean): Decision {
             emptyList(),
         )
     }
-    return if (multiTurn) {
+    return if (multiTurn && !state.finalTurn) {
         Decision(
             ConversationState(phase = Phase.LISTENING),
             listOf(Action.FireAfterSpeech, Action.StartForwarding, Action.ArmNoSpeechTimer),
