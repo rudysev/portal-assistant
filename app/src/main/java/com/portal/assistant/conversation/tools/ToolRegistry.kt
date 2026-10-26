@@ -26,26 +26,29 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
     private val appLauncher = AppLauncher(appContext)
     private val external = ExternalToolProvider(appContext)
 
-    private val tools: List<Tool> = listOf(
-        GetTimeTool,
-        SetTimerTool(timerScheduler),
-        ListTimersTool(timerScheduler),
-        CancelTimerTool(timerScheduler),
-        GetVolumeTool(volume),
-        SetVolumeTool(volume),
-        AdjustVolumeTool(volume),
-        SetMuteTool(volume),
-        GetBrightnessTool(brightness),
-        SetBrightnessTool(brightness),
-        AdjustBrightnessTool(brightness),
-        GetDoNotDisturbTool(dnd),
-        SetDoNotDisturbTool(dnd),
-        MediaControlTool(media),
-        SetRepeatTool(media),
-        NowPlayingTool(media),
-        PlayMusicTool(music),
-        OpenAppTool(appLauncher),
-        EndConversationTool(requestFinalTurn),
+    private val tools: List<Tool> = finalTurnOnMusicCommands(
+        listOf(
+            GetTimeTool,
+            SetTimerTool(timerScheduler),
+            ListTimersTool(timerScheduler),
+            CancelTimerTool(timerScheduler),
+            GetVolumeTool(volume),
+            SetVolumeTool(volume),
+            AdjustVolumeTool(volume),
+            SetMuteTool(volume),
+            GetBrightnessTool(brightness),
+            SetBrightnessTool(brightness),
+            AdjustBrightnessTool(brightness),
+            GetDoNotDisturbTool(dnd),
+            SetDoNotDisturbTool(dnd),
+            MediaControlTool(media),
+            SetRepeatTool(media),
+            NowPlayingTool(media),
+            PlayMusicTool(music),
+            OpenAppTool(appLauncher),
+            EndConversationTool(requestFinalTurn),
+        ),
+        requestFinalTurn,
     )
 
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }
@@ -76,5 +79,14 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
         volume.dispose()
         dnd.dispose()
         external.dispose()
+    }
+
+    companion object {
+        /** The **music commands**: one that works makes its turn final. Not `now_playing` (it expects an answer). */
+        private val MUSIC_COMMANDS = setOf("portal.play_music", "portal.media_control", "portal.set_repeat")
+
+        /** [tools] in order, each music command wrapped in [FinalTurnOnSuccess]; every other tool as it was. */
+        internal fun finalTurnOnMusicCommands(tools: List<Tool>, requestFinalTurn: () -> Unit): List<Tool> =
+            tools.map { if (it.name in MUSIC_COMMANDS) FinalTurnOnSuccess(it, requestFinalTurn) else it }
     }
 }
