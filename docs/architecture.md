@@ -147,7 +147,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
-  to end: makes this turn a **final turn** via `requestFinalTurn`). Every frame — `setup`, `audio`, `userText`,
+  to end: makes this turn a **final turn** via `requestFinalTurn`). The **music commands** `play_music`,
+  `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are wrapped by `ToolRegistry` in
+  `FinalTurnOnSuccess`: a result with neither `error` nor `searchUnsupported` also makes the turn final, whatever
+  else the turn held, and gains an `instruction` (briefly confirm, no follow-up question); a failed one leaves the
+  conversation open. Every frame — `setup`, `audio`, `userText`,
   `toolResults` and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
