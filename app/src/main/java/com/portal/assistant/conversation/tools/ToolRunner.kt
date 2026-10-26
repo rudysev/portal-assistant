@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  * "finished" and "cancelled" comes first, and a cancel counts it down, so a batch can neither stall nor complete
  * twice. Nothing is delivered after [dispose].
  *
+ * **Final turn:** a tool's [FinalTurnRequests.request] is granted only when its call settles with its own result,
+ * just before the batch is delivered. A call that settled as cancelled, even after asking, ends nothing.
+ *
  * Threading: [run], [keepOnly], [turnEnded] and [dispose] are called on the engine's handler, which is also
  * [deliver] in production — so the [disposed] check in a delivery can't race [dispose]. Calls run on
  * [toolExecutor], one after another in call order.
@@ -33,6 +36,7 @@ class ToolRunner(
     private val afterSpeech: AfterSpeech,
     private val toolExecutor: ExecutorService,
     private val deliver: Executor,
+    private val finalTurn: FinalTurnRequests,
 ) {
     /** One call of a batch still held: its future, cancelled by [keepOnly], and the batch slot it settles. */
     private class HeldCall(val future: Future<*>, val settleCancelled: () -> Unit)
@@ -53,10 +57,12 @@ class ToolRunner(
         val pending = AtomicInteger(batch.size)
         val results = AtomicReferenceArray<ToolResult>(batch.size)
 
-        fun settle(index: Int, response: JSONObject) {
+        fun settle(index: Int, response: JSONObject, finalTurnRequested: Boolean = false) {
             val call = batch[index]
             if (!results.compareAndSet(index, null, ToolResult(call.id, call.name, response))) return // already settled
             held.remove(call.id)
+            // Only a call that settled with its own result ends anything; granted before its batch is delivered.
+            if (finalTurnRequested && !disposed) finalTurn.grant()
             if (pending.decrementAndGet() == 0) {
                 val ordered = List(batch.size) { slot -> results.get(slot) }
                 deliver.execute { if (!disposed) onResults(ordered) }
@@ -65,9 +71,9 @@ class ToolRunner(
 
         batch.forEachIndexed { index, call ->
             val task = FutureTask<Unit> {
-                val response = runCatching { toolSet.invoke(call.name, call.args) }
-                    .getOrElse { error -> JSONObject().put("error", error.message ?: "error") }
-                settle(index, response)
+                runCatching { finalTurn.during { toolSet.invoke(call.name, call.args) } }
+                    .onSuccess { (response, finalTurnRequested) -> settle(index, response, finalTurnRequested) }
+                    .onFailure { error -> settle(index, JSONObject().put("error", error.message ?: "error")) }
             }
             // Held before it can run, so a call that finishes at once still takes itself out of [held].
             held[call.id] = HeldCall(task) { settle(index, JSONObject().put("error", "cancelled")) }
@@ -105,16 +111,18 @@ class ToolRunner(
 
     companion object {
         /**
-         * Production wiring: one after-speech queue and [requestFinalTurn], the [ToolRegistry] given them, and the
-         * `tool-exec` thread.
+         * Production wiring: one after-speech queue and one [FinalTurnRequests] (passing granted requests on to
+         * [requestFinalTurn]), the [ToolRegistry] given them, and the `tool-exec` thread.
          */
         fun create(context: Context, deliver: Executor, requestFinalTurn: () -> Unit): ToolRunner {
             val afterSpeech = AfterSpeech()
+            val finalTurn = FinalTurnRequests(requestFinalTurn)
             return ToolRunner(
-                toolSet = ToolRegistry(context, afterSpeech, requestFinalTurn),
+                toolSet = ToolRegistry(context, afterSpeech, finalTurn::request),
                 afterSpeech = afterSpeech,
                 toolExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "tool-exec") },
                 deliver = deliver,
+                finalTurn = finalTurn,
             )
         }
     }
