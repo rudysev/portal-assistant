@@ -1,7 +1,24 @@
 package com.portal.assistant.conversation.tools
 
 /** A media transport action the model can request. */
-enum class MediaAction { PLAY, PAUSE, NEXT, PREVIOUS }
+enum class MediaAction {
+    PLAY,
+    PAUSE,
+    NEXT,
+    PREVIOUS,
+    ;
+
+    companion object {
+        /** The action the model's word names (case and padding ignored), or null if none does. */
+        fun parse(word: String): MediaAction? = when (word.trim().lowercase()) {
+            "play", "resume" -> PLAY
+            "pause", "stop" -> PAUSE
+            "next", "skip" -> NEXT
+            "previous", "back" -> PREVIOUS
+            else -> null
+        }
+    }
+}
 
 /** A repeat mode the model can request; parsed from a free-form hint by [MediaSelection.repeatMode]. */
 enum class RepeatMode { ONE, ALL, OFF }
