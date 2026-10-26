@@ -5,9 +5,10 @@ import org.json.JSONObject
 
 /**
  * Keeps the **hush** invisible to `portal.now_playing`: while [hush] is held and not turned into a kept pause, the
- * music app reports paused only because Jarvis is listening, so [tool]'s result gains `"hushed": true` (the tool's
- * description tells the model to describe the track as playing). Otherwise the result passes through untouched.
- * Called on the tool-executor thread.
+ * music app reports paused only because Jarvis is listening, so a track [tool] found (its result names an `app`) is
+ * reported `"playing": true` with `"hushed": true`. A `hushed` flag beside `"playing": false` wasn't enough: on a
+ * gen2 the model still called the track paused. No session found, an error, or no hush: the result passes through
+ * untouched. Called on the tool-executor thread.
  */
 class HushedFlag(private val tool: Tool, private val hush: Hush) : Tool {
 
@@ -17,6 +18,7 @@ class HushedFlag(private val tool: Tool, private val hush: Hush) : Tool {
 
     override fun invoke(args: JSONObject): JSONObject {
         val result = tool.invoke(args)
-        return if (hush.isHeld && !hush.isKeptPaused) result.put("hushed", true) else result
+        val hushed = hush.isHeld && !hush.isKeptPaused && result.has("app")
+        return if (hushed) result.put("playing", true).put("hushed", true) else result
     }
 }
