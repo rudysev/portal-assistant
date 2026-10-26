@@ -76,16 +76,16 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   on-screen turns, the online check) — plus the `VoiceBackendFactory` (from `Backends.Choice`) and a `ToolRunner`
   factory. `AssistantEngine.create(context, choice, onEnded)` wires the production adapters
   (`conversation/AndroidEnginePorts.kt`: `MainLooperClock`, `DeviceAudio` over one long-lived `PcmCapture` + `PcmPlayer` +
-  `ListeningTonePlayer` + the conversation's `AudioFocusHush`, `HubSink`, `PrefsOpeningReads`); the service only calls that factory. `HubSink` owns the
-  `UiVisibility.inForeground` check, so the engine never sees it. `start(trigger)` asks
-  `ConversationOpening.refusalFor` first and returns the `Refusal` with nothing built (no tool runner, no socket, no
-  Hub write); otherwise it builds the tool runner, gathers `OpeningInputs`, calls `ConversationOpening.open`, then
-  connects, opens the mic and starts the player, in that order. All state lives on the clock's thread (main looper in
-  production; every callback posts an event → no locks). Backend events arrive on the one `onEvent`: `Audio` is
-  enqueued on the player synchronously on the socket thread (latency), then every event is posted; on the engine's
-  thread, `onBackendEvent` holds every reaction to it — the `Transcript.Event` (applied first), the reducer `Event`
-  (an output transcript is `ModelActivity` only while already SPEAKING), `connectedOk` and the first text on Ready,
-  and the disconnect notice.
+  `ListeningTonePlayer` + the conversation's `AudioFocusHush`, `HubSink`, `PrefsOpeningReads`); the service only
+  calls that factory. `HubSink` owns the `UiVisibility.inForeground` check, so the engine never sees it.
+  `start(trigger)` asks `ConversationOpening.refusalFor` first and returns the `Refusal` with nothing built (no tool
+  runner, no socket, no Hub write); otherwise it builds the tool runner, gathers `OpeningInputs`, calls
+  `ConversationOpening.open`, then connects, opens the mic and starts the player, in that order. All state lives on
+  the clock's thread (main looper in production; every callback posts an event → no locks). Backend events arrive on the
+  one `onEvent`: `Audio` is enqueued on the player synchronously on the socket thread (latency), then every event is
+  posted; on the engine's thread, `onBackendEvent` holds every reaction to it — the `Transcript.Event` (applied first),
+  the reducer `Event` (an output transcript is `ModelActivity` only while already SPEAKING), `connectedOk` and the first
+  text on Ready, and the disconnect notice.
   Every mic frame goes through the **Mic gate** (below), straight from the capture thread; the capture callback only
   applies its outcome. Tools are the **Tool runner**'s (below): the engine only maps the reducer's tool actions onto
   it. Also: the opening's `firstText` (chip-send) is sent once `Event.Ready` is dispatched (`sendInitialText`); an
@@ -164,9 +164,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control` *inside*
   `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media session (no
   notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
-  other action, or a pause with no hush held, passes through. `HushedFlag` wraps `now_playing`: while the hush is
-  held and not kept paused, the result gains `"hushed": true`, and the description tells the model to describe the
-  track as playing. Both pure, tested with a fake `Hush` (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and
+  other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through. `HushedFlag`
+  wraps `now_playing`: while the hush is held and not kept paused, the result gains `"hushed": true`, and the
+  description tells the model to describe the track as playing. Both pure, tested with a fake `Hush`
+  (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and
   `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
   via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
@@ -190,8 +191,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `PcmPlayer`'s hardware-tail drain) and the Tool runner runs the queue then (`turnEnded`). Replaces the old per-controller fixed `Handler` delays (no more
   guessing 2.5 s vs 4 s). A barge-in keeps the turn in SPEAKING, so a queued effect defers to the post-interrupt turn-end.
 - `audio/PcmPlayer` (24 kHz native-audio playback), `audio/SpeechAudio`, `audio/Hush` + `audio/AudioFocusHush`,
-  `audio/PcmGain` (pure, tested),
-  `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
+  `audio/PcmGain` (pure, tested), `audio/PrebuiltTrack` (build-once, replay-per-play track with self-healing rebuild; JVM-tested),
   `util/Http` (shared OkHttp singleton + `lanVoice` trust-all client for
   the local backend's `wss://` socket).
 
