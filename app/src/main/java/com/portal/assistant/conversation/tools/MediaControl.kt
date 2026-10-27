@@ -2,7 +2,6 @@ package com.portal.assistant.conversation.tools
 
 import android.content.ComponentName
 import android.content.Context
-import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
@@ -94,22 +93,6 @@ class MediaControl(context: Context) {
         RepeatMode.OFF -> PlaybackStateCompat.REPEAT_MODE_NONE
     }
 
-    /** Report what's currently playing (or paused with known metadata). */
-    fun nowPlaying(): JSONObject = withSession(
-        pick = { MediaSelection.pickForStatus(it, ownPkg) },
-        notFound = { JSONObject().put("playing", false) },
-    ) { controller ->
-        val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
-        val md = controller.metadata
-        val out = JSONObject()
-            .put("playing", playing)
-            .put("app", PackageCatalog.labelFor(appContext, controller.packageName))
-        title(md)?.let { out.put("title", it) } // omit when unknown rather than send blank
-        artist(md)?.let { out.put("artist", it) }
-        DebugLog.log("media now_playing → ${controller.packageName} playing=$playing")
-        out
-    }
-
     /**
      * Active sessions, or null when notification access isn't granted (only a `SecurityException` means that).
      * Other failures (e.g. `RemoteException`) propagate so they aren't misreported as "grant access" — the
@@ -123,8 +106,8 @@ class MediaControl(context: Context) {
     }
 
     /**
-     * Resolve the active sessions, [pick] one, and run [body] on it — the shared preamble for [control],
-     * [nowPlaying], and [setRepeat]. Returns [notEnabledError] when session access is missing, or [notFound]
+     * Resolve the active sessions, [pick] one, and run [body] on it — the shared preamble for [control]
+     * and [setRepeat]. Returns [notEnabledError] when session access is missing, or [notFound]
      * (given whether the session list was empty) when nothing matches.
      */
     private inline fun withSession(
@@ -157,15 +140,4 @@ class MediaControl(context: Context) {
 
     private fun notEnabledError(): JSONObject =
         JSONObject().put("error", "media control isn't enabled — grant notification access in Settings")
-
-    private companion object {
-        fun str(md: MediaMetadata?, key: String) = md?.getString(key)?.takeIf { it.isNotBlank() }
-
-        fun title(md: MediaMetadata?) =
-            str(md, MediaMetadata.METADATA_KEY_TITLE) ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
-
-        fun artist(md: MediaMetadata?) = str(md, MediaMetadata.METADATA_KEY_ARTIST)
-            ?: str(md, MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
-            ?: str(md, MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
-    }
 }
