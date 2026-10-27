@@ -44,6 +44,7 @@ Pure reducer + thin I/O shell. Logic lives in pure, JVM-unit-tested classes; And
 | `MicGate` | Entire mic frame path: tone suppression → half-duplex mute → connect buffer (50 frames) → `MIC_GAIN` → speech-heard. Pure, never reads a clock. |
 | `backend/VoiceBackend` + `Backends.kt` | Model-neutral seam: one `Listener.onEvent(BackendEvent)` (incl. `Failed`/`Closed`); the engine's `onBackendEvent` says what each means to the conversation. `Backends.kt` is the only `conversation/` file importing `gemini`/`local`. `WebSocketVoiceBackend` is the only socket owner (setup gate, `ModelGenerating` before a turn's first `Audio`); each backend supplies a pure `WireFormat`. |
 | `tools/ToolRunner` | N calls in → one ordered list of N results out, each settled once (cancel → `{"error":"cancelled"}`), nothing after `dispose()`. Routing: built-ins, then external providers. |
+| `tools/music/Music` | The four music tools behind two ports (`MediaSessions`, `MusicApps`). Owns their JSON, their final turn and the hush rules (pause = `Hush.keepPaused`; `now_playing` hushed = playing). |
 | `tools/AfterSpeech` + `DeferredToggle` | Effects that silence playback (mute, DND) fire at turn end, not on a delay. |
 | `ConversationHub` | Session/`audioLevel`/`notice` bridge to UI. Orange bar gated by `ui/UiVisibility.inForeground`. |
 
