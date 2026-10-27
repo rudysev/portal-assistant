@@ -1,5 +1,6 @@
 package com.portal.assistant.conversation.tools
 
+import com.portal.assistant.conversation.tools.music.MediaAction
 import org.json.JSONObject
 
 /** Controls media playback (play / pause / next / previous) on the active music app. */

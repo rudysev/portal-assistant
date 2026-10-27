@@ -9,6 +9,10 @@ import android.media.session.PlaybackState
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import com.portal.assistant.conversation.tools.music.MediaAction
+import com.portal.assistant.conversation.tools.music.MediaSelection
+import com.portal.assistant.conversation.tools.music.RepeatMode
+import com.portal.assistant.conversation.tools.music.SessionInfo
 import com.portal.commons.DebugLog
 import org.json.JSONObject
 

@@ -1,4 +1,4 @@
-package com.portal.assistant.conversation.tools
+package com.portal.assistant.conversation.tools.music
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
