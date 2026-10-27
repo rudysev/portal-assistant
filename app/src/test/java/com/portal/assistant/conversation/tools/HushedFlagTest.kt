@@ -6,8 +6,9 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * Pure JVM tests for the hushed flag: while the hush is held (and not kept paused), now-playing says the app is
- * paused only by the hush, so it reports the track as playing and the model describes it that way.
+ * Pure JVM tests for the hushed flag: while the hush is held (and not kept paused) and silenced audio that was
+ * playing, now-playing says the app is paused only by the hush, so it reports the track as playing. A track already
+ * paused when the hush started stays paused.
  */
 class HushedFlagTest {
 
@@ -35,6 +36,15 @@ class HushedFlagTest {
 
     @Test fun nowPlayingAfterAKeptPauseIsUnchanged() {
         hush.keepPaused()
+
+        val result = HushedFlag(inner, hush).invoke(JSONObject())
+
+        assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
+    }
+
+    @Test fun aTrackAlreadyPausedWhenTheHushStartedIsUnchanged() {
+        hush.silencedPlayback = false
 
         val result = HushedFlag(inner, hush).invoke(JSONObject())
 

@@ -3,10 +3,14 @@ package com.portal.assistant.conversation.tools
 import com.portal.assistant.audio.Hush
 
 /**
- * A [Hush] whose held state the test sets; [keepPaused] counts its calls and marks it kept paused unless
- * [keepPausedGranted] is false (the escalation denied).
+ * A [Hush] whose held state (and whether other audio was playing when it started) the test sets; [keepPaused] counts
+ * its calls and marks it kept paused unless [keepPausedGranted] is false (the escalation denied).
  */
-internal class FakeHush(held: Boolean, private val keepPausedGranted: Boolean = true) : Hush {
+internal class FakeHush(
+    held: Boolean,
+    private val keepPausedGranted: Boolean = true,
+    override var silencedPlayback: Boolean = true,
+) : Hush {
     override var isHeld = held
     override var isKeptPaused = false
     var keepPausedCalls = 0

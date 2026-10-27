@@ -11,6 +11,9 @@ import com.portal.commons.DebugLog
  * abandons it. Any focus loss (a music command starting playback, an incoming call) marks it no longer held, and it
  * never re-requests: Jarvis doesn't fight for the audio.
  *
+ * [silencedPlayback] is `AudioManager.isMusicActive` just before the request: [start] runs before the conversation's
+ * own tone and player, so only another app's audio counts.
+ *
  * [keepPaused] escalates the held focus to a permanent `AUDIOFOCUS_GAIN`, so every app the hush paused gets
  * `AUDIOFOCUS_LOSS` and drops its resume (measured on gen2: Spotify and Apple Music stay paused after the lift).
  *
@@ -32,15 +35,20 @@ class AudioFocusHush(context: Context) : Hush {
 
     @Volatile private var keptPaused = false
 
+    @Volatile private var silenced = false
+
     override val isHeld: Boolean get() = held
+
+    override val silencedPlayback: Boolean get() = silenced
 
     override val isKeptPaused: Boolean get() = keptPaused
 
     @Synchronized override fun start() {
         val focus = focusRequest(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
         request = focus
+        silenced = audioManager.isMusicActive
         held = audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        DebugLog.log("hush: start (held=$held)")
+        DebugLog.log("hush: start (held=$held, silencedPlayback=$silenced)")
     }
 
     @Synchronized override fun lift() {
