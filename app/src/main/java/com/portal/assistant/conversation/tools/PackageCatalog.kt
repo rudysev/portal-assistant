@@ -14,7 +14,7 @@ import com.portal.commons.DebugLog
 object PackageCatalog {
 
     // Portal's standalone Spotify first, then the standard app as a fallback for other devices. Used by
-    // [MediaRouting] to pick the deep-link play strategy — NOT a discovery seed (Spotify is found at runtime
+    // `MediaRouting` to pick the deep-link play strategy — NOT a discovery seed (Spotify is found at runtime
     // like any other music app, below).
     val SPOTIFY_PKGS = listOf("com.facebook.aloha.spotifystandalone", "com.spotify.music")
 
@@ -40,7 +40,7 @@ object PackageCatalog {
     /**
      * Apps we can actually start a music search on but that music discovery may have missed: activities
      * handling the generic `MEDIA_PLAY_FROM_SEARCH` intent, plus installed Spotify (which uses its own deep
-     * link, not that intent). Used only as the **named-app fallback** in [MediaRouting] so "play … on <app>"
+     * link, not that intent). Used only as the **named-app fallback** in `MediaRouting` so "play … on <app>"
      * resolves an undetected music app (e.g. TIDAL) without matching an arbitrary non-music launcher like
      * Chrome — narrower than [launchable] on purpose.
      */
@@ -66,7 +66,7 @@ object PackageCatalog {
      * For the Settings picker: the discovered music apps and the wider *selectable* set (discovered ∪
      * [searchPlayableApps]), returned together so the discovered enumeration runs once. The selectable set
      * lets a play-from-search app missed by discovery be picked as the default (trusted directly by
-     * [MediaRouting]); the discovered set feeds [MediaRouting.effectiveDefault] so the picker renders the
+     * `MediaRouting`); the discovered set feeds `MediaRouting.effectiveDefault` so the picker renders the
      * default routing plays.
      */
     fun musicAppChoices(context: Context): Pair<List<AppEntry>, List<AppEntry>> {
@@ -77,7 +77,7 @@ object PackageCatalog {
     /**
      * Installed music apps, detected at runtime: apps exposing a MediaBrowserService ∪ CATEGORY_APP_MUSIC
      * launchers, each launchable so the launch-only fallback always has a target. No hardcoded seed — a
-     * named-but-undetected music app is still reachable via [searchPlayableApps] in [MediaRouting].
+     * named-but-undetected music app is still reachable via [searchPlayableApps] in `MediaRouting`.
      *
      * Cached process-wide (warmed by [warmMusicApps] off the wake path). Same staleness caveat as
      * [ExternalToolProvider]'s snapshot: a music app installed *after* the process warmed won't appear until

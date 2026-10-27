@@ -1,6 +1,7 @@
-package com.portal.assistant.conversation.tools
+package com.portal.assistant.conversation.tools.music
 
-import com.portal.assistant.conversation.tools.MediaRouting.PlayStrategy
+import com.portal.assistant.conversation.tools.AppEntry
+import com.portal.assistant.conversation.tools.music.MediaRouting.PlayStrategy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -166,16 +167,16 @@ class MediaRoutingTest {
     // --- play-type parsing (from the model's free-form hint) ---
 
     @Test fun playTypeParsesSingularAndPlural() {
-        assertEquals(MediaRouting.PlayType.SONG, MediaRouting.playType("song"))
-        assertEquals(MediaRouting.PlayType.SONG, MediaRouting.playType("songs"))
-        assertEquals(MediaRouting.PlayType.ARTIST, MediaRouting.playType("artists"))
-        assertEquals(MediaRouting.PlayType.ALBUM, MediaRouting.playType("album"))
-        assertEquals(MediaRouting.PlayType.PLAYLIST, MediaRouting.playType("playlists"))
+        assertEquals(PlayType.SONG, MediaRouting.playType("song"))
+        assertEquals(PlayType.SONG, MediaRouting.playType("songs"))
+        assertEquals(PlayType.ARTIST, MediaRouting.playType("artists"))
+        assertEquals(PlayType.ALBUM, MediaRouting.playType("album"))
+        assertEquals(PlayType.PLAYLIST, MediaRouting.playType("playlists"))
     }
 
     @Test fun playTypeIsCaseAndWhitespaceInsensitiveWithSynonyms() {
-        assertEquals(MediaRouting.PlayType.ALBUM, MediaRouting.playType("  Album "))
-        assertEquals(MediaRouting.PlayType.SONG, MediaRouting.playType("TRACK"))
+        assertEquals(PlayType.ALBUM, MediaRouting.playType("  Album "))
+        assertEquals(PlayType.SONG, MediaRouting.playType("TRACK"))
     }
 
     @Test fun playTypeNullForAbsentOrUnknown() {

@@ -38,8 +38,8 @@ import androidx.compose.ui.unit.dp
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
-import com.portal.assistant.conversation.tools.MediaRouting
 import com.portal.assistant.conversation.tools.PackageCatalog
+import com.portal.assistant.conversation.tools.music.MediaRouting
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
