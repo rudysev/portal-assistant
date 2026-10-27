@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 data class AppEntry(val label: String, val pkg: String)
 
 /**
- * Pure app-name → app resolution (Android-free, unit-tested; same split as [VolumeMath] / [MediaSelection]).
+ * Pure app-name → app resolution (Android-free, unit-tested; same split as [VolumeMath] / `MediaSelection`).
  * [AppLauncher] supplies the installed [AppEntry] list (real PackageManager labels) and acts on the result.
  *
  * The model forwards the user's whole phrase ("open Spotify", "launch the calendar"), so [best] strips a
