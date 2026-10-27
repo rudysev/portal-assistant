@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class HushedFlagTest {
 
-    private val hush = FakeHush(held = true)
+    private val hush = FakeHush().apply { start() }
     private val inner = FixedTool(
         JSONObject().put("playing", false).put("app", "Spotify").put("title", "One More Time"),
     )
@@ -26,7 +26,7 @@ class HushedFlagTest {
     }
 
     @Test fun nowPlayingWithNoHushHeldIsUnchanged() {
-        hush.isHeld = false
+        hush.loseFocus()
 
         val result = HushedFlag(inner, hush).invoke(JSONObject()).response
 
@@ -43,10 +43,28 @@ class HushedFlagTest {
         assertEquals(false, result.getBoolean("playing"))
     }
 
-    @Test fun aTrackAlreadyPausedWhenTheHushStartedIsUnchanged() {
-        hush.silencedPlayback = false
+    @Test fun nowPlayingUnderAHushThatWasNeverGrantedIsUnchanged() {
+        val denied = FakeHush(startGranted = false).apply { start() }
+
+        val result = HushedFlag(inner, denied).invoke(JSONObject()).response
+
+        assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
+    }
+
+    @Test fun nowPlayingAfterTheLiftIsUnchanged() {
+        hush.lift()
 
         val result = HushedFlag(inner, hush).invoke(JSONObject()).response
+
+        assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
+        assertEquals(false, result.getBoolean("playing"))
+    }
+
+    @Test fun aTrackAlreadyPausedWhenTheHushStartedIsUnchanged() {
+        val quiet = FakeHush(otherAudioPlaying = false).apply { start() }
+
+        val result = HushedFlag(inner, quiet).invoke(JSONObject()).response
 
         assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
         assertEquals(false, result.getBoolean("playing"))

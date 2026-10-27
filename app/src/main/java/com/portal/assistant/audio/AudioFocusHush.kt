@@ -11,15 +11,15 @@ import com.portal.commons.DebugLog
  * abandons it. Any focus loss (a music command starting playback, an incoming call) marks it no longer held, and it
  * never re-requests: Jarvis doesn't fight for the audio.
  *
- * [silencedPlayback] is `AudioManager.isMusicActive` just before the request: [start] runs before the conversation's
- * own tone and player, so only another app's audio counts.
+ * Whether it silenced anything ([isSilencingPlayback]) is `AudioManager.isMusicActive` just before the request:
+ * [start] runs before the conversation's own tone and player, so only another app's audio counts.
  *
  * [keepPaused] escalates the held focus to a permanent `AUDIOFOCUS_GAIN`, so every app the hush paused gets
  * `AUDIOFOCUS_LOSS` and drops its resume (measured on gen2: Spotify and Apple Music stay paused after the lift).
  *
- * [start] and [lift] run on the engine's thread, [keepPaused] and the reads on the tool thread, the focus callback on
- * the main looper: the three calls are serialised, so a late [keepPaused] can't re-take focus after the [lift], and
- * the flags are volatile for the reads.
+ * [start] and [lift] run on the engine's thread, [keepPaused] and [isSilencingPlayback] on the tool thread, the focus
+ * callback on the main looper: the three calls are serialised, so a late [keepPaused] can't re-take focus after the
+ * [lift], and the flags are volatile for the read.
  */
 class AudioFocusHush(context: Context) : Hush {
     private val audioManager = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -37,11 +37,7 @@ class AudioFocusHush(context: Context) : Hush {
 
     @Volatile private var silenced = false
 
-    override val isHeld: Boolean get() = held
-
-    override val silencedPlayback: Boolean get() = silenced
-
-    override val isKeptPaused: Boolean get() = keptPaused
+    override val isSilencingPlayback: Boolean get() = held && !keptPaused && silenced
 
     @Synchronized override fun start() {
         val focus = focusRequest(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
@@ -59,13 +55,14 @@ class AudioFocusHush(context: Context) : Hush {
         DebugLog.log("hush: lift")
     }
 
-    @Synchronized override fun keepPaused() {
-        if (!held) return
+    @Synchronized override fun keepPaused(): Boolean {
+        if (!held) return false
         val focus = focusRequest(AudioManager.AUDIOFOCUS_GAIN)
         // Kept even if denied: [lift] abandoning it releases both requests, as focus is keyed by the shared listener.
         request = focus
         keptPaused = audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         DebugLog.log("hush: keep paused (granted=$keptPaused)")
+        return keptPaused
     }
 
     // The same listener on every request: Android keys focus by it, so the escalation replaces the hush's request.
