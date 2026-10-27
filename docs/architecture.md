@@ -145,8 +145,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   music app, or an app the user names in the request (`app` param) which is honoured over the default; an
   optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
   honour it. Pure
-  routing is `MediaRouting` (target selection + per-app play strategy); `MusicLauncher.play` (called by
-  `PlayMusicTool` directly) fires it via a
+  routing is `music/MediaRouting` (target selection + per-app play strategy), inside **Music**, which fires it
+  through its `MusicApps` port (`AndroidMusicApps`: platform calls only) via a
   fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
   on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
   which can't on-demand-play one exact track but *can* shuffle-play an artist/playlist), else the generic
@@ -158,9 +158,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
   to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). The **music
-  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are each
-  wrapped in `FinalTurnOnSuccess` where `ToolRegistry` builds them: a response with neither `error` nor
-  `searchUnsupported` also makes the turn final, whatever else the turn held, with its own instruction (briefly
+  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) make the
+  turn final when they work (Music decides for `play_music`; the other two are wrapped in `FinalTurnOnSuccess` where
+  `ToolRegistry` builds them): a response with neither `error` nor `searchUnsupported` also makes the turn final, whatever else the turn held, with its own instruction (briefly
   confirm, no follow-up question); a failed one leaves the conversation open. Either counts only if its call settles
   with its own output, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush`
   (passed by `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control`

@@ -3,6 +3,7 @@ package com.portal.assistant.conversation.tools
 import android.content.Context
 import com.portal.assistant.audio.Hush
 import com.portal.assistant.conversation.tools.music.AndroidMediaSessions
+import com.portal.assistant.conversation.tools.music.AndroidMusicApps
 import com.portal.assistant.conversation.tools.music.Music
 import com.portal.commons.DebugLog
 import org.json.JSONObject
@@ -25,14 +26,15 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
     private val brightness = BrightnessController(appContext)
     private val dnd = DoNotDisturbController(appContext, afterSpeech)
     private val media = MediaControl(appContext)
-    private val music = Music(AndroidMediaSessions(appContext), hush, appContext.packageName)
-    private val musicLauncher = MusicLauncher(appContext)
+    private val music =
+        Music(AndroidMediaSessions(appContext), AndroidMusicApps(appContext), hush, appContext.packageName)
     private val appLauncher = AppLauncher(appContext)
     private val external = ExternalToolProvider(appContext)
 
-    // The **music commands** (play_music, media_control, set_repeat) are wrapped where they're built: one that
-    // works makes its turn final. The hush decorator sits inside: a pause under the hush is kept past it (and is a
-    // working music command). Music builds now_playing: never final (it expects an answer), flags a hushed track.
+    // The **music commands** media_control and set_repeat are wrapped where they're built: one that works makes its
+    // turn final. The hush decorator sits inside: a pause under the hush is kept past it (and is a working music
+    // command). Music builds now_playing (never final: it expects an answer, flags a hushed track) and play_music
+    // (final when it started music).
     private val tools: List<Tool> = listOf(
         GetTimeTool,
         SetTimerTool(timerScheduler),
@@ -50,7 +52,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         FinalTurnOnSuccess(PauseUnderHush(MediaControlTool(media), hush)),
         FinalTurnOnSuccess(SetRepeatTool(media)),
         music.nowPlaying,
-        FinalTurnOnSuccess(PlayMusicTool(musicLauncher)),
+        music.playMusic,
         OpenAppTool(appLauncher),
         EndConversationTool,
     )
