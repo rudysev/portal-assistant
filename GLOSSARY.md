@@ -50,6 +50,8 @@ _Avoid_: Turn complete (that's only the voice backend's part), done
 **Final turn**:
 A Jarvis turn after which the conversation ends at turn end instead of Jarvis listening again — because the user
 asked to end it, or because their request expects no reply (a music command). Jarvis still finishes speaking it.
+It's final only once Jarvis has been told it is: if the user speaks again before the request's result reaches Jarvis,
+nothing ends, even if the action (a pause) already ran.
 _Avoid_: Goodbye (that's only one way to ask), fast-exit, hang-up, last turn
 
 **Music command**:
