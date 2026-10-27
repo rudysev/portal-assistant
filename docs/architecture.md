@@ -165,9 +165,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   with its own output, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush`
   (passed by `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control`
   *inside* `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
-  session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
-  other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through. `HushedFlag`
-  wraps `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
+  session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final
+  turn; every other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through.
+  `HushedFlag` wraps `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
   `"playing": true` with `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a
   gen2); a track already paused when the hush started stays paused. Both pure, tested with a fake `Hush`
   (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and `decode`

@@ -13,6 +13,7 @@ class FinalTurnStateTest {
 
     private fun fc(id: String) = FunctionCall(id, "portal.test", JSONObject())
     private fun final(id: String) = ToolResult(id, "portal.test", JSONObject(), finalTurn = true)
+    private fun plain(id: String) = ToolResult(id, "portal.test", JSONObject())
 
     private fun reduceAll(events: List<Event>): Decision {
         var state = ConversationState()
@@ -84,6 +85,22 @@ class FinalTurnStateTest {
         )
         assertEquals(Phase.LISTENING, d.state.phase)
         assertEquals(false, d.actions.any { it is Action.SendToolResponse })
+    }
+
+    @Test fun onlyTheSentResultsOfAPartlyStaleBatchCount() {
+        val d = reduceAll(
+            listOf(
+                Event.Ready,
+                Event.ToolCallReceived(listOf(fc("c1"), fc("c2"))),
+                Event.ToolCancelled(listOf("c1")), // the server cancels c1, which finishes anyway, marked
+                Event.ToolResultsReady(listOf(final("c1"), plain("c2"))),
+                Event.PlaybackBusy,
+                Event.TurnComplete,
+                Event.PlaybackIdle,
+            ),
+        )
+        assertEquals(Phase.LISTENING, d.state.phase)
+        assertEquals(listOf("c2"), d.actions.filterIsInstance<Action.SendToolResponse>().single().results.map { it.id })
     }
 
     @Test fun resultsSentAfterTurnCompleteWaitForTheSignOff() {

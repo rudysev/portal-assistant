@@ -17,7 +17,7 @@ class SetMuteTool(private val volume: VolumeController) : Tool {
     )
 
     override fun invoke(args: JSONObject): ToolOutput {
-        if (!args.has("muted")) return ToolOutput(JSONObject().put("error", "muted required"))
+        if (!args.has("muted")) return ToolOutput.error("muted required")
         return ToolOutput(volume.setMuted(args.optBoolean("muted")).toJson())
     }
 }

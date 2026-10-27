@@ -8,4 +8,9 @@ import org.json.JSONObject
  * [ToolRunner] adds the instruction to the response and marks the result, so the model is told exactly when the
  * conversation will end. The mark counts only if the call settles with this output, not as cancelled.
  */
-data class ToolOutput(val response: JSONObject, val finalTurnInstruction: String? = null)
+data class ToolOutput(val response: JSONObject, val finalTurnInstruction: String? = null) {
+    companion object {
+        /** A failed call: `{"error": message}`, never a final turn. */
+        fun error(message: String) = ToolOutput(JSONObject().put("error", message))
+    }
+}

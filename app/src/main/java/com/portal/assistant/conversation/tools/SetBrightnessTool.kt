@@ -20,7 +20,7 @@ class SetBrightnessTool(private val brightness: BrightnessController) : Tool {
     override fun invoke(args: JSONObject): ToolOutput {
         // optDouble + round so a float (e.g. 49.5) isn't truncated; out-of-range is clamped by BrightnessMath.
         val percent = args.optDouble("level_percent", Double.NaN)
-        if (percent.isNaN()) return ToolOutput(JSONObject().put("error", "level_percent required"))
+        if (percent.isNaN()) return ToolOutput.error("level_percent required")
         return ToolOutput(brightness.setPercent(percent.roundToInt()))
     }
 }

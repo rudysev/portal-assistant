@@ -51,6 +51,7 @@ class ToolRunnerTest {
     }
 
     @Test fun cancellingACallBeforeItStartsStillDeliversTheWholeBatch() {
+        tools.output("tool_a", ToolOutput(JSONObject().put("ok", "a"), finalTurnInstruction = "Say goodbye."))
         tools.returns("tool_b", JSONObject().put("ok", "b"))
         run(call("a"), call("b"))
 
@@ -59,6 +60,7 @@ class ToolRunnerTest {
 
         assertEquals(1, deliveries.size)
         assertEquals(listOf("""a={"error":"cancelled"}""", """b={"ok":"b"}"""), deliveries.single().render())
+        assertFalse(deliveries.single().any { it.finalTurn }) // A never ran, so it ends nothing
     }
 
     @Test fun aCallCancelledWhileRunningIsInterruptedAndCountedOnce() {
@@ -90,6 +92,7 @@ class ToolRunnerTest {
             listOf("""a={"error":"no such app"}""", """b={"error":"error"}""", """c={"ok":"c"}"""),
             deliveries.single().render(),
         )
+        assertFalse(deliveries.single().any { it.finalTurn })
     }
 
     @Test fun anUnknownOrFailingToolDoesNotHideTheCallsAfterIt() {
@@ -159,7 +162,8 @@ class ToolRunnerTest {
     }
 
     @Test fun aFinalTurnInstructionMarksItsOwnResultAndTellsTheModel() {
-        tools.output("tool_a", ToolOutput(JSONObject().put("ok", "a"), finalTurnInstruction = "Say goodbye."))
+        val toolsResponse = JSONObject().put("ok", "a")
+        tools.output("tool_a", ToolOutput(toolsResponse, finalTurnInstruction = "Say goodbye."))
         tools.returns("tool_b", JSONObject().put("ok", "b"))
         run(call("a"), call("b"))
 
@@ -169,6 +173,7 @@ class ToolRunnerTest {
         assertTrue(a.finalTurn)
         assertEquals("a", a.response.getString("ok"))
         assertEquals("Say goodbye.", a.response.getString("instruction"))
+        assertFalse(toolsResponse.has("instruction")) // a tool that reuses its response object isn't changed
         assertFalse(b.finalTurn) // the mark belongs to its own call only
     }
 

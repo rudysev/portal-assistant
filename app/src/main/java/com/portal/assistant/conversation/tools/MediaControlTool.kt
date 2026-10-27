@@ -18,7 +18,7 @@ class MediaControlTool(private val media: MediaControl) : Tool {
 
     override fun invoke(args: JSONObject): ToolOutput {
         val action = MediaAction.parse(args.optString("action"))
-            ?: return ToolOutput(JSONObject().put("error", "action must be play, pause, next, or previous"))
+            ?: return ToolOutput.error("action must be play, pause, next, or previous")
         return ToolOutput(media.control(action))
     }
 }

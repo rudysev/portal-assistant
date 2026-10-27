@@ -20,7 +20,7 @@ class CancelTimerTool(private val scheduler: TimerScheduler) : Tool {
     override fun invoke(args: JSONObject): ToolOutput {
         val id = if (args.has("id")) args.optInt("id") else null
         val label = args.optString("label").ifBlank { null }
-        if (id == null && label == null) return ToolOutput(JSONObject().put("error", "provide id or label"))
+        if (id == null && label == null) return ToolOutput.error("provide id or label")
         val cancelled = scheduler.cancel(id, label)
         return ToolOutput(
             cancelled?.let { JSONObject().put("cancelled", true).put("id", it.id).put("label", it.label) }

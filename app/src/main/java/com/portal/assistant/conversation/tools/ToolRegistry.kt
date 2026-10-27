@@ -68,13 +68,11 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
 
     override fun invoke(name: String, args: JSONObject): ToolOutput {
         val builtIn = tools.firstOrNull { it.name == name } // built-ins win
+        // An external provider's tool never makes a final turn: its JSON response goes back as is.
         return when {
             builtIn != null -> builtIn.invoke(args)
-
             external.handles(name) -> ToolOutput(external.invoke(name, args))
-
-            // can't make a final turn
-            else -> ToolOutput(JSONObject().put("error", "unknown tool: $name"))
+            else -> ToolOutput.error("unknown tool: $name")
         }
     }
 

@@ -20,7 +20,7 @@ class AdjustVolumeTool(private val volume: VolumeController) : Tool {
         val raise = when (args.optString("direction").trim().lowercase()) {
             "up", "louder", "raise" -> true
             "down", "quieter", "lower" -> false
-            else -> return ToolOutput(JSONObject().put("error", "direction must be up or down"))
+            else -> return ToolOutput.error("direction must be up or down")
         }
         return ToolOutput(volume.adjust(raise).toJson())
     }

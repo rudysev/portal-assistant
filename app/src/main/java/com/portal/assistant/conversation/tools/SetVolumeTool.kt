@@ -20,7 +20,7 @@ class SetVolumeTool(private val volume: VolumeController) : Tool {
     override fun invoke(args: JSONObject): ToolOutput {
         // optDouble + round so a float (e.g. 49.5) isn't truncated; out-of-range is clamped by VolumeMath.
         val percent = args.optDouble("level_percent", Double.NaN)
-        if (percent.isNaN()) return ToolOutput(JSONObject().put("error", "level_percent required"))
+        if (percent.isNaN()) return ToolOutput.error("level_percent required")
         return ToolOutput(volume.setPercent(percent.roundToInt()).toJson())
     }
 }

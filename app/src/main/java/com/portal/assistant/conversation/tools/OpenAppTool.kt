@@ -18,7 +18,7 @@ class OpenAppTool(private val launcher: AppLauncher) : Tool {
 
     override fun invoke(args: JSONObject): ToolOutput {
         val name = args.optString("name").trim()
-        if (name.isEmpty()) return ToolOutput(JSONObject().put("error", "name required"))
+        if (name.isEmpty()) return ToolOutput.error("name required")
         return ToolOutput(launcher.open(name))
     }
 }
