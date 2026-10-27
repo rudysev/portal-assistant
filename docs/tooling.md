@@ -21,6 +21,12 @@ baseline: suppress inline only (`@Suppress("RuleId")`), each with a reason comme
 default `MaxLineLength`, and `max_line_length = 120` in `.editorconfig` for ktlint. Reports:
 `app/build/reports/detekt/`.
 
+detekt runs in its own process (`detekt.use.worker.api=true` in `gradle.properties`). Inside the Gradle daemon its type
+resolution kept reading the app's rebuilt classes jar as it was on the first run, so after a main change
+`detektDebugUnitTest` analysed the tests against stale classes and only warned "N compiler errors found during
+analysis" while `check` passed. That warning on a clean tree means type resolution is broken again: rerun with
+`detekt { debug = true }` to see the errors.
+
 With KGP 2.4, a compiler warning (`allWarningsAsErrors`) fails the build with only "warnings found and -Werror
 specified"; run the build with `--info` to see the warnings themselves.
 
