@@ -24,17 +24,12 @@ class ToolRunnerTest {
     private val afterSpeech = AfterSpeech()
     private val tools = FakeToolSet()
     private val toolExec = SteppedExecutor()
-    private val events = mutableListOf<String>()
-    private val finalTurn = FinalTurnRequests { events += "final turn" }
-    private val runner = ToolRunner(tools, afterSpeech, toolExec, Executor { it.run() }, finalTurn)
+    private val runner = ToolRunner(tools, afterSpeech, toolExec, Executor { it.run() })
     private val deliveries = mutableListOf<List<ToolResult>>()
 
     private fun call(id: String, name: String = "tool_$id") = FunctionCall(id, name, JSONObject())
 
-    private fun run(vararg calls: FunctionCall) = runner.run(calls.toList()) {
-        deliveries += it
-        events += "results"
-    }
+    private fun run(vararg calls: FunctionCall) = runner.run(calls.toList()) { deliveries += it }
 
     /** Each delivered result as `id=response`, so a whole batch reads as one comparable list. */
     private fun List<ToolResult>.render() = map { "${it.id}=${it.response}" }
@@ -69,7 +64,7 @@ class ToolRunnerTest {
     @Test fun aCallCancelledWhileRunningIsInterruptedAndCountedOnce() {
         tools.script("tool_a") {
             runner.keepOnly(setOf("b")) // the model cancels A mid-run…
-            JSONObject().put("ok", "a") // …and the interrupted tool finishes anyway
+            ToolOutput(JSONObject().put("ok", "a")) // …and the interrupted tool finishes anyway
         }
         tools.returns("tool_b", JSONObject().put("ok", "b"))
         run(call("a"), call("b"))
@@ -116,11 +111,11 @@ class ToolRunnerTest {
         var effectRan = false
         tools.script("tool_a") {
             afterSpeech.post { effectRan = true } // e.g. a deferred mute
-            JSONObject().put("ok", "a")
+            ToolOutput(JSONObject().put("ok", "a"))
         }
         tools.script("tool_b") {
             runner.dispose() // the conversation is torn down while B runs…
-            JSONObject().put("ok", "b") // …and B finishes anyway, completing the batch
+            ToolOutput(JSONObject().put("ok", "b")) // …and B finishes anyway, completing the batch
         }
         run(call("a"), call("b"))
 
@@ -136,7 +131,7 @@ class ToolRunnerTest {
         var effectRuns = 0
         tools.script("tool_a") {
             afterSpeech.post { effectRuns++ }
-            JSONObject().put("ok", "a")
+            ToolOutput(JSONObject().put("ok", "a"))
         }
         run(call("a"))
         toolExec.runAll()
@@ -151,7 +146,7 @@ class ToolRunnerTest {
     @Test fun keepingEveryCallInFlightCancelsNothing() {
         tools.script("tool_a") {
             runner.keepOnly(setOf("a", "b")) // an event mid-run that left both in flight
-            JSONObject().put("ok", "a")
+            ToolOutput(JSONObject().put("ok", "a"))
         }
         tools.returns("tool_b", JSONObject().put("ok", "b"))
         run(call("a"), call("b"))
@@ -163,60 +158,48 @@ class ToolRunnerTest {
         assertEquals(listOf("""a={"ok":"a"}""", """b={"ok":"b"}"""), deliveries.single().render())
     }
 
-    @Test fun aFinalTurnRequestCountsOnceItsCallSettlesAndBeforeTheBatchResults() {
-        var eventsWhileRunning: List<String>? = null
-        tools.script("tool_a") {
-            finalTurn.request() // e.g. end_conversation, or a music command that worked
-            eventsWhileRunning = events.toList()
-            JSONObject().put("ok", "a")
-        }
+    @Test fun aFinalTurnInstructionMarksItsOwnResultAndTellsTheModel() {
+        tools.output("tool_a", ToolOutput(JSONObject().put("ok", "a"), finalTurnInstruction = "Say goodbye."))
+        tools.returns("tool_b", JSONObject().put("ok", "b"))
         run(call("a"), call("b"))
 
         toolExec.runAll()
 
-        assertEquals(emptyList<String>(), eventsWhileRunning) // held until the call settles
-        assertEquals(listOf("final turn", "results"), events)
+        val (a, b) = deliveries.single()
+        assertTrue(a.finalTurn)
+        assertEquals("a", a.response.getString("ok"))
+        assertEquals("Say goodbye.", a.response.getString("instruction"))
+        assertFalse(b.finalTurn) // the mark belongs to its own call only
     }
 
-    @Test fun aCallCancelledAfterRequestingTheFinalTurnRequestsNothing() {
+    @Test fun aCallCancelledAfterAskingForAFinalTurnIsNotMarked() {
         tools.script("tool_a") {
-            finalTurn.request() // the tool asks to end...
-            runner.keepOnly(emptySet()) // ...then a barge-in cancels it mid-run, and the cancel wins the settle
-            JSONObject().put("ok", "a")
+            runner.keepOnly(emptySet()) // a barge-in cancels A mid-run, and the cancel wins the settle
+            ToolOutput(JSONObject().put("ok", "a"), finalTurnInstruction = "Say goodbye.")
         }
         run(call("a"))
 
         toolExec.runAll()
 
-        assertEquals(listOf("""a={"error":"cancelled"}"""), deliveries.single().render())
-        assertEquals(listOf("results"), events) // the model was told "cancelled", so no final turn
-    }
-
-    @Test fun aRequestBelongsToItsOwnCallOnly() {
-        tools.script("tool_a") {
-            finalTurn.request()
-            runner.keepOnly(setOf("b")) // A is cancelled; B, which never asked, runs to its own result
-            JSONObject().put("ok", "a")
-        }
-        run(call("a"), call("b"))
-
-        toolExec.runAll()
-
-        assertEquals(listOf("results"), events)
+        val result = deliveries.single().single()
+        assertEquals("""{"error":"cancelled"}""", result.response.toString()) // the model is told "cancelled"...
+        assertFalse(result.finalTurn) // ...so nothing ends
     }
 
     // ---- fakes -------------------------------------------------------------------------------------------------
 
     /** A [ToolSet] scripted per tool name; an unscripted name answers `{}`. Records what it saw. */
     private class FakeToolSet : ToolSet {
-        private val scripts = mutableMapOf<String, () -> JSONObject>()
+        private val scripts = mutableMapOf<String, () -> ToolOutput>()
         val invoked = mutableListOf<String>()
         val interruptedWhileRunning = mutableListOf<String>()
         var disposed = false
 
-        fun returns(name: String, result: JSONObject) = script(name) { result }
+        fun returns(name: String, result: JSONObject) = output(name, ToolOutput(result))
 
-        fun script(name: String, body: () -> JSONObject) {
+        fun output(name: String, output: ToolOutput) = script(name) { output }
+
+        fun script(name: String, body: () -> ToolOutput) {
             scripts[name] = body
         }
 
@@ -224,9 +207,9 @@ class ToolRunnerTest {
 
         override fun externalPromptLines(): List<String> = listOf("- a provider")
 
-        override fun invoke(name: String, args: JSONObject): JSONObject {
+        override fun invoke(name: String, args: JSONObject): ToolOutput {
             invoked += name
-            val result = scripts[name]?.invoke() ?: JSONObject()
+            val result = scripts[name]?.invoke() ?: ToolOutput(JSONObject())
             if (Thread.currentThread().isInterrupted) interruptedWhileRunning += name
             return result
         }

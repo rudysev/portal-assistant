@@ -17,9 +17,10 @@ class HushedFlag(private val tool: Tool, private val hush: Hush) : Tool {
 
     override val declaration: JSONObject get() = tool.declaration
 
-    override fun invoke(args: JSONObject): JSONObject {
-        val result = tool.invoke(args)
-        val hushed = hush.isHeld && !hush.isKeptPaused && hush.silencedPlayback && result.has("app")
-        return if (hushed) result.put("playing", true).put("hushed", true) else result
+    override fun invoke(args: JSONObject): ToolOutput {
+        val output = tool.invoke(args)
+        val hushed = hush.isHeld && !hush.isKeptPaused && hush.silencedPlayback && output.response.has("app")
+        if (hushed) output.response.put("playing", true).put("hushed", true)
+        return output
     }
 }

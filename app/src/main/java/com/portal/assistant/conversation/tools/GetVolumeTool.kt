@@ -13,5 +13,5 @@ class GetVolumeTool(private val volume: VolumeController) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = volume.current().toJson()
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(volume.current().toJson())
 }

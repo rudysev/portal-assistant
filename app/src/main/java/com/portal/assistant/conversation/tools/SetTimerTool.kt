@@ -18,15 +18,17 @@ class SetTimerTool(private val scheduler: TimerScheduler) : Tool {
              "required":["duration_seconds"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject {
+    override fun invoke(args: JSONObject): ToolOutput {
         // optDouble + round so a float duration (e.g. 30.7) isn't silently truncated by optInt.
         val duration = args.optDouble("duration_seconds", Double.NaN)
         val seconds = if (duration.isNaN()) -1 else duration.roundToInt()
         val label = args.optString("label")
         val entry = scheduler.set(seconds, label) // throws on out-of-range → engine wraps as {"error":…}
-        return JSONObject()
-            .put("id", entry.id)
-            .put("label", entry.label)
-            .put("duration_seconds", entry.durationSec)
+        return ToolOutput(
+            JSONObject()
+                .put("id", entry.id)
+                .put("label", entry.label)
+                .put("duration_seconds", entry.durationSec),
+        )
     }
 }

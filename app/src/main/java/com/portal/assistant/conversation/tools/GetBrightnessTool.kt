@@ -13,5 +13,5 @@ class GetBrightnessTool(private val brightness: BrightnessController) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = brightness.current().toJson()
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(brightness.current().toJson())
 }

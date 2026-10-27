@@ -5,6 +5,7 @@ import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.VoiceBackend
 import com.portal.assistant.conversation.backend.VoiceBackendFactory
 import com.portal.assistant.conversation.tools.Tool
+import com.portal.assistant.conversation.tools.ToolOutput
 import com.portal.assistant.conversation.tools.ToolSet
 import com.portal.assistant.system.DeviceLocation
 import org.json.JSONObject
@@ -270,9 +271,9 @@ class FakeToolSet(private val log: MutableList<String>) : ToolSet {
 
     override fun externalPromptLines(): List<String> = emptyList()
 
-    override fun invoke(name: String, args: JSONObject): JSONObject {
+    override fun invoke(name: String, args: JSONObject): ToolOutput {
         invoked += name
-        return builtIns.firstOrNull { it.name == name }?.invoke(args) ?: JSONObject().put("ok", name)
+        return builtIns.firstOrNull { it.name == name }?.invoke(args) ?: ToolOutput(JSONObject().put("ok", name))
     }
 
     override fun dispose() {
@@ -286,7 +287,7 @@ class MusicCommand : Tool {
 
     override val declaration: JSONObject = JSONObject().put("name", name)
 
-    override fun invoke(args: JSONObject): JSONObject = JSONObject().put("ok", true)
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(JSONObject().put("ok", true))
 }
 
 /** The `tool-exec` thread: a call runs the moment it is handed over, unless [holding] keeps it queued unstarted. */

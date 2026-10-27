@@ -18,7 +18,7 @@ class HushedFlagTest {
     )
 
     @Test fun nowPlayingUnderAHeldHushReportsTheTrackPlayingAndHushed() {
-        val result = HushedFlag(inner, hush).invoke(JSONObject())
+        val result = HushedFlag(inner, hush).invoke(JSONObject()).response
 
         assertEquals(true, result.getBoolean("hushed"))
         assertEquals(true, result.getBoolean("playing"))
@@ -28,7 +28,7 @@ class HushedFlagTest {
     @Test fun nowPlayingWithNoHushHeldIsUnchanged() {
         hush.isHeld = false
 
-        val result = HushedFlag(inner, hush).invoke(JSONObject())
+        val result = HushedFlag(inner, hush).invoke(JSONObject()).response
 
         assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
         assertEquals(false, result.getBoolean("playing"))
@@ -37,7 +37,7 @@ class HushedFlagTest {
     @Test fun nowPlayingAfterAKeptPauseIsUnchanged() {
         hush.keepPaused()
 
-        val result = HushedFlag(inner, hush).invoke(JSONObject())
+        val result = HushedFlag(inner, hush).invoke(JSONObject()).response
 
         assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
         assertEquals(false, result.getBoolean("playing"))
@@ -46,21 +46,21 @@ class HushedFlagTest {
     @Test fun aTrackAlreadyPausedWhenTheHushStartedIsUnchanged() {
         hush.silencedPlayback = false
 
-        val result = HushedFlag(inner, hush).invoke(JSONObject())
+        val result = HushedFlag(inner, hush).invoke(JSONObject()).response
 
         assertEquals(setOf("playing", "app", "title"), result.keys().asSequence().toSet())
         assertEquals(false, result.getBoolean("playing"))
     }
 
     @Test fun noSessionFoundUnderAHeldHushIsUnchanged() {
-        val result = HushedFlag(FixedTool(JSONObject().put("playing", false)), hush).invoke(JSONObject())
+        val result = HushedFlag(FixedTool(JSONObject().put("playing", false)), hush).invoke(JSONObject()).response
 
         assertEquals(setOf("playing"), result.keys().asSequence().toSet())
         assertEquals(false, result.getBoolean("playing"))
     }
 
     @Test fun anErrorUnderAHeldHushIsUnchanged() {
-        val result = HushedFlag(FixedTool(JSONObject().put("error", "no access")), hush).invoke(JSONObject())
+        val result = HushedFlag(FixedTool(JSONObject().put("error", "no access")), hush).invoke(JSONObject()).response
 
         assertEquals(setOf("error"), result.keys().asSequence().toSet())
     }
@@ -76,6 +76,6 @@ class HushedFlagTest {
         override val name = "portal.now_playing"
         override val declaration: JSONObject = JSONObject().put("name", name)
 
-        override fun invoke(args: JSONObject): JSONObject = result
+        override fun invoke(args: JSONObject): ToolOutput = ToolOutput(result)
     }
 }

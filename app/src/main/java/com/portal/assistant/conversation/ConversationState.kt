@@ -73,9 +73,6 @@ sealed interface Event {
 
     /** The server cancelled tool calls with the given ids. */
     data class ToolCancelled(val ids: List<String>) : Event
-
-    /** A tool asked for a final turn: this turn's end ends the conversation instead of re-listening. */
-    data object FinalTurnRequested : Event
 }
 
 /** A side effect for [AssistantEngine] to execute. Pure data — the reducer performs none of these. */
@@ -165,12 +162,9 @@ fun reduce(state: ConversationState, event: Event, multiTurn: Boolean): Decision
 private fun reduceBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (state.phase) {
     Phase.ENDED -> Decision(state, emptyList())
     Phase.CONNECTING -> connectingBody(state, event)
-    Phase.LISTENING -> if (event == Event.FinalTurnRequested) finalTurn(state) else listeningBody(state, event)
-    Phase.SPEAKING -> if (event == Event.FinalTurnRequested) finalTurn(state) else speakingBody(state, event, multiTurn)
+    Phase.LISTENING -> listeningBody(state, event)
+    Phase.SPEAKING -> speakingBody(state, event, multiTurn)
 }
-
-/** Mark a live conversation's final turn: the next turn end, normal or stalled, ends it. Holds until the end. */
-private fun finalTurn(state: ConversationState): Decision = Decision(state.copy(finalTurn = true), emptyList())
 
 private fun connectingBody(state: ConversationState, event: Event): Decision = when (event) {
     Event.Ready -> Decision(

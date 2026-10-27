@@ -16,12 +16,12 @@ class AdjustBrightnessTool(private val brightness: BrightnessController) : Tool 
              "required":["direction"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject {
+    override fun invoke(args: JSONObject): ToolOutput {
         val up = when (args.optString("direction").trim().lowercase()) {
             "up", "brighter", "brighten", "raise" -> true
             "down", "dimmer", "dim", "lower", "darker" -> false
-            else -> return JSONObject().put("error", "direction must be up or down")
+            else -> return ToolOutput(JSONObject().put("error", "direction must be up or down"))
         }
-        return brightness.adjust(up)
+        return ToolOutput(brightness.adjust(up))
     }
 }

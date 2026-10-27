@@ -13,5 +13,5 @@ class GetDoNotDisturbTool(private val dnd: DoNotDisturbController) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = dnd.current()
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(dnd.current())
 }

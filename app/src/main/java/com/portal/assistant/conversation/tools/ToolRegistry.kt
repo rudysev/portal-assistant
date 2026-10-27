@@ -16,7 +16,7 @@ import org.json.JSONObject
  * uses the same external-provider parse snapshot for the session system instruction.
  * [invoke] is called on the tool-executor thread, may block (HTTP / cross-process call), must not touch UI.
  */
-class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn: () -> Unit, hush: Hush) : ToolSet {
+class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : ToolSet {
     private val appContext = context.applicationContext
     private val timerScheduler = TimerScheduler(appContext)
     private val volume = VolumeController(appContext, afterSpeech)
@@ -44,12 +44,12 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
         AdjustBrightnessTool(brightness),
         GetDoNotDisturbTool(dnd),
         SetDoNotDisturbTool(dnd),
-        FinalTurnOnSuccess(PauseUnderHush(MediaControlTool(media), hush), requestFinalTurn),
-        FinalTurnOnSuccess(SetRepeatTool(media), requestFinalTurn),
+        FinalTurnOnSuccess(PauseUnderHush(MediaControlTool(media), hush)),
+        FinalTurnOnSuccess(SetRepeatTool(media)),
         HushedFlag(NowPlayingTool(media), hush),
-        FinalTurnOnSuccess(PlayMusicTool(music), requestFinalTurn),
+        FinalTurnOnSuccess(PlayMusicTool(music)),
         OpenAppTool(appLauncher),
-        EndConversationTool(requestFinalTurn),
+        EndConversationTool,
     )
 
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }
@@ -66,12 +66,15 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, requestFinalTurn:
     /** Enabled external-provider prompt bullets — same session snapshot as [declarations]. */
     override fun externalPromptLines(): List<String> = external.promptLines()
 
-    override fun invoke(name: String, args: JSONObject): JSONObject {
+    override fun invoke(name: String, args: JSONObject): ToolOutput {
         val builtIn = tools.firstOrNull { it.name == name } // built-ins win
         return when {
             builtIn != null -> builtIn.invoke(args)
-            external.handles(name) -> external.invoke(name, args)
-            else -> JSONObject().put("error", "unknown tool: $name")
+
+            external.handles(name) -> ToolOutput(external.invoke(name, args))
+
+            // can't make a final turn
+            else -> ToolOutput(JSONObject().put("error", "unknown tool: $name"))
         }
     }
 

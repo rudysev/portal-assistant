@@ -16,12 +16,12 @@ class AdjustVolumeTool(private val volume: VolumeController) : Tool {
              "required":["direction"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject {
+    override fun invoke(args: JSONObject): ToolOutput {
         val raise = when (args.optString("direction").trim().lowercase()) {
             "up", "louder", "raise" -> true
             "down", "quieter", "lower" -> false
-            else -> return JSONObject().put("error", "direction must be up or down")
+            else -> return ToolOutput(JSONObject().put("error", "direction must be up or down"))
         }
-        return volume.adjust(raise).toJson()
+        return ToolOutput(volume.adjust(raise).toJson())
     }
 }

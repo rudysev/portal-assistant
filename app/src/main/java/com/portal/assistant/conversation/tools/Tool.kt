@@ -10,6 +10,9 @@ interface Tool {
     /** Gemini function declaration (OpenAPI subset) sent in the session setup. */
     val declaration: JSONObject
 
-    /** Synchronous invocation. Throw on error — the engine wraps exceptions in {"error":"…"}. */
-    fun invoke(args: JSONObject): JSONObject
+    /**
+     * Synchronous invocation: the response for the model and, for a **final turn**, its instruction ([ToolOutput]).
+     * Throw on error — the engine wraps exceptions in {"error":"…"}.
+     */
+    fun invoke(args: JSONObject): ToolOutput
 }
