@@ -1,9 +1,14 @@
-package com.portal.assistant.conversation.tools
+package com.portal.assistant.conversation.tools.music
+
+import com.portal.assistant.conversation.tools.AppEntry
+import com.portal.assistant.conversation.tools.AppMatch
+
+/** The kind the user asked to play, parsed from the model's free-form `type` hint by [MediaRouting.playType]. */
+enum class PlayType { SONG, ARTIST, ALBUM, PLAYLIST }
 
 /**
- * Pure play-routing logic for [MusicLauncher.play] — Android-free so it's unit-tested (same split as
- * `MediaSelection` / [VolumeMath]). Decides **which app** a play targets and **how** to start it, given the
- * installed apps and the user's default. The shell ([MusicLauncher]) enumerates apps + fires the intent.
+ * Pure play-routing logic for `play_music` ([PlayMusic]): decides **which app** a play targets and **how** to start
+ * it, given the installed apps and the user's default. [MusicApps] enumerates the apps and fires the start.
  *
  * Two independent decisions:
  * - [resolveTarget] — the package to play on: an app the user *named* (honoured over the default), else the
@@ -15,13 +20,10 @@ package com.portal.assistant.conversation.tools
  * [fallbackApps] is a thunk (a PackageManager query) so it's only run when the fallback is actually needed;
  * the shell scopes it to music-capable apps, not every launcher.
  */
-object MediaRouting {
+internal object MediaRouting {
 
-    /** How to start playback on a chosen package; see [MediaControl] for the firing side of each. */
+    /** How to start playback on a chosen package; [PlayMusic] fires each through [MusicApps]. */
     enum class PlayStrategy { DEEP_LINK, PLAY_FROM_SEARCH, LAUNCH_ONLY }
-
-    /** The kind the user asked to play, parsed from the model's free-form `type` hint (see [PlayMusicTool]). */
-    enum class PlayType { SONG, ARTIST, ALBUM, PLAYLIST }
 
     /**
      * The resolved play target. [pkg] null ⇒ nothing to play; [reason] carries a speakable explanation.
@@ -105,7 +107,7 @@ object MediaRouting {
         autoDefault(discovered, spotifyPkgs) ?: autoDefault(all(), spotifyPkgs)
 
     /**
-     * How to start playback on [pkg]: Spotify → its deep link (see [MediaControl] for why), an app handling
+     * How to start playback on [pkg]: Spotify → its deep link (see [PlayMusic] for why), an app handling
      * `MEDIA_PLAY_FROM_SEARCH` → that intent, else launch. [hasPlayFromSearch] is a thunk, so its
      * resolveActivity probe is skipped for the Spotify path.
      */

@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.net.toUri
+import com.portal.assistant.conversation.tools.music.MediaRouting
+import com.portal.assistant.conversation.tools.music.PlayType
 import com.portal.assistant.system.AppPrefs
 import com.portal.commons.DebugLog
 import org.json.JSONObject
@@ -69,16 +71,15 @@ class MusicLauncher(context: Context) {
         JSONObject().put("error", "couldn't start $label: ${it.message}")
     }
 
-    private fun playFromSearch(pkg: String, q: String, label: String, type: MediaRouting.PlayType?): JSONObject =
-        runCatching {
-            appContext.startActivity(playFromSearchIntent(pkg, q, type))
-            DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
-            JSONObject().put("playing", true).put("query", q).put("app", label)
-        }.getOrElse {
-            // The activity resolved but failed to start — fall back to just opening the app.
-            DebugLog.log("play_music play_from_search failed for $pkg: ${it.message}")
-            launchOnly(pkg, q, label)
-        }
+    private fun playFromSearch(pkg: String, q: String, label: String, type: PlayType?): JSONObject = runCatching {
+        appContext.startActivity(playFromSearchIntent(pkg, q, type))
+        DebugLog.log("play_music → play_from_search $pkg \"$q\" type=${type?.name?.lowercase() ?: "any"}")
+        JSONObject().put("playing", true).put("query", q).put("app", label)
+    }.getOrElse {
+        // The activity resolved but failed to start — fall back to just opening the app.
+        DebugLog.log("play_music play_from_search failed for $pkg: ${it.message}")
+        launchOnly(pkg, q, label)
+    }
 
     private fun launchOnly(pkg: String, q: String, label: String): JSONObject {
         val launch = pm.getLaunchIntentForPackage(pkg)
@@ -102,7 +103,7 @@ class MusicLauncher(context: Context) {
     private fun hasPlayFromSearch(pkg: String): Boolean =
         pm.resolveActivity(Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg), 0) != null
 
-    private fun playFromSearchIntent(pkg: String, q: String, type: MediaRouting.PlayType?) =
+    private fun playFromSearchIntent(pkg: String, q: String, type: PlayType?) =
         Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
             setPackage(pkg)
             putExtra(SearchManager.QUERY, q)
@@ -113,12 +114,12 @@ class MusicLauncher(context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-    /** Map a parsed [MediaRouting.PlayType] to the Android MEDIA_PLAY_FROM_SEARCH focus mime. */
-    private fun focusFor(type: MediaRouting.PlayType?): String = when (type) {
-        MediaRouting.PlayType.ARTIST -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
-        MediaRouting.PlayType.ALBUM -> MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE
-        MediaRouting.PlayType.SONG -> MediaStore.Audio.Media.ENTRY_CONTENT_TYPE
-        MediaRouting.PlayType.PLAYLIST -> PLAYLIST_FOCUS
+    /** Map a parsed [PlayType] to the Android MEDIA_PLAY_FROM_SEARCH focus mime. */
+    private fun focusFor(type: PlayType?): String = when (type) {
+        PlayType.ARTIST -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
+        PlayType.ALBUM -> MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE
+        PlayType.SONG -> MediaStore.Audio.Media.ENTRY_CONTENT_TYPE
+        PlayType.PLAYLIST -> PLAYLIST_FOCUS
         null -> MediaStore.Audio.Media.CONTENT_TYPE // generic "any audio" focus
     }
 
