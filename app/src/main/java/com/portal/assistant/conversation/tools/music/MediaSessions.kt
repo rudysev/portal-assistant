@@ -15,10 +15,17 @@ interface MediaSessions {
     /** The user-visible name of the app [pkg], or [pkg] itself when it has none. */
     fun appLabel(pkg: String): String
 
-    /** Send [action] to the session at [index] in the list the last [active] returned. */
+    /**
+     * Send [action] to the session at [index] in the list the last [active] call returned (its [SessionInfo.index]),
+     * not the device's sessions now: read [active] first in the same tool call. An index outside that list (no read
+     * yet, or a read of a shorter list) throws [IndexOutOfBoundsException].
+     */
     fun transport(index: Int, action: MediaAction)
 
-    /** Set [mode] on the session at [index] in the list the last [active] returned; throws when the call fails. */
+    /**
+     * Set [mode] on the session at [index] in the list the last [active] call returned, as for [transport]; also
+     * throws when the call fails.
+     */
     fun setRepeat(index: Int, mode: RepeatMode)
 }
 

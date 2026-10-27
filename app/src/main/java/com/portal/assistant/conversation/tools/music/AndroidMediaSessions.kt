@@ -32,7 +32,9 @@ class AndroidMediaSessions(context: Context) : MediaSessions {
     private val manager =
         appContext.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
 
-    @Volatile private var lastRead: List<MediaController> = emptyList()
+    // Written by [active], read by [transport] / [setRepeat]: all on the single `tool-exec` thread (ToolRunner runs
+    // every built-in tool there, one after another), so no synchronisation is needed.
+    private var lastRead: List<MediaController> = emptyList()
 
     override fun active(): List<ActiveSession>? = controllers()?.also { lastRead = it }
         ?.mapIndexed { i, c -> ActiveSession(c.toInfo(i), title(c.metadata), artist(c.metadata)) }
