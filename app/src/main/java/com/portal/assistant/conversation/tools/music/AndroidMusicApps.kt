@@ -32,11 +32,11 @@ class AndroidMusicApps(context: Context) : MusicApps {
     override fun hasPlayFromSearch(pkg: String): Boolean =
         pm.resolveActivity(Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg), 0) != null
 
-    override fun searchDeepLink(pkg: String, query: String): Start = start(
-        Intent(Intent.ACTION_VIEW, ("spotify:search:" + Uri.encode(query)).toUri()).setPackage(pkg),
-    )
+    override fun searchDeepLink(pkg: String, query: String): Start = start {
+        Intent(Intent.ACTION_VIEW, ("spotify:search:" + Uri.encode(query)).toUri()).setPackage(pkg)
+    }
 
-    override fun playFromSearch(pkg: String, query: String, type: PlayType?): Start = start(
+    override fun playFromSearch(pkg: String, query: String, type: PlayType?): Start = start {
         Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
             setPackage(pkg)
             putExtra(SearchManager.QUERY, query)
@@ -44,13 +44,15 @@ class AndroidMusicApps(context: Context) : MusicApps {
             // none → generic audio focus. The app reads QUERY + focus: we deliberately don't fake structured
             // artist/title extras out of a blob query.
             putExtra(MediaStore.EXTRA_MEDIA_FOCUS, focusFor(type))
-        },
-    )
+        }
+    }
 
-    override fun launch(pkg: String): Start = pm.getLaunchIntentForPackage(pkg)?.let { start(it) } ?: Start.Failed(null)
+    override fun launch(pkg: String): Start =
+        pm.getLaunchIntentForPackage(pkg)?.let { launch -> start { launch } } ?: Start.Failed(null)
 
-    private fun start(intent: Intent): Start = runCatching {
-        appContext.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    /** Build and start the [intent] in one `runCatching`, so a failure building it is a failed start too. */
+    private fun start(intent: () -> Intent): Start = runCatching {
+        appContext.startActivity(intent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         Start.Started
     }.getOrElse { Start.Failed(it.message.toString()) }
 
