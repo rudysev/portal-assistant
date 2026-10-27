@@ -12,6 +12,12 @@ interface Hush {
     /** True from a granted [start] until the hush is lost to another app or [lift]ed. Never regained. */
     val isHeld: Boolean
 
+    /**
+     * True when other apps' audio was playing as [start] ran, so the hush is what silenced it; false when nothing
+     * was playing (a track already paused stays paused, not hushed).
+     */
+    val silencedPlayback: Boolean
+
     /** True once [keepPaused] turned the hush into a pause that outlasts it. */
     val isKeptPaused: Boolean
 

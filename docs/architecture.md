@@ -107,7 +107,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   conversation; no timer, no setting. One `audio/Hush` per conversation, made by `AssistantEngine.create`
   (`audio/AudioFocusHush`: `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` on `SpeechAudio`'s attributes, abandoned on lift;
   any negative focus change marks it no longer held and it never re-requests; keep-paused escalates the held focus
-  to a permanent `AUDIOFOCUS_GAIN`, so the apps it paused drop their resume). Not unit-tested: checked on device.
+  to a permanent `AUDIOFOCUS_GAIN`, so the apps it paused drop their resume; `silencedPlayback` is
+  `isMusicActive` just before the request, i.e. whether the hush silenced anything). Not unit-tested: checked on
+  device.
 - `service/ConversationHost.kt` — the **service's own rules**, standby ↔ at most one conversation: a trigger while
   one is live starts nothing; a refused trigger posts its notice and re-arms wake (the engine never calls `onEnded`
   on a refusal); the engine's own end, STOP and New conversation all return to standby (idle notification, re-arm
@@ -165,11 +167,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media session (no
   notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
   other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through. `HushedFlag`
-  wraps `now_playing`: while the hush is held and not kept paused, a found track reports `"playing": true` with
-  `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a gen2). Both pure, tested
-  with a fake `Hush` (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`,
-  `toolResults` and `decode` — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn**
-  via `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
+  wraps `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
+  `"playing": true` with `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a
+  gen2); a track already paused when the hush started stays paused. Both pure, tested with a fake `Hush`
+  (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and `decode`
+  — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn** via
+  `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
   one, routing unchanged: built-ins win, then external providers, then `unknown tool`), the `AfterSpeech` queue, the
