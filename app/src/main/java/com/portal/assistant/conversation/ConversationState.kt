@@ -122,9 +122,10 @@ sealed interface Action {
  * @param playbackIdle the player has no audio left to play (true when no audio has been produced yet).
  * @param toolsInFlight function-call IDs currently executing on the tool executor. Turn-end and stall
  *   are gated on this being empty — the model must receive all results before the turn can close.
- * @param finalTurn a tool asked for a final turn ([Event.FinalTurnRequested]), because the user asked to end or
+ * @param finalTurn a result marked [ToolResult.finalTurn] was sent to the model, because the user asked to end or
  *   their request expects no reply (a music command that worked): the next turn end ends the conversation instead
- *   of re-listening. Holds until the conversation ends (an [Event.Interrupted] keeps it).
+ *   of re-listening. A marked result dropped as no longer in flight sets nothing: the model never heard it. Holds
+ *   until the conversation ends (an [Event.Interrupted] keeps it).
  */
 data class ConversationState(
     val phase: Phase = Phase.CONNECTING,
@@ -133,9 +134,14 @@ data class ConversationState(
     val toolsInFlight: Set<String> = emptySet(),
     val finalTurn: Boolean = false,
 ) {
-    /** Results sent back during a final turn: the model answers them with its sign-off, so the turn isn't over yet. */
-    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean =
-        finalTurn && event.results.any { it.id in toolsInFlight }
+    /**
+     * Results that make or continue a final turn and are sent to the model: it answers them with its sign-off, so the
+     * turn isn't over yet. Only results still in flight are sent; a marked one counts only if it's sent.
+     */
+    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean {
+        val sent = event.results.filter { it.id in toolsInFlight }
+        return sent.isNotEmpty() && (finalTurn || sent.any { it.finalTurn })
+    }
 }
 
 /** The result of [reduce]: the next state and the side effects to run. */
@@ -255,9 +261,11 @@ private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsRe
     // Interrupted or ToolCancelled (e.g. a future that finished just after cancel(true)).
     val validResults = event.results.filter { it.id in inFlight }
     val remaining = inFlight - event.results.map { it.id }.toSet()
-    // A final turn's results owe a sign-off: the turn now ends on the reply's own turnComplete (or the stall).
+    // Only a marked result the model is sent makes a final turn, and its results owe a sign-off: the turn now ends on
+    // the reply's own turnComplete (or the stall).
+    val finalTurn = state.finalTurn || validResults.any { it.finalTurn }
     val turnComplete = state.turnComplete && !state.awaitsSignOff(event)
-    val next = state.copy(toolsInFlight = remaining, turnComplete = turnComplete)
+    val next = state.copy(toolsInFlight = remaining, turnComplete = turnComplete, finalTurn = finalTurn)
     val send = if (validResults.isNotEmpty()) {
         listOf(Action.SendToolResponse(validResults))
     } else {

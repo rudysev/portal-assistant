@@ -11,5 +11,9 @@ import org.json.JSONObject
 /** A function call request from the model during a session. */
 data class FunctionCall(val id: String, val name: String, val args: JSONObject)
 
-/** A function call result ready to send back to the model. */
-data class ToolResult(val id: String, val name: String, val response: JSONObject)
+/**
+ * A function call result ready to send back to the model. [finalTurn]: the call settled with its own result and that
+ * result tells the model the conversation ends after its reply, so it makes a **final turn** once sent. Backends
+ * ignore it.
+ */
+data class ToolResult(val id: String, val name: String, val response: JSONObject, val finalTurn: Boolean = false)
