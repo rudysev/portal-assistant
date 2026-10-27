@@ -50,7 +50,7 @@ data class SessionInfo(
 /**
  * Pure session-selection logic — Android-free so it's unit-tested (same split as `VolumeMath` /
  * [com.portal.assistant.system.Geolocation]). Picks which of several active sessions (Spotify, the Portal
- * player, Alexa, Bluetooth…) a command targets. The shell passes sessions in the framework's priority order
+ * player, Alexa, Bluetooth…) a command targets. [Music] passes sessions in the framework's priority order
  * (most-recently-active first); these helpers return the chosen `index` or null.
  */
 internal object MediaSelection {
