@@ -70,8 +70,8 @@ Pure reducer + thin I/O shell. Logic lives in pure, JVM-unit-tested classes; And
 - **Lint/detekt/ktlint**: warnings are errors, no baselines. Suppress inline only, with a reason comment. 120-col
   lines. TODO/FIXME/STOPSHIP comments fail detekt.
 - **Bump together**: detekt plugin ↔ compose-rules ↔ pre-commit `DETEKT_VERSION`; ktlint CLI 1.8.0 ↔ kotlinter
-  5.7.0. Keep `config/detekt/detekt.yml`, `.githooks/pre-commit`, `.shellcheckrc` identical across portal-commons,
-  portal-wake, portal-assistant.
+  5.7.0. Keep `config/detekt/detekt.yml`, `.githooks/pre-commit`, `.shellcheckrc` and the detekt block of
+  `gradle.properties` identical across portal-commons, portal-wake, portal-assistant.
 - **CI job names** `build`, `shellcheck`, `build-health` are required by branch protection: keep them.
 
 ## Known limitations (don't "fix" by misdiagnosis)
