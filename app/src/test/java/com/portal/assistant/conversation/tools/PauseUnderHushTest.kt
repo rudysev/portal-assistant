@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class PauseUnderHushTest {
 
-    private val hush = FakeHush(held = true)
+    private val hush = FakeHush().apply { start() }
     private val inner = FixedTool(JSONObject().put("action", "pause").put("app", "Spotify"))
 
     @Test fun aPauseUnderAHeldHushKeepsThePauseWithoutTheMediaSession() {
@@ -32,19 +32,18 @@ class PauseUnderHushTest {
     }
 
     @Test fun aPauseWithNoHushHeldGoesToTheMediaSession() {
-        hush.isHeld = false
+        hush.loseFocus()
         val args = JSONObject().put("action", "pause")
 
         val result = PauseUnderHush(inner, hush).invoke(args).response
 
-        assertEquals(0, hush.keepPausedCalls)
         assertEquals(1, inner.calls)
         assertSame(args, inner.lastArgs)
         assertSame(inner.result, result)
     }
 
     @Test fun aPauseWhoseKeptPauseIsDeniedGoesToTheMediaSession() {
-        val deniedHush = FakeHush(held = true, keepPausedGranted = false)
+        val deniedHush = FakeHush(keepPausedGranted = false).apply { start() }
         val args = JSONObject().put("action", "pause")
 
         val result = PauseUnderHush(inner, deniedHush).invoke(args).response

@@ -107,9 +107,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   conversation; no timer, no setting. One `audio/Hush` per conversation, made by `AssistantEngine.create`
   (`audio/AudioFocusHush`: `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` on `SpeechAudio`'s attributes, abandoned on lift;
   any negative focus change marks it no longer held and it never re-requests; keep-paused escalates the held focus
-  to a permanent `AUDIOFOCUS_GAIN`, so the apps it paused drop their resume; `silencedPlayback` is
-  `isMusicActive` just before the request, i.e. whether the hush silenced anything). Not unit-tested: checked on
-  device.
+  to a permanent `AUDIOFOCUS_GAIN`, so the apps it paused drop their resume; `isSilencingPlayback` is held, not
+  kept paused, and `isMusicActive` just before the request, i.e. the hush silenced something). Not unit-tested:
+  checked on device.
 - `service/ConversationHost.kt` — the **service's own rules**, standby ↔ at most one conversation: a trigger while
   one is live starts nothing; a refused trigger posts its notice and re-arms wake (the engine never calls `onEnded`
   on a refusal); the engine's own end, STOP and New conversation all return to standby (idle notification, re-arm

@@ -9,17 +9,12 @@ package com.portal.assistant.audio
  * [AudioFocusHush].
  */
 interface Hush {
-    /** True from a granted [start] until the hush is lost to another app or [lift]ed. Never regained. */
-    val isHeld: Boolean
-
     /**
-     * True when other apps' audio was playing as [start] ran, so the hush is what silenced it; false when nothing
-     * was playing (a track already paused stays paused, not hushed).
+     * True while the hush is what keeps other apps' audio quiet: held (granted at [start], not yet lost to another app
+     * or [lift]ed), not turned into a kept pause, and other audio was playing as [start] ran (a track already paused
+     * stays paused, not hushed).
      */
-    val silencedPlayback: Boolean
-
-    /** True once [keepPaused] turned the hush into a pause that outlasts it. */
-    val isKeptPaused: Boolean
+    val isSilencingPlayback: Boolean
 
     /** Quiet other apps' audio. */
     fun start()
@@ -27,6 +22,9 @@ interface Hush {
     /** Let other apps' audio come back (except a kept pause). Idempotent, and safe once the hush was lost. */
     fun lift()
 
-    /** Keep every app the hush paused paused after the [lift]. A no-op if not held. */
-    fun keepPaused()
+    /**
+     * Keep every app the hush paused paused after the [lift]. True only if the hush is held and the pause was kept; a
+     * no-op returning false if not held.
+     */
+    fun keepPaused(): Boolean
 }
