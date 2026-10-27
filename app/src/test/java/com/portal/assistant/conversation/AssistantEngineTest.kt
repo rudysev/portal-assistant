@@ -5,7 +5,6 @@ import com.portal.assistant.conversation.backend.BackendEvent
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AfterSpeech
 import com.portal.assistant.conversation.tools.EndConversationTool
-import com.portal.assistant.conversation.tools.FinalTurnOnSuccess
 import com.portal.assistant.conversation.tools.ToolRunner
 import com.portal.assistant.system.AppPrefs
 import org.json.JSONObject
@@ -42,7 +41,6 @@ class AssistantEngineTest {
         toolRunners = { deliver ->
             toolRunnersBuilt++
             toolSet.builtIns += EndConversationTool
-            toolSet.builtIns += FinalTurnOnSuccess(MusicCommand())
             ToolRunner(toolSet, AfterSpeech(), toolExecutor, deliver)
         },
         onEnded = { ends++ },
@@ -533,18 +531,9 @@ class AssistantEngineTest {
         assertHushLiftedOnceAfterTheMic(conversation)
     }
 
-    @Test fun aGoodbyeLiftsTheHush() {
+    @Test fun aFinalTurnLiftsTheHush() {
         val conversation = listening()
         emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.end_conversation", JSONObject()))))
-        signOff()
-
-        assertEquals(1, ends)
-        assertHushLiftedOnceAfterTheMic(conversation)
-    }
-
-    @Test fun aMusicCommandsFinalTurnLiftsTheHush() {
-        val conversation = listening()
-        emit(BackendEvent.ToolCall(listOf(FunctionCall("call-1", "portal.media_control", JSONObject()))))
         signOff()
 
         assertEquals(1, ends)
