@@ -62,11 +62,18 @@ class MusicTest {
 
     private fun ToolOutput.keys() = response.keys().asSequence().toSet()
 
-    @Test fun nowPlayingIsDeclaredUnderItsName() {
+    @Test fun nowPlayingIsDeclaredAsBefore() {
         val tool = music().nowPlaying
 
         assertEquals("portal.now_playing", tool.name)
-        assertEquals("portal.now_playing", tool.declaration.getString("name"))
+        assertEquals(
+            JSONObject(
+                """{"name":"portal.now_playing",
+                   "description":"Get the currently playing (or paused) track: title, artist, and app. hushed=true means the track is playing and only quiet while you listen.",
+                   "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
+            ).asMap(),
+            tool.declaration.asMap(),
+        )
     }
 
     @Test fun nothingPlayingReportsNotPlaying() {
@@ -443,12 +450,23 @@ class MusicTest {
         return music().playMusic.invoke(args)
     }
 
-    @Test fun playMusicIsDeclaredUnderItsName() {
+    @Test fun playMusicIsDeclaredAsBefore() {
         val tool = music().playMusic
 
         assertEquals("portal.play_music", tool.name)
-        assertEquals("portal.play_music", tool.declaration.getString("name"))
-        assertEquals("[\"query\"]", tool.declaration.getJSONObject("parameters").getJSONArray("required").toString())
+        assertEquals(
+            JSONObject(
+                """{"name":"portal.play_music",
+                   "description":"Start playing music by name on a music app. Set 'query' to what to play — a song, artist, album, or playlist, e.g. 'Here Comes the Sun', 'Taylor Swift', 'some jazz', or 'Discover Weekly'. Set 'app' ONLY when the user names a specific app to play on (e.g. 'play Zanarkand on TIDAL' -> app 'TIDAL'); otherwise omit it and their default music app is used. If the target app is Spotify Free, prefer including the ARTIST in the query (e.g. 'play Bohemian Rhapsody' -> 'Bohemian Rhapsody Queen') — Spotify Free can't on-demand-play one exact track, so an artist-level query is what actually starts playback there. Don't add words like 'live', 'cover', 'remix', or 'karaoke' unless the user asked for that. If the result has 'searchUnsupported', the app was only opened (it couldn't start the exact search) — tell the user you opened it rather than claiming it's playing. For resume/pause/skip of the current track use portal.media_control instead.",
+                   "parameters":{"type":"OBJECT",
+                     "properties":{
+                       "query":{"type":"STRING","description":"What to play — a song (ideally with its artist), artist, album, or playlist."},
+                       "app":{"type":"STRING","description":"Optional. The music app to play on, only when the user names one (e.g. 'Spotify', 'TIDAL', 'Apple Music'). Omit to use the user's default music app."},
+                       "type":{"type":"STRING","description":"Optional. The KIND to play, only when the user makes it explicit — one of 'song', 'artist', 'album', 'playlist'. E.g. 'play the album Thriller' -> 'album'; 'play the artist Adele' -> 'artist'. Omit for a general request or when unsure, and the app picks the best match."}},
+                     "required":["query"]}}""",
+            ).asMap(),
+            tool.declaration.asMap(),
+        )
     }
 
     @Test fun aBlankQueryIsAnErrorAndStartsNothing() {
@@ -485,7 +503,7 @@ class MusicTest {
 
     @Test fun noAppNamedPlaysOnTheDefaultUnderItsLabel() {
         apps.default = tidal.pkg
-        apps.searchPlayable = listOf(tidal)
+        apps.installed = mapOf(tidal.pkg to tidal.label) // a saved default is trusted, not looked up in a list
         apps.playFromSearchPkgs = setOf(tidal.pkg)
 
         val result = play("Zanarkand")
