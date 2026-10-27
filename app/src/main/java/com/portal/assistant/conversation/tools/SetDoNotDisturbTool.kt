@@ -17,7 +17,7 @@ class SetDoNotDisturbTool(private val dnd: DoNotDisturbController) : Tool {
     )
 
     override fun invoke(args: JSONObject): ToolOutput {
-        if (!args.has("enabled")) return ToolOutput(JSONObject().put("error", "enabled required"))
+        if (!args.has("enabled")) return ToolOutput.error("enabled required")
         return ToolOutput(dnd.setEnabled(args.optBoolean("enabled")))
     }
 }

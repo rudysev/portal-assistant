@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  *
  * **Final turn:** a call whose [ToolOutput] carries a final-turn instruction settles as a result with the instruction
  * added to its response and [ToolResult.finalTurn] set. Only a call that settles with its own output is marked: one
- * that settled as cancelled, even after its tool asked, or that threw, ends nothing.
+ * that settled as cancelled, even if its tool returned an instruction, or that threw, ends nothing. The tool's own
+ * response object is never changed.
  *
  * Threading: [run], [keepOnly], [turnEnded] and [dispose] are called on the engine's handler, which is also
  * [deliver] in production — so the [disposed] check in a delivery can't race [dispose]. Calls run on
@@ -61,7 +62,8 @@ class ToolRunner(
         fun settle(index: Int, output: ToolOutput) {
             val call = batch[index]
             val instruction = output.finalTurnInstruction
-            val response = instruction?.let { output.response.put("instruction", it) } ?: output.response
+            val response = instruction?.let { JSONObject(output.response.toString()).put("instruction", it) }
+                ?: output.response
             val result = ToolResult(call.id, call.name, response, finalTurn = instruction != null)
             if (!results.compareAndSet(index, null, result)) return // already settled
             held.remove(call.id)
@@ -75,12 +77,10 @@ class ToolRunner(
             val task = FutureTask<Unit> {
                 runCatching { toolSet.invoke(call.name, call.args) }
                     .onSuccess { output -> settle(index, output) }
-                    .onFailure { error ->
-                        settle(index, ToolOutput(JSONObject().put("error", error.message ?: "error")))
-                    }
+                    .onFailure { error -> settle(index, ToolOutput.error(error.message ?: "error")) }
             }
             // Held before it can run, so a call that finishes at once still takes itself out of [held].
-            held[call.id] = HeldCall(task) { settle(index, ToolOutput(JSONObject().put("error", "cancelled"))) }
+            held[call.id] = HeldCall(task) { settle(index, ToolOutput.error("cancelled")) }
             toolExecutor.execute(task)
         }
     }

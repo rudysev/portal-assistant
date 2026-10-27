@@ -132,13 +132,16 @@ data class ConversationState(
     val finalTurn: Boolean = false,
 ) {
     /**
-     * Results that make or continue a final turn and are sent to the model: it answers them with its sign-off, so the
-     * turn isn't over yet. Only results still in flight are sent; a marked one counts only if it's sent.
+     * The results of [event] sent to the model: those still in flight. The rest were cancelled or overtaken by a
+     * barge-in (e.g. a future that finished just after cancel(true)), and the model never hears them.
      */
-    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean {
-        val sent = event.results.filter { it.id in toolsInFlight }
-        return sent.isNotEmpty() && (finalTurn || sent.any { it.finalTurn })
-    }
+    fun sent(event: Event.ToolResultsReady): List<ToolResult> = event.results.filter { it.id in toolsInFlight }
+
+    /** The turn is final once [event]'s results are sent: it already was, or a sent result is marked. */
+    fun finalTurnAfter(event: Event.ToolResultsReady): Boolean = finalTurn || sent(event).any { it.finalTurn }
+
+    /** Results sent during a final turn: the model answers them with its sign-off, so the turn isn't over yet. */
+    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean = finalTurnAfter(event) && sent(event).isNotEmpty()
 }
 
 /** The result of [reduce]: the next state and the side effects to run. */
@@ -250,16 +253,15 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
 }
 
 private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsReady, multiTurn: Boolean): Decision {
-    val inFlight = state.toolsInFlight
-    // Only send results still in flight — drop any whose IDs were already removed by an
-    // Interrupted or ToolCancelled (e.g. a future that finished just after cancel(true)).
-    val validResults = event.results.filter { it.id in inFlight }
-    val remaining = inFlight - event.results.map { it.id }.toSet()
-    // Only a marked result the model is sent makes a final turn, and its results owe a sign-off: the turn now ends on
-    // the reply's own turnComplete (or the stall).
-    val finalTurn = state.finalTurn || validResults.any { it.finalTurn }
+    val validResults = state.sent(event)
+    val remaining = state.toolsInFlight - event.results.map { it.id }.toSet()
+    // A final turn's results owe a sign-off: the turn now ends on the reply's own turnComplete (or the stall).
     val turnComplete = state.turnComplete && !state.awaitsSignOff(event)
-    val next = state.copy(toolsInFlight = remaining, turnComplete = turnComplete, finalTurn = finalTurn)
+    val next = state.copy(
+        toolsInFlight = remaining,
+        turnComplete = turnComplete,
+        finalTurn = state.finalTurnAfter(event),
+    )
     val send = if (validResults.isNotEmpty()) {
         listOf(Action.SendToolResponse(validResults))
     } else {

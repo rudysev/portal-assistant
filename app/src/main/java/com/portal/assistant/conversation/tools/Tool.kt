@@ -12,7 +12,7 @@ interface Tool {
 
     /**
      * Synchronous invocation: the response for the model and, for a **final turn**, its instruction ([ToolOutput]).
-     * Throw on error — the engine wraps exceptions in {"error":"…"}.
+     * Throw on error — the [ToolRunner] wraps exceptions in {"error":"…"}.
      */
     fun invoke(args: JSONObject): ToolOutput
 }

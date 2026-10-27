@@ -20,7 +20,7 @@ class AdjustBrightnessTool(private val brightness: BrightnessController) : Tool 
         val up = when (args.optString("direction").trim().lowercase()) {
             "up", "brighter", "brighten", "raise" -> true
             "down", "dimmer", "dim", "lower", "darker" -> false
-            else -> return ToolOutput(JSONObject().put("error", "direction must be up or down"))
+            else -> return ToolOutput.error("direction must be up or down")
         }
         return ToolOutput(brightness.adjust(up))
     }
