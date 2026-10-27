@@ -144,9 +144,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `portal.play_music` (play a song/artist/album/playlist by name — **multi-app**: routes to the user's default
   music app, or an app the user names in the request (`app` param) which is honoured over the default; an
   optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
-  honour it. Pure
-  routing is `conversation/tools/music/MediaRouting` (target selection + per-app play strategy), inside **Music**, which fires it
-  through its `MusicApps` port (`AndroidMusicApps`: platform calls only) via a
+  honour it. Pure routing is `conversation/tools/music/MediaRouting` (target selection + per-app play strategy),
+  inside **Music**, which fires it through its `MusicApps` port (`AndroidMusicApps`: platform calls only) via a
   fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
   on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
   which can't on-demand-play one exact track but *can* shuffle-play an artist/playlist), else the generic
@@ -167,11 +166,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   for the **music commands** `play_music`, `media_control` and `set_repeat` (never `now_playing`, which expects an
   answer): a command that worked makes the turn final, whatever else the turn held, with its own instruction (briefly
   confirm, no follow-up question); an error, or a `play_music` that only opened the app (`searchUnsupported`), leaves
-  the conversation open. External tools never make a final turn (`ToolRegistry` returns their JSON as is). Either counts only if its call settles with its own output, not
-  as cancelled (see the Tool runner). Music gets the conversation's `Hush` (passed by `AssistantEngine.create` →
-  `ToolRunner.create` → `ToolRegistry`): pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
-  session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final
-  turn; every other action, a pause with no hush held, or a pause whose keep-paused was denied, goes to the session.
+  the conversation open. Either counts only if its call settles with its own output, not as cancelled (see the Tool
+  runner). External tools never make a final turn (`ToolRegistry` returns their JSON as is). Music gets the
+  conversation's `Hush` (passed by `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): pause/stop while
+  the hush is held calls `Hush.keepPaused` instead of the media session (no notification access needed) and returns
+  `{"action":"pause"}`, a working music command and so a final turn; every other action, a pause with no hush held,
+  or a pause whose keep-paused was denied, goes to the session.
   `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
   `"playing": true` with `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a
   gen2); a track already paused when the hush started stays paused. All pure, tested with fakes at the `Tool` seam

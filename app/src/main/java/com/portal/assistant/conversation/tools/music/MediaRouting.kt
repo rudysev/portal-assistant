@@ -18,7 +18,7 @@ enum class PlayType { SONG, ARTIST, ALBUM, PLAYLIST }
  *   `MEDIA_PLAY_FROM_SEARCH` intent, or (last resort) just launching the app.
  *
  * [fallbackApps] is a thunk (a PackageManager query) so it's only run when the fallback is actually needed;
- * the shell scopes it to music-capable apps, not every launcher.
+ * [PlayMusic] scopes it to music-capable apps, not every launcher.
  */
 internal object MediaRouting {
 
@@ -28,7 +28,7 @@ internal object MediaRouting {
     /**
      * The resolved play target. [pkg] null ⇒ nothing to play; [reason] carries a speakable explanation.
      * [label] may be null when the target came straight from a validated [defaultPkg] (not from an
-     * [AppEntry]); the shell resolves the speakable name in that case.
+     * [AppEntry]); [PlayMusic] resolves the speakable name in that case.
      */
     data class MusicTarget(val pkg: String?, val label: String?, val reason: String? = null)
 
@@ -55,7 +55,7 @@ internal object MediaRouting {
         !spokenApp.isNullOrBlank() -> spokenTarget(spokenApp, musicApps, fallbackApps)
 
         // No app named — resolve the default. A saved default is pre-validated as installed by the caller, so
-        // trust it directly (label resolved by the shell); no dependency on the music-app snapshot.
+        // trust it directly (label resolved by [PlayMusic]); no dependency on the music-app snapshot.
         defaultPkg != null -> MusicTarget(defaultPkg, null)
 
         // The same effective default Settings renders, over the same inputs — the picker can't show a default
@@ -99,7 +99,7 @@ internal object MediaRouting {
      * The default a bare "play some music" resolves to (no app named, no saved default): the sole/Spotify
      * **discovered** music app wins first (so your one real music app isn't outranked by a fallback-only app),
      * else [autoDefault] over the full [all] union (discovered ∪ search-playable) so an app missed by
-     * discovery still counts. [all] is a thunk — the union (a PackageManager query in the shell) is built only
+     * discovery still counts. [all] is a thunk — the union (a PackageManager query in the caller) is built only
      * when [discovered] doesn't resolve. [resolveTarget] and Settings both call this over the same inputs, so
      * the rendered and the played default can't drift.
      */
