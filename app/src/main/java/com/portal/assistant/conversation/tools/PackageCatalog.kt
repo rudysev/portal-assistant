@@ -6,7 +6,7 @@ import android.provider.MediaStore
 import com.portal.commons.DebugLog
 
 /**
- * PackageManager enumeration + labelling for [AppLauncher] (`open_app`) and [MediaControl] (`play_music`),
+ * PackageManager enumeration + labelling for [AppLauncher] (`open_app`) and Music's `AndroidMusicApps` (`play_music`),
  * kept in one file. All packages are visible without a `<queries>` block only because `targetSdk = 29`;
  * raising it past 30 would need a `<queries>` element (launcher intent + [MEDIA_BROWSER_SERVICE] +
  * `CATEGORY_APP_MUSIC`) or these lists silently go empty.
