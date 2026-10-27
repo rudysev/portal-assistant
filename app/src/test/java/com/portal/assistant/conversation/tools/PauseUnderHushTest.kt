@@ -2,8 +2,8 @@ package com.portal.assistant.conversation.tools
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -16,7 +16,7 @@ class PauseUnderHushTest {
     private val inner = FixedTool(JSONObject().put("action", "pause").put("app", "Spotify"))
 
     @Test fun aPauseUnderAHeldHushKeepsThePauseWithoutTheMediaSession() {
-        val result = PauseUnderHush(inner, hush).invoke(JSONObject().put("action", "pause"))
+        val result = PauseUnderHush(inner, hush).invoke(JSONObject().put("action", "pause")).response
 
         assertEquals(1, hush.keepPausedCalls)
         assertEquals(0, inner.calls)
@@ -24,7 +24,7 @@ class PauseUnderHushTest {
     }
 
     @Test fun aStopUnderAHeldHushIsAPause() {
-        val result = PauseUnderHush(inner, hush).invoke(JSONObject().put("action", " Stop "))
+        val result = PauseUnderHush(inner, hush).invoke(JSONObject().put("action", " Stop ")).response
 
         assertEquals(1, hush.keepPausedCalls)
         assertEquals(0, inner.calls)
@@ -35,7 +35,7 @@ class PauseUnderHushTest {
         hush.isHeld = false
         val args = JSONObject().put("action", "pause")
 
-        val result = PauseUnderHush(inner, hush).invoke(args)
+        val result = PauseUnderHush(inner, hush).invoke(args).response
 
         assertEquals(0, hush.keepPausedCalls)
         assertEquals(1, inner.calls)
@@ -47,7 +47,7 @@ class PauseUnderHushTest {
         val deniedHush = FakeHush(held = true, keepPausedGranted = false)
         val args = JSONObject().put("action", "pause")
 
-        val result = PauseUnderHush(inner, deniedHush).invoke(args)
+        val result = PauseUnderHush(inner, deniedHush).invoke(args).response
 
         assertEquals(1, deniedHush.keepPausedCalls)
         assertEquals(1, inner.calls)
@@ -64,16 +64,12 @@ class PauseUnderHushTest {
         assertEquals(6, inner.calls)
     }
 
-    @Test fun aKeptPauseInsideTheFinalTurnWrapperRequestsTheFinalTurn() {
-        var finalTurns = 0
-        val tool = FinalTurnOnSuccess(PauseUnderHush(inner, hush)) { finalTurns++ }
+    @Test fun aKeptPauseInsideTheFinalTurnWrapperMakesAFinalTurn() {
+        val output = FinalTurnOnSuccess(PauseUnderHush(inner, hush)).invoke(JSONObject().put("action", "pause"))
 
-        val result = tool.invoke(JSONObject().put("action", "pause"))
-
-        assertEquals(1, finalTurns)
         assertEquals(1, hush.keepPausedCalls)
-        assertEquals("pause", result.getString("action"))
-        assertTrue(result.has("instruction"))
+        assertEquals("pause", output.response.getString("action"))
+        assertNotNull(output.finalTurnInstruction)
     }
 
     @Test fun nameAndDeclarationPassThrough() {
@@ -89,10 +85,10 @@ class PauseUnderHushTest {
         var calls = 0
         var lastArgs: JSONObject? = null
 
-        override fun invoke(args: JSONObject): JSONObject {
+        override fun invoke(args: JSONObject): ToolOutput {
             calls++
             lastArgs = args
-            return result
+            return ToolOutput(result)
         }
     }
 }

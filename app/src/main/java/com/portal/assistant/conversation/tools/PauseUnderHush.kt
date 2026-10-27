@@ -16,9 +16,9 @@ class PauseUnderHush(private val tool: Tool, private val hush: Hush) : Tool {
 
     override val declaration: JSONObject get() = tool.declaration
 
-    override fun invoke(args: JSONObject): JSONObject {
+    override fun invoke(args: JSONObject): ToolOutput {
         if (MediaAction.parse(args.optString("action")) != MediaAction.PAUSE || !hush.isHeld) return tool.invoke(args)
         hush.keepPaused()
-        return if (hush.isKeptPaused) JSONObject().put("action", "pause") else tool.invoke(args)
+        return if (hush.isKeptPaused) ToolOutput(JSONObject().put("action", "pause")) else tool.invoke(args)
     }
 }

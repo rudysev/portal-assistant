@@ -14,7 +14,7 @@ interface ToolSet {
     fun externalPromptLines(): List<String>
 
     /** Run tool [name] with [args]. Called on the tool-executor thread; may block; must not touch UI. */
-    fun invoke(name: String, args: JSONObject): JSONObject
+    fun invoke(name: String, args: JSONObject): ToolOutput
 
     /** Release any tool-held resources on conversation teardown. */
     fun dispose()

@@ -9,11 +9,11 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   **no-speech** (release the mic when the user stops; re-armed on transcription) and a **stall
   watchdog** (model took the turn but produced no audio/`turnComplete`). Race-free turn end =
   `turnComplete && playbackIdle && no tools in flight` — replaces the reference app's CAS latch.
-  - **Final turn.** `Event.FinalTurnRequested` (posted by a tool through the `requestFinalTurn` port the engine hands
-    the tool-runner factory, always before that batch's `ToolResultsReady`) sets `ConversationState.finalTurn`; the
-    turn end (normal or stalled) then ends the conversation instead of re-listening. `Interrupted` keeps it. Results
-    sent during a final turn clear `turnComplete` (`awaitsSignOff`): the turn ends on the sign-off's own
-    `turnComplete`, or the stall if the model never replies.
+  - **Final turn.** A `ToolResultsReady` result marked `ToolResult.finalTurn` sets `ConversationState.finalTurn`,
+    but only if the reducer sends it (still in flight): a marked result overtaken by a barge-in ends nothing, since
+    the model never heard it. The turn end (normal or stalled) then ends the conversation instead of re-listening.
+    `Interrupted` keeps it. Results sent during a final turn clear `turnComplete` (`awaitsSignOff`): the turn ends on
+    the sign-off's own `turnComplete`, or the stall if the model never replies.
   - **Stall = dead-air clock (arm-on-drain).** The server can stream a long answer's audio *ahead of
     realtime*, so it sits queued in `PcmPlayer` (which paces playback via blocking `AudioTrack` writes). The
     reducer arms/cancels the stall only via `stallDecision(state, event)` (in `conversation/StallDecision.kt`) —
@@ -157,15 +157,15 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
-  to end: makes this turn a **final turn** via `requestFinalTurn`). The **music commands** `play_music`,
-  `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are each wrapped in
-  `FinalTurnOnSuccess` where `ToolRegistry` builds them: a result with neither `error` nor `searchUnsupported` also
-  makes the turn final, whatever else the turn held, and gains an `instruction` (briefly confirm, no follow-up
-  question); a failed one leaves the conversation open. Either request counts only if its call settles with its own
-  result, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush` (passed by
-  `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control` *inside*
-  `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media session (no
-  notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
+  to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). The **music
+  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are each
+  wrapped in `FinalTurnOnSuccess` where `ToolRegistry` builds them: a response with neither `error` nor
+  `searchUnsupported` also makes the turn final, whatever else the turn held, with its own instruction (briefly
+  confirm, no follow-up question); a failed one leaves the conversation open. Either counts only if its call settles
+  with its own output, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush`
+  (passed by `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control`
+  *inside* `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
+  session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final turn; every
   other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through. `HushedFlag`
   wraps `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
   `"playing": true` with `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a
@@ -182,10 +182,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   teardown; the Opening's inputs read declarations + prompt lines from it. **Batch promise:** N calls in, one
   ordered list of N results out, delivered once on the engine's handler — cancelled → `{"error":"cancelled"}`,
   thrown → `{"error": message}`, each call settled exactly once (a cancel counts it down, so a partially
-  cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. **Final-turn requests** go
-  through `FinalTurnRequests`, scoped to the call that made them: granted (posted before the batch's results) only
-  when that call settles with its own result, so a call cancelled mid-run by a barge-in ends nothing even if it had
-  already asked. Built per conversation by `create(context, deliver, requestFinalTurn)`; JVM-tested with a fake tool set and a hand-stepped executor (`ToolRunnerTest`).
+  cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. **Final turn:** a tool returns
+  a `ToolOutput` (response plus an optional final-turn instruction, one value, so the mark can't travel without the
+  words that tell the model); the runner adds the instruction to the response and marks the `ToolResult`. Only a call
+  that settles with its own output is marked, so a call cancelled mid-run by a barge-in ends nothing even if its tool
+  asked. Built per conversation by `create(context, deliver, hush)`; JVM-tested with a fake tool set and a
+  hand-stepped executor (`ToolRunnerTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —

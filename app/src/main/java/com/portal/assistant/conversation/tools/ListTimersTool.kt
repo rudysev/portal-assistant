@@ -14,7 +14,7 @@ class ListTimersTool(private val scheduler: TimerScheduler) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject {
+    override fun invoke(args: JSONObject): ToolOutput {
         val timers = scheduler.list()
         val now = System.currentTimeMillis() // after list() so remaining isn't skewed by compaction's clock tick
         val arr = JSONArray()
@@ -26,6 +26,6 @@ class ListTimersTool(private val scheduler: TimerScheduler) : Tool {
                     .put("remaining_seconds", Timers.remainingSec(t, now)),
             )
         }
-        return JSONObject().put("timers", arr)
+        return ToolOutput(JSONObject().put("timers", arr))
     }
 }

@@ -13,5 +13,5 @@ class NowPlayingTool(private val media: MediaControl) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = media.nowPlaying()
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(media.nowPlaying())
 }

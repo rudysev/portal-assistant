@@ -23,9 +23,11 @@ class PlayMusicTool(private val music: MusicLauncher) : Tool {
              "required":["query"]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject = music.play(
-        args.optString("query"),
-        args.optString("app").ifBlank { null },
-        args.optString("type").ifBlank { null },
-    ) // play() owns the blank-query check + error
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(
+        music.play(
+            args.optString("query"),
+            args.optString("app").ifBlank { null },
+            args.optString("type").ifBlank { null },
+        ), // play() owns the blank-query check + error
+    )
 }

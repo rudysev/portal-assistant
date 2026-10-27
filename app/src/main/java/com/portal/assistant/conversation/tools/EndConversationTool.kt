@@ -3,12 +3,11 @@ package com.portal.assistant.conversation.tools
 import org.json.JSONObject
 
 /**
- * Ends the conversation when the user asks to: [requestFinalTurn] makes this turn a final turn, so the conversation
- * ends at turn end (once the sign-off has been heard) instead of listening again. Called on the tool-executor thread.
- * The request counts only if this call settles with its own result: a call cancelled before or while it runs ends
- * nothing ([FinalTurnRequests]).
+ * Ends the conversation when the user asks to: its output carries a final-turn instruction, so this turn is a final
+ * turn and the conversation ends at turn end (once the sign-off has been heard) instead of listening again. Called on
+ * the tool-executor thread. A call cancelled before or while it runs ends nothing ([ToolRunner]).
  */
-class EndConversationTool(private val requestFinalTurn: () -> Unit) : Tool {
+object EndConversationTool : Tool {
 
     override val name = "portal.end_conversation"
 
@@ -18,10 +17,8 @@ class EndConversationTool(private val requestFinalTurn: () -> Unit) : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
-    override fun invoke(args: JSONObject): JSONObject {
-        requestFinalTurn()
-        return JSONObject()
-            .put("ok", true)
-            .put("instruction", "Reply with one brief sign-off and no question; the conversation then ends.")
-    }
+    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(
+        JSONObject().put("ok", true),
+        finalTurnInstruction = "Reply with one brief sign-off and no question; the conversation then ends.",
+    )
 }

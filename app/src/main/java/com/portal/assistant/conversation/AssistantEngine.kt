@@ -40,7 +40,7 @@ class AssistantEngine(
     private val audio: EngineAudio,
     private val sink: ConversationSink,
     private val openingReads: OpeningReads,
-    private val toolRunners: (deliver: Executor, requestFinalTurn: () -> Unit) -> ToolRunner,
+    private val toolRunners: (deliver: Executor) -> ToolRunner,
     private val onEnded: () -> Unit,
 ) : Conversation {
     private val stallMs: Long = backendChoice.factory.deadAirStallMs
@@ -125,10 +125,7 @@ class AssistantEngine(
             ended = true
             return refusal
         }
-        // A tool's final-turn request is posted before its batch's results (both on this thread, in that order).
-        val conversationTools = toolRunners(Executor { clock.post(it) }) {
-            clock.post { dispatch(Event.FinalTurnRequested) }
-        }
+        val conversationTools = toolRunners(Executor { clock.post(it) })
         toolRunner = conversationTools
         val inputs = OpeningInputs(
             backendChoice = backendChoice,

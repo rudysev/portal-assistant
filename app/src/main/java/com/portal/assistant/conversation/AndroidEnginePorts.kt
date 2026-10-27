@@ -38,7 +38,7 @@ fun AssistantEngine.Companion.create(
         audio = DeviceAudio(hush),
         sink = HubSink(setRecording = overlay::setRecording, inForeground = { UiVisibility.inForeground }),
         openingReads = PrefsOpeningReads(appContext),
-        toolRunners = { deliver, requestFinalTurn -> ToolRunner.create(appContext, deliver, requestFinalTurn, hush) },
+        toolRunners = { deliver -> ToolRunner.create(appContext, deliver, hush) },
         onEnded = onEnded,
     )
 }
