@@ -281,15 +281,6 @@ class FakeToolSet(private val log: MutableList<String>) : ToolSet {
     }
 }
 
-/** `portal.media_control` as a music command that worked: wrapped in a final turn by the test's tool runner. */
-class MusicCommand : Tool {
-    override val name: String = "portal.media_control"
-
-    override val declaration: JSONObject = JSONObject().put("name", name)
-
-    override fun invoke(args: JSONObject): ToolOutput = ToolOutput(JSONObject().put("ok", true))
-}
-
 /** The `tool-exec` thread: a call runs the moment it is handed over, unless [holding] keeps it queued unstarted. */
 class FakeToolExecutor : AbstractExecutorService() {
     private var shutdown = false
