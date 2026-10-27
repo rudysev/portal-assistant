@@ -7,7 +7,7 @@ import org.json.JSONObject
 
 /**
  * The one Android site that launches other apps, via `PackageManager` launcher intents (thin shell, mirrors
- * [MusicLauncher.play]'s `startActivity` pattern). Pure name→app matching lives in [AppMatch]; the installed
+ * `music/AndroidMusicApps`' `startActivity` pattern). Pure name→app matching lives in [AppMatch]; the installed
  * list comes from [PackageCatalog]; this resolves a name and acts on the result.
  *
  * Stateless (no deferred work) → no `dispose()`. Runs on the tool-executor thread; `startActivity` from a
