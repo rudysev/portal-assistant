@@ -145,7 +145,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   music app, or an app the user names in the request (`app` param) which is honoured over the default; an
   optional `type` hint (song/artist/album/playlist) pins the `MEDIA_PLAY_FROM_SEARCH` focus for apps that
   honour it. Pure
-  routing is `music/MediaRouting` (target selection + per-app play strategy), inside **Music**, which fires it
+  routing is `conversation/tools/music/MediaRouting` (target selection + per-app play strategy), inside **Music**, which fires it
   through its `MusicApps` port (`AndroidMusicApps`: platform calls only) via a
   fallback chain — Spotify's `spotify:search:<query>` VIEW deep link (device-verified to start the top result
   on the Portal's locked-down Spotify; broad/artist-level on purpose because that Spotify is **Free tier**,
@@ -157,12 +157,17 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
-  to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). The **music
-  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are built by
-  **Music** (`conversation/tools/music/`), which reaches the device only through the `MediaSessions` and `MusicApps`
-  ports and decides the final turn: a command that worked makes the turn final, whatever else the turn held, with its
-  own instruction (briefly confirm, no follow-up question); an error, or a `play_music` that only opened the app
-  (`searchUnsupported`), leaves the conversation open. Either counts only if its call settles with its own output, not
+  to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). **Music**
+  (`conversation/tools/music/Music`, built by `ToolRegistry` per conversation) hands the registry its four tools,
+  `play_music`, `media_control`, `set_repeat` and `now_playing`, and builds every result itself (session picking
+  `MediaSelection`, routing `MediaRouting`, all JSON). It reaches the device only through two ports, each with an
+  Android adapter holding raw platform calls and an in-memory test fake: `MediaSessions` (`AndroidMediaSessions`:
+  active sessions, transport / repeat by index, app label) and `MusicApps` (`AndroidMusicApps`: default and installed
+  music apps, play-from-search support, fire a deep link / play-from-search / launch). Music decides the final turn
+  for the **music commands** `play_music`, `media_control` and `set_repeat` (never `now_playing`, which expects an
+  answer): a command that worked makes the turn final, whatever else the turn held, with its own instruction (briefly
+  confirm, no follow-up question); an error, or a `play_music` that only opened the app (`searchUnsupported`), leaves
+  the conversation open. External tools never make a final turn (`ToolRegistry` returns their JSON as is). Either counts only if its call settles with its own output, not
   as cancelled (see the Tool runner). Music gets the conversation's `Hush` (passed by `AssistantEngine.create` →
   `ToolRunner.create` → `ToolRegistry`): pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
   session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final
@@ -213,7 +218,8 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
+`TimerScheduler` + the observable `TimerStore`, and `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
+and Android adapters; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
 `ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
 `TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
