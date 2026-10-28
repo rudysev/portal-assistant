@@ -18,7 +18,8 @@ object SystemPrompt {
     private const val TOOL_USAGE_RULES =
         "Tool Usage Rules:\n" +
             "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, " +
-            "hours, recent events). Base answers on results.\n" +
+            "hours, recent events). Base answers on results. If you can't find it, say 'I can't check " +
+            "that' — never guess.\n" +
             "- Time/Date: Use portal.get_time.\n" +
             "- Timers: Use portal.set_timer (convert phrasing to duration_seconds; pass name as label, " +
             "e.g. 'pasta') and portal.cancel_timer (by label). Use portal.list_timers to check remaining " +

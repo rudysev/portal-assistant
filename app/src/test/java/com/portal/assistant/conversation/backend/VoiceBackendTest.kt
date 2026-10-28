@@ -136,6 +136,57 @@ class VoiceBackendTest {
         assertFalse(generationConfig.has("speechConfig"))
     }
 
+    private fun geminiSetup(model: String, functionDeclarations: List<JSONObject> = emptyList()): JSONObject =
+        JSONObject(
+            (
+                GeminiBackend.wireFormat(
+                    BackendConfig(
+                        credential = "key",
+                        model = model,
+                        systemPrompt = "p",
+                        functionDeclarations = functionDeclarations,
+                    ),
+                ).setup() as Frame.Text
+                ).text,
+        ).getJSONObject("setup")
+
+    private val getTime = JSONObject().put("name", "portal.get_time")
+
+    @Test
+    fun `Gemini 2_5 opens with Google Search and the function declarations`() {
+        val tools = geminiSetup(GEMINI_2_5, listOf(getTime)).getJSONArray("tools")
+        assertEquals(2, tools.length())
+        assertTrue(tools.getJSONObject(0).has("googleSearch"))
+        assertEquals(
+            "portal.get_time",
+            tools.getJSONObject(1).getJSONArray("functionDeclarations").getJSONObject(0).getString("name"),
+        )
+    }
+
+    @Test
+    fun `Gemini 3_8 opens without Google Search but keeps the function declarations`() {
+        val tools = geminiSetup(GEMINI_3_8, listOf(getTime)).getJSONArray("tools")
+        assertEquals(1, tools.length())
+        assertFalse(tools.getJSONObject(0).has("googleSearch"))
+        assertEquals(
+            "portal.get_time",
+            tools.getJSONObject(0).getJSONArray("functionDeclarations").getJSONObject(0).getString("name"),
+        )
+    }
+
+    @Test
+    fun `Gemini 3_8 with no declarations sends no tools at all`() {
+        // The Live API rejects an empty tools array or an empty functionDeclarations, so neither is ever sent.
+        assertFalse(geminiSetup(GEMINI_3_8).has("tools"))
+    }
+
+    @Test
+    fun `no model declares a history config`() {
+        // The opening text turn is realtime text, so no model needs clientContent declared as initial history.
+        assertFalse(geminiSetup(GEMINI_2_5).has("historyConfig"))
+        assertFalse(geminiSetup(GEMINI_3_8).has("historyConfig"))
+    }
+
     @Test
     fun `Gemini adapter URL-encodes the API key into the default endpoint`() {
         val address = GeminiBackend.connectAddress(
@@ -210,5 +261,11 @@ class VoiceBackendTest {
     @Test
     fun `Backends default is the Gemini factory`() {
         assertSame(GeminiBackend.Factory, Backends.default)
+    }
+
+    private companion object {
+        // Literal ids, not the catalog's, so a renamed id fails here rather than passing by construction.
+        const val GEMINI_2_5 = "gemini-2.5-flash-native-audio-latest"
+        const val GEMINI_3_8 = "gemini-3.8-live"
     }
 }

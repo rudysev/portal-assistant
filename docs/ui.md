@@ -2,13 +2,14 @@
 
 **Phase 3 — chat UI.** ✅ Built. A foreground Compose chat (`ui/ConversationScreen` + `theme/`, with the
   bundled **Inter** typeface in `theme/Type` so the brand doesn't depend on the device font) in our
-  warm-orange **"Jarvis"** identity (model name as a subtitle). It renders three center states by
+  warm-orange **"Jarvis"** identity (the Model's name — `GeminiModel.Model.name`, e.g. "Gemini 3.8" — as a
+  subtitle). It renders three center states by
   `(turns, phase)`:
   - **Idle home:** an ambient clock/date, the greeting, and a short row of **static suggestion chips**
     ("What's the weather?", "Set a 10-minute timer") — a calm, clock-first glance, not a command menu.
     Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
     time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
-    first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `clientContent` text turn — the
+    first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `realtimeInput.text` turn — the
     `Trigger.SuggestionChip`'s text becomes the opening's `firstText`.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-
@@ -25,8 +26,8 @@
   process-wide `conversation/tools/TimerStore`; ✕ to cancel). **Failures** (offline / couldn't-connect /
   connection-lost / missing key / mic-permission denied) surface as a dismissible `NoticeBanner` via
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
-  (`ui/SettingsScreen`): model picker, voice picker (Gemini only — the Chosen speaker from the
-  `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
+  (`ui/SettingsScreen`): model picker (the `gemini/GeminiModel` catalog, listed by name), voice picker (Gemini
+  only — the Chosen speaker from the `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
   `GeminiWireFormat.setup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
   it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's session config, built by `GeminiBackend.Factory` like a conversation's) driven by the thin
   `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one

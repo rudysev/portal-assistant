@@ -15,9 +15,9 @@ import java.util.Base64
  *
  * A real-time, bidirectional voice session: we stream raw 16 kHz PCM mic audio up, and the model
  * streams native 24 kHz PCM speech back, plus running transcripts of both sides. The server does the
- * voice-activity detection, so it decides when the user's turn ends and starts replying. The
- * `googleSearch` tool is enabled for live weather/news grounding; [functionDeclarations] adds
- * on-device function calling.
+ * voice-activity detection, so it decides when the user's turn ends and starts replying. [googleSearch] asks for
+ * Google Search (live weather/news) on a model that offers it; [functionDeclarations] adds on-device function
+ * calling.
  *
  * Every frame is JSON text, audio base64 inside it. Pure — the socket is
  * [WebSocketVoiceBackend][com.portal.assistant.conversation.backend.WebSocketVoiceBackend]'s, and the connect
@@ -29,13 +29,15 @@ class GeminiWireFormat(
     private val functionDeclarations: List<JSONObject> = emptyList(),
     /** The Chosen speaker (a [GeminiSpeaker] name); null = Server default. */
     private val speaker: String? = null,
+    /** Whether setup asks for Google Search — [GeminiModel.Model.googleSearch]. */
+    private val googleSearch: Boolean = true,
 ) : WireFormat {
 
     override val label = "Live"
 
     /**
-     * The `setup` frame: AUDIO responses, the system instruction, `googleSearch` grounding plus optional
-     * [functionDeclarations] (never emits an empty `functionDeclarations` array — the Live API rejects it),
+     * The `setup` frame: AUDIO responses, the system instruction, `googleSearch` when [googleSearch] plus optional
+     * [functionDeclarations] (never an empty `tools` or `functionDeclarations` array — the Live API rejects both),
      * input- and output-audio transcription (drives the user-speech signal and the model's word-by-word chat
      * text), and the server VAD config. A chosen [speaker] adds
      * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`; null = Server default, which leaves
@@ -57,13 +59,14 @@ class GeminiWireFormat(
             }
             put("generationConfig", generationConfig)
             put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
-            val toolsArray = JSONArray().put(JSONObject().put("googleSearch", JSONObject()))
+            val toolsArray = JSONArray()
+            if (googleSearch) toolsArray.put(JSONObject().put("googleSearch", JSONObject()))
             if (functionDeclarations.isNotEmpty()) {
                 val declarationsArray = JSONArray()
                 functionDeclarations.forEach { declarationsArray.put(it) }
                 toolsArray.put(JSONObject().put("functionDeclarations", declarationsArray))
             }
-            put("tools", toolsArray)
+            if (toolsArray.length() > 0) put("tools", toolsArray)
             put("inputAudioTranscription", JSONObject())
             put("outputAudioTranscription", JSONObject())
             put(
@@ -80,36 +83,26 @@ class GeminiWireFormat(
         },
     ).toFrame()
 
-    /** One chunk of 16 kHz mono 16-bit PCM mic audio, base64 in a `realtimeInput` media chunk. */
+    /**
+     * One chunk of 16 kHz mono 16-bit PCM mic audio, base64 in `realtimeInput.audio`. Not the deprecated
+     * `mediaChunks`: Gemini 3.8 ignores it (device-checked 2026-10-27).
+     */
     override fun audio(pcm: ByteArray): Frame {
         val base64Pcm = Base64.getEncoder().encodeToString(pcm)
         val mimeType = "audio/pcm;rate=${PcmCaptureFormat.SAMPLE_RATE}"
         return JSONObject().put(
             "realtimeInput",
-            JSONObject().put(
-                "mediaChunks",
-                JSONArray().put(JSONObject().put("mimeType", mimeType).put("data", base64Pcm)),
-            ),
+            JSONObject().put("audio", JSONObject().put("mimeType", mimeType).put("data", base64Pcm)),
         ).toFrame()
     }
 
     /**
-     * One complete text turn as the user (e.g. a tapped suggestion). `turnComplete = true` finishes the user's
-     * turn so the model answers immediately — no VAD/end-of-speech wait.
+     * One text turn as the user (e.g. a tapped suggestion), as `realtimeInput.text`: the model answers it like a
+     * finished spoken turn. Not a `clientContent` turn: Gemini 3.8 takes clientContent only as initial history and
+     * never answers it (device-checked 2026-10-27).
      */
-    override fun userText(text: String): Frame = JSONObject().put(
-        "clientContent",
-        JSONObject()
-            .put(
-                "turns",
-                JSONArray().put(
-                    JSONObject()
-                        .put("role", "user")
-                        .put("parts", JSONArray().put(JSONObject().put("text", text))),
-                ),
-            )
-            .put("turnComplete", true),
-    ).toFrame()
+    override fun userText(text: String): Frame =
+        JSONObject().put("realtimeInput", JSONObject().put("text", text)).toFrame()
 
     /** Tool results as `toolResponse.functionResponses`, in the original functionCalls order. */
     override fun toolResults(results: List<ToolResult>): Frame {

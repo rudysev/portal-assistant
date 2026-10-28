@@ -29,6 +29,17 @@ _Avoid_: Default speaker, default voice, selected voice
 No Speaker chosen — Gemini picks its own voice. Every install starts here, and the user can return to it.
 _Avoid_: Default speaker, Puck (not known to be Gemini's default), none
 
+**Model**:
+The Gemini model a conversation runs on, chosen in Settings (Gemini 2.5 or Gemini 3.8), and called by
+that one name everywhere it's shown. Read when a
+conversation opens, so a change applies to the next one. Only exists for the Gemini voice backend.
+_Avoid_: Backend (that's Gemini vs local), engine, version
+
+**Google Search**:
+Jarvis looking things up on the web (weather, news, scores) while it answers. Only some models offer it. When Jarvis
+can't look something up, it says "I can't check that" rather than guessing.
+_Avoid_: Grounding, ground search, web search
+
 ### Conversation
 
 **Conversation**:
