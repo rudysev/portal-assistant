@@ -159,7 +159,7 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
         // model portal-wake ships and the assistant used to bundle). HTTPS — no cleartext concern.
         const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip"
 
-        // Unpacked model lives here under filesDir; WakeDetectors.vosk(modelDir = dir) loads it.
+        // Unpacked model lives here under filesDir; the engine loads it as commons' WakeModel.Unpacked(dir).
         private const val MODEL_DIR = "wake-model"
 
         // Every dir a complete Vosk model has — all must be present for [isInstalled] to trust the install
