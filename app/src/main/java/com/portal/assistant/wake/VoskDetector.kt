@@ -4,6 +4,7 @@ import android.content.Context
 import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
+import com.portal.commons.audio.WakeModel
 import com.portal.commons.audio.WakeWord
 import java.io.File
 
@@ -17,8 +18,7 @@ class VoskDetector(context: Context, modelDir: File, listener: Detector.Listener
         context = context,
         config = WakeMicConfig(
             wakeWords = listOf(WAKE_WORD),
-            // Qualified: this package's own [WakeModel] is the download seam, not the engine's wake model.
-            model = com.portal.commons.audio.WakeModel.Unpacked(modelDir),
+            model = WakeModel.Unpacked(modelDir),
             onUnavailable = { listener.onUnavailable() },
             onWake = { event -> listener.onWake(event.wakeId) },
             onCaptureLost = listener::onCaptureLost,

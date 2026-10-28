@@ -11,12 +11,12 @@ import java.util.concurrent.Executor
 
 /**
  * JVM tests for [ForegroundWake]'s rules — when it arms, downloads, retries and gives up — driven only through its
- * five calls and two callbacks, with a scripted [FakeWakeModel], a recording [FakeDetector] and hand-stepped `io` and
- * `main` executors (the test picks when the download runs and when its result lands).
+ * five calls and two callbacks, with a scripted [FakeWakeModelStore], a recording [FakeDetector] and hand-stepped
+ * `io` and `main` executors (the test picks when the download runs and when its result lands).
  */
 class ForegroundWakeTest {
 
-    private val model = FakeWakeModel()
+    private val model = FakeWakeModelStore()
     private val io = SteppedExecutor()
     private val main = SteppedExecutor()
     private val later = DelayedExecutor()
@@ -370,8 +370,8 @@ class ForegroundWakeTest {
         assertEquals(2, detector.starts)
     }
 
-    /** An in-memory [WakeModel]; each scripted result is used by one [install], then installs succeed. */
-    private class FakeWakeModel : WakeModel {
+    /** An in-memory [WakeModelStore]; each scripted result is used by one [install], then installs succeed. */
+    private class FakeWakeModelStore : WakeModelStore {
         var installed = false
         var installs = 0
         var deletes = 0

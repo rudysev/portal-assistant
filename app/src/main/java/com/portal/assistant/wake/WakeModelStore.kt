@@ -6,7 +6,7 @@ import java.io.File
  * The Foreground wake model on disk — the port [ForegroundWake] downloads and deletes it through. Production:
  * [WakeModelInstaller]; tests: an in-memory fake.
  */
-interface WakeModel {
+interface WakeModelStore {
     /** Where the installed model lives — what a [Detector] loads. */
     val dir: File
 

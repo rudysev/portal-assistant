@@ -209,7 +209,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 ## Layout
 
 `wake/` — `WakeHandoffReceiver` (trigger entry), `ForegroundWake` (gen2 Foreground wake) + its ports
-`WakeModel`/`Detector` and their adapters `WakeModelInstaller`/`VoskDetector`, `WakeSetupStatus` (the model
+`WakeModelStore`/`Detector` and their adapters `WakeModelInstaller`/`VoskDetector`, `WakeSetupStatus` (the model
 setup the idle home shows) · `service/AssistantBootReceiver` (boot/STANDBY → bring the
 resident service up) · `service/AssistantService` (**resident** foreground service: mic-less standby ↔
 one conversation, its rules in `ConversationHost`, the start Intent's extras in `TriggerExtras`; `START_STICKY`,
@@ -228,7 +228,7 @@ sections, with `SpeakerSettings.kt`, `ConnectionSettings.kt` and the shared `Set
 bar) + `UiVisibility` (foreground flag, read only for the orange bar) · `MainActivity` (launcher + tap-to-talk + chip-send). **Shared code from `portal-commons`** (the sibling `../portal-commons`): pure-JVM
 `com.portal:commons` (`DebugLog`, `PcmLevel`, `PcmCapture`/`PcmDevice`, `PcmCaptureFormat`) +
 the Android-library `com.portal:commons-android` (`com.portal.commons.audio.AudioRecordPcmDevice`, the
-shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / commons' `WakeModel.Unpacked` for the
+shared mic shell, plus `WakeMicEngine` / `WakeMicConfig` / `WakeModel.Unpacked` for the
 gen2 foreground detector). Two plugin contracts are **not** shared deps — we mirror their literal strings: the outbound
 `ToolContract` is **local to this app** (`conversation/tools/ToolContract`); the inbound wake contract
 (`com.portal.wake.action.WAKE` / `…extra.ID`) is **portal-wake's** `WakeContract`, mirrored as literals in

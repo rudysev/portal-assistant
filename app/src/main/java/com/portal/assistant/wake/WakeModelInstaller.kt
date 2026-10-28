@@ -16,13 +16,13 @@ import java.util.zip.ZipInputStream
  * The (large) English model is only needed by the **gen2 (Android 10+) foreground "hey jarvis" detector**;
  * bundling it would be dead weight on gen1, where portal-wake owns wake and ships its own copy. So the
  * assistant downloads it on first gen2 use and unpacks it into `filesDir`, where [VoskDetector] loads it.
- * Idempotent: once [isInstalled] it never re-fetches. The production [WakeModel] behind [ForegroundWake].
+ * Idempotent: once [isInstalled] it never re-fetches. The production [WakeModelStore] behind [ForegroundWake].
  *
  * [install] is blocking (network fetch + unzip) — call it off the main thread; it reports 0f‑1f progress for
  * the setup UI. Failure (offline, truncated, bad zip) leaves no partial model and returns false. The device
  * already needs network for Gemini, so a one-time model fetch is no new dependency.
  */
-class WakeModelInstaller(private val filesDir: File) : WakeModel {
+class WakeModelInstaller(private val filesDir: File) : WakeModelStore {
 
     /** The unpacked model directory Vosk loads from (contains `am/ conf/ graph/ ivector/` once installed). */
     override val dir: File = File(filesDir, MODEL_DIR)
@@ -159,7 +159,7 @@ class WakeModelInstaller(private val filesDir: File) : WakeModel {
         // model portal-wake ships and the assistant used to bundle). HTTPS — no cleartext concern.
         const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip"
 
-        // Unpacked model lives here under filesDir; the engine loads it as commons' WakeModel.Unpacked(dir).
+        // Unpacked model lives here under filesDir; the engine loads it as WakeModel.Unpacked(dir).
         private const val MODEL_DIR = "wake-model"
 
         // Every dir a complete Vosk model has — all must be present for [isInstalled] to trust the install

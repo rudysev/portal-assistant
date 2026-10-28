@@ -9,7 +9,7 @@ import java.util.concurrent.Executor
 /**
  * **Foreground wake**: Jarvis listening for "hey jarvis" itself — gen2 only (Android 10 silences a background mic,
  * so portal-wake can't hand off there) and only while the app is on screen. Owns the whole lifecycle: the
- * [Detector], the one-time [WakeModel] download, the setup status and the retry/give-up rules. The host only tells
+ * [Detector], the one-time [WakeModelStore] download, the setup status and the retry/give-up rules. The host only tells
  * it what happened (the five calls) and gets a wake back through [onWake].
  *
  * It may arm only when [supported], not given up, on screen, not in a conversation and the mic is permitted. Arming
@@ -31,7 +31,7 @@ class ForegroundWake(
     private val supported: Boolean,
     private val micPermitted: () -> Boolean,
     private val online: () -> Boolean,
-    private val model: WakeModel,
+    private val model: WakeModelStore,
     private val detectors: (modelDir: File, listener: Detector.Listener) -> Detector,
     private val io: Executor,
     private val main: Executor,
