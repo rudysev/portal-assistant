@@ -6,6 +6,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.support.v4.media.session.MediaControllerCompat
+import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import com.portal.assistant.conversation.tools.PackageCatalog
 import com.portal.assistant.conversation.tools.PortalNotificationListener
@@ -18,8 +20,10 @@ import com.portal.commons.DebugLog
  * **Why sessions, not media keys:** on this Portal `dispatchMediaKeyEvent` is intercepted by Alexa; talking to the
  * music app's [MediaController] directly bypasses that.
  *
- * **Threading:** one-shot per tool call (`getActiveSessions` + cached state/metadata reads, no
- * `MediaController.Callback` registered), so it's safe on the tool-executor thread with no Looper.
+ * **Threading:** one-shot per tool call (`getActiveSessions` + cached state/metadata reads + a oneway transport call,
+ * no `MediaController.Callback` registered), so it's safe on the tool-executor thread with no Looper. [active]
+ * re-reads the sessions on every call and keeps them, so [transport] / [setRepeat] drive the very controller the
+ * index was picked from.
  */
 class AndroidMediaSessions(context: Context) : MediaSessions {
 
@@ -28,10 +32,35 @@ class AndroidMediaSessions(context: Context) : MediaSessions {
     private val manager =
         appContext.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
 
-    override fun active(): List<ActiveSession>? =
-        controllers()?.mapIndexed { i, c -> ActiveSession(c.toInfo(i), title(c.metadata), artist(c.metadata)) }
+    @Volatile private var lastRead: List<MediaController> = emptyList()
+
+    override fun active(): List<ActiveSession>? = controllers()?.also { lastRead = it }
+        ?.mapIndexed { i, c -> ActiveSession(c.toInfo(i), title(c.metadata), artist(c.metadata)) }
 
     override fun appLabel(pkg: String): String = PackageCatalog.labelFor(appContext, pkg)
+
+    override fun transport(index: Int, action: MediaAction) {
+        val controls = lastRead[index].transportControls
+        when (action) {
+            MediaAction.PLAY -> controls.play()
+            MediaAction.PAUSE -> controls.pause()
+            MediaAction.NEXT -> controls.skipToNext()
+            MediaAction.PREVIOUS -> controls.skipToPrevious()
+        }
+    }
+
+    override fun setRepeat(index: Int, mode: RepeatMode) {
+        // setRepeatMode is a media-compat transport control; bridge the framework session token into a
+        // MediaControllerCompat to reach the app's onSetRepeatMode (the Android Auto / Assistant path).
+        MediaControllerCompat(appContext, MediaSessionCompat.Token.fromToken(lastRead[index].sessionToken))
+            .transportControls.setRepeatMode(
+                when (mode) {
+                    RepeatMode.ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+                    RepeatMode.ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
+                    RepeatMode.OFF -> PlaybackStateCompat.REPEAT_MODE_NONE
+                },
+            )
+    }
 
     /**
      * Active sessions, or null when notification access isn't granted (only a `SecurityException` means that).

@@ -14,6 +14,12 @@ interface MediaSessions {
 
     /** The user-visible name of the app [pkg], or [pkg] itself when it has none. */
     fun appLabel(pkg: String): String
+
+    /** Send [action] to the session at [index] in the list the last [active] returned. */
+    fun transport(index: Int, action: MediaAction)
+
+    /** Set [mode] on the session at [index] in the list the last [active] returned; throws when the call fails. */
+    fun setRepeat(index: Int, mode: RepeatMode)
 }
 
 /** One active session: what selection reads ([info]) and the track it reports, blank values already dropped. */

@@ -25,16 +25,13 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
     private val volume = VolumeController(appContext, afterSpeech)
     private val brightness = BrightnessController(appContext)
     private val dnd = DoNotDisturbController(appContext, afterSpeech)
-    private val media = MediaControl(appContext)
     private val music =
         Music(AndroidMediaSessions(appContext), AndroidMusicApps(appContext), hush, appContext.packageName)
     private val appLauncher = AppLauncher(appContext)
     private val external = ExternalToolProvider(appContext)
 
-    // The **music commands** media_control and set_repeat are wrapped where they're built: one that works makes its
-    // turn final. The hush decorator sits inside: a pause under the hush is kept past it (and is a working music
-    // command). Music builds now_playing (never final: it expects an answer, flags a hushed track) and play_music
-    // (final when it started music).
+    // Music builds the **music commands** play_music, media_control and set_repeat (final when they work; a pause
+    // under the hush is kept past it) and now_playing (never final: it expects an answer, flags a hushed track).
     private val tools: List<Tool> = listOf(
         GetTimeTool,
         SetTimerTool(timerScheduler),
@@ -49,8 +46,8 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         AdjustBrightnessTool(brightness),
         GetDoNotDisturbTool(dnd),
         SetDoNotDisturbTool(dnd),
-        FinalTurnOnSuccess(PauseUnderHush(MediaControlTool(media), hush)),
-        FinalTurnOnSuccess(SetRepeatTool(media)),
+        music.mediaControl,
+        music.setRepeat,
         music.nowPlaying,
         music.playMusic,
         OpenAppTool(appLauncher),

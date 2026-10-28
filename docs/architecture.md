@@ -158,19 +158,19 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
   to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). The **music
-  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) make the
-  turn final when they work (Music decides for `play_music`; the other two are wrapped in `FinalTurnOnSuccess` where
-  `ToolRegistry` builds them): a response with neither `error` nor `searchUnsupported` also makes the turn final, whatever else the turn held, with its own instruction (briefly
-  confirm, no follow-up question); a failed one leaves the conversation open. Either counts only if its call settles
-  with its own output, not as cancelled (see the Tool runner). Two **hush** decorators get the conversation's `Hush`
-  (passed by `AssistantEngine.create` → `ToolRunner.create` → `ToolRegistry`): `PauseUnderHush` wraps `media_control`
-  *inside* `FinalTurnOnSuccess`, so pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
+  commands** `play_music`, `media_control` and `set_repeat` (not `now_playing`, which expects an answer) are built by
+  **Music** (`conversation/tools/music/`), which reaches the device only through the `MediaSessions` and `MusicApps`
+  ports and decides the final turn: a command that worked makes the turn final, whatever else the turn held, with its
+  own instruction (briefly confirm, no follow-up question); an error, or a `play_music` that only opened the app
+  (`searchUnsupported`), leaves the conversation open. Either counts only if its call settles with its own output, not
+  as cancelled (see the Tool runner). Music gets the conversation's `Hush` (passed by `AssistantEngine.create` →
+  `ToolRunner.create` → `ToolRegistry`): pause/stop while the hush is held calls `Hush.keepPaused` instead of the media
   session (no notification access needed) and returns `{"action":"pause"}`, a working music command and so a final
-  turn; every other action, a pause with no hush held, or a pause whose keep-paused was denied, passes through.
-  `HushedFlag` wraps `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
+  turn; every other action, a pause with no hush held, or a pause whose keep-paused was denied, goes to the session.
+  `now_playing`: while the hush is held, not kept paused, and silenced playback, a found track reports
   `"playing": true` with `"hushed": true` (a bare `hushed` beside `"playing": false` still read as paused on a
-  gen2); a track already paused when the hush started stays paused. Both pure, tested with a fake `Hush`
-  (`PauseUnderHushTest`, `HushedFlagTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and `decode`
+  gen2); a track already paused when the hush started stays paused. All pure, tested with fakes at the `Tool` seam
+  (`MusicTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and `decode`
   — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn** via
   `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
