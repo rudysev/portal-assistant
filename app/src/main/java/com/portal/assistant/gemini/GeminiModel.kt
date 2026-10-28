@@ -1,26 +1,27 @@
 package com.portal.assistant.gemini
 
 /**
- * The Gemini model the assistant runs, in one place: the [ID] used to open the Live session and the
- * [prettyName] shown as the chat subtitle. Co-locating them means swapping the model updates the UI label
- * automatically — no hard-coded "Gemini" string to drift. [prettyName] is pure, so it's unit-tested.
+ * The Models the Gemini voice backend can run, in one place: each one's id (opens the Live session), its name (the
+ * one name shown everywhere — Settings → Model and the top-left label) and the per-model facts its setup frame
+ * depends on. Adding a Model = adding one entry; nothing else in the app spells a model id.
  */
 object GeminiModel {
 
-    const val ID = "gemini-2.5-flash-native-audio-latest"
+    /** One Model. [googleSearch]: it offers Google Search, so setup asks for it. */
+    data class Model(val id: String, val name: String, val googleSearch: Boolean)
 
-    /** Models the user can pick in Settings — [ID] is the default. Append here to expose a new option. */
-    val AVAILABLE: List<String> = listOf(ID)
+    /** The Model every install starts on, and the fallback for a saved id no longer offered. */
+    val DEFAULT = Model("gemini-2.5-flash-native-audio-latest", "Gemini 2.5", googleSearch = true)
 
-    /**
-     * Vendor + version from a model id, e.g. "gemini-2.5-flash-native-audio-latest" → "Gemini 2.5".
-     * Falls back to just the capitalized vendor when there's no numeric version token.
-     */
-    fun prettyName(id: String = ID): String {
-        val tokens = id.removePrefix("models/").split("-").filter { it.isNotEmpty() }
-        if (tokens.isEmpty()) return id
-        val vendor = tokens[0].replaceFirstChar { it.uppercase() }
-        val version = tokens.getOrNull(1)?.takeIf { it.first().isDigit() }
-        return listOfNotNull(vendor, version).joinToString(" ")
-    }
+    /** Models the user can pick in Settings, in the order they're listed — [DEFAULT] first. */
+    val AVAILABLE: List<Model> = listOf(
+        DEFAULT,
+        Model("gemini-3.8-live", "Gemini 3.8", googleSearch = false),
+    )
+
+    /** The offered Model with [id], or null when it isn't (or is no longer) offered. */
+    fun find(id: String): Model? = AVAILABLE.firstOrNull { it.id == id }
+
+    /** The offered Model with [id], else [DEFAULT]. */
+    fun of(id: String): Model = find(id) ?: DEFAULT
 }

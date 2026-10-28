@@ -36,7 +36,7 @@ object AppPrefs {
     // default: an installed provider grants nothing until its package is added here.
     const val KEY_TOOLS_ENABLED = "tools_enabled_pkgs" // Set<String> of enabled provider package names
 
-    // Model — the Gemini model the assistant runs (Settings → Model). Defaults to GeminiModel.ID.
+    // Model — the Gemini model the assistant runs (Settings → Model). Defaults to GeminiModel.DEFAULT.
     const val KEY_MODEL = "model_id"
 
     // Speaker — the Chosen speaker the Gemini voice backend talks with (Settings → Voice). Unset = Server
@@ -60,23 +60,23 @@ object AppPrefs {
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
-    /** The selected model id, or [GeminiModel.ID] if unset or no longer offered. Self-heals: a saved id that
+    /** The selected model id, or [GeminiModel.DEFAULT]'s if unset or no longer offered. Self-heals: a saved id that
      *  fell out of the catalog is cleared so prefs never retain an orphan. */
     fun modelId(context: Context): String {
         val saved = prefs(context).getString(KEY_MODEL, null)
-        val offered = saved?.takeIf { it in GeminiModel.AVAILABLE }
+        val offered = saved?.takeIf { GeminiModel.find(it) != null }
         if (saved != null && offered == null) {
             prefs(context).edit {
                 remove(KEY_MODEL)
             } // orphan from a catalog change — drop it
         }
-        return offered ?: GeminiModel.ID
+        return offered ?: GeminiModel.DEFAULT.id
     }
 
     /** Persist the chosen model (applies to the next conversation). Ignores ids outside the catalog so prefs
      *  always match the read contract. */
     fun setModelId(context: Context, id: String) {
-        if (id !in GeminiModel.AVAILABLE) return
+        if (GeminiModel.find(id) == null) return
         prefs(context).edit { putString(KEY_MODEL, id) }
     }
 

@@ -15,6 +15,16 @@ class SystemPromptTest {
         assertFalse(prompt.contains("get_weather"))
     }
 
+    @Test fun googleSearchRuleSaysItCantCheckRatherThanGuess() {
+        assertTrue(
+            SystemPrompt.build().contains(
+                "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
+                    "recent events). Base answers on results. If you can't find it, say 'I can't check that' — " +
+                    "never guess.\n",
+            ),
+        )
+    }
+
     @Test fun portalBuiltinsPresent() {
         val prompt = SystemPrompt.build()
         assertTrue(prompt.contains("portal.set_volume"))

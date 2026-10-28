@@ -27,13 +27,20 @@ object GeminiBackend {
     /** Gemini co-streams first audio quickly — a shorter dead-air budget is enough. */
     const val DEAD_AIR_STALL_MS = 10_000L
 
-    /** The session's frames: model, system prompt, tool declarations and Chosen speaker from [config]. */
-    internal fun wireFormat(config: BackendConfig) = GeminiWireFormat(
-        model = config.model,
-        systemPrompt = config.systemPrompt,
-        functionDeclarations = config.functionDeclarations,
-        speaker = config.speaker,
-    )
+    /**
+     * The session's frames: model, system prompt, tool declarations and Chosen speaker from [config], plus what
+     * that model offers ([GeminiModel.of] — an id no longer offered opens as the default's).
+     */
+    internal fun wireFormat(config: BackendConfig): GeminiWireFormat {
+        val model = GeminiModel.of(config.model)
+        return GeminiWireFormat(
+            model = config.model,
+            systemPrompt = config.systemPrompt,
+            functionDeclarations = config.functionDeclarations,
+            speaker = config.speaker,
+            googleSearch = model.googleSearch,
+        )
+    }
 
     /**
      * Where [config]'s session connects: the configured endpoint (or [DEFAULT_ENDPOINT]) with the API key added

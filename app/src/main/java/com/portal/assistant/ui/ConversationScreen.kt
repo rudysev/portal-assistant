@@ -180,7 +180,7 @@ private fun TopBar(
         if (backend == AppPrefs.VoiceBackendKind.LOCAL) {
             "Local server"
         } else {
-            GeminiModel.prettyName(modelId)
+            GeminiModel.of(modelId).name
         }
     }
     Row(

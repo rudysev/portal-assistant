@@ -136,9 +136,13 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied by `Transcript` to Jarvis's text (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
-- `gemini/GeminiWireFormat.kt` — Gemini Live's frames (the socket is the shared transport's). `googleSearch` on,
-  **plus function-calling**: the `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `setup`,
-  and `toolCall`/`toolCallCancellation` are decoded and answered (`toolResults`). Built-in tools: `portal.get_time`,
+- `gemini/GeminiModel.kt` — the Model catalog: id, name, and whether it offers Google Search. Gemini 2.5
+  (`gemini-2.5-flash-native-audio-latest`, the default) does; Gemini 3.8 (`gemini-3.8-live`) doesn't.
+  `GeminiBackend.wireFormat` reads it via `GeminiModel.of`.
+- `gemini/GeminiWireFormat.kt` — Gemini Live's frames (the socket is the shared transport's). `googleSearch` on
+  a model that offers it (no empty `tools` array is ever sent), **plus function-calling**: the
+  `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `setup`, and
+  `toolCall`/`toolCallCancellation` are decoded and answered (`toolResults`). Built-in tools: `portal.get_time`,
   `portal.set_timer`/`list_timers`/`cancel_timer`, `portal.get_volume`/`set_volume`/`adjust_volume`/`set_mute`,
   `portal.get_brightness`/`set_brightness`/`adjust_brightness`, `portal.get_do_not_disturb`/`set_do_not_disturb`,
   `portal.play_music` (play a song/artist/album/playlist by name — **multi-app**: routes to the user's default
@@ -177,7 +181,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   gen2); a track already paused when the hush started stays paused. All pure, tested with fakes at the `Tool` seam
   (`MusicTest`). Every frame — `setup`, `audio`, `userText`, `toolResults` and `decode`
   — is pure and unit-tested (`GeminiWireFormatTest`). A tapped suggestion chip sends a **text turn** via
-  `sendText`/`userText` (`clientContent` + `turnComplete` — the model answers without waiting on VAD).
+  `sendText`/`userText` (`realtimeInput.text` — the model answers without waiting on VAD). Mic audio goes as
+  `realtimeInput.audio`. Neither uses `clientContent` or the deprecated `mediaChunks`: Gemini 3.8 ignores both
+  (it takes `clientContent` only as initial history, which it never answers).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
   `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
   one, routing unchanged: built-ins win, then external providers, then `unknown tool`), the `AfterSpeech` queue, the

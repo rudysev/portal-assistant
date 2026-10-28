@@ -241,19 +241,21 @@ class GeminiWireFormatTest {
 
     // ---- outbound frames ---------------------------------------------------------------------------
 
-    @Test fun audioIsBase64PcmInARealtimeInputChunk() {
-        val chunk = wireFormat.audio(byteArrayOf(1, 2, 3)).json()
-            .getJSONObject("realtimeInput").getJSONArray("mediaChunks").getJSONObject(0)
-        assertEquals("audio/pcm;rate=16000", chunk.getString("mimeType"))
-        assertEquals("AQID", chunk.getString("data"))
+    @Test fun audioIsBase64PcmInRealtimeInputAudio() {
+        // `audio`, not the deprecated `mediaChunks`: Gemini 3.8 ignores mediaChunks (device-checked 2026-10-27).
+        val realtimeInput = wireFormat.audio(byteArrayOf(1, 2, 3)).json().getJSONObject("realtimeInput")
+        assertFalse(realtimeInput.has("mediaChunks"))
+        val audio = realtimeInput.getJSONObject("audio")
+        assertEquals("audio/pcm;rate=16000", audio.getString("mimeType"))
+        assertEquals("AQID", audio.getString("data"))
     }
 
-    @Test fun userTextIsACompleteUserTurn() {
-        val clientContent = wireFormat.userText("what's the weather?").json().getJSONObject("clientContent")
-        assertTrue(clientContent.getBoolean("turnComplete")) // finished turn → model answers without a VAD wait
-        val turn = clientContent.getJSONArray("turns").getJSONObject(0)
-        assertEquals("user", turn.getString("role"))
-        assertEquals("what's the weather?", turn.getJSONArray("parts").getJSONObject(0).getString("text"))
+    @Test fun userTextIsRealtimeInputText() {
+        // Realtime text, not a `clientContent` turn: Gemini 3.8 takes clientContent only as initial history and
+        // never answers it; realtime text gets an answer on both models (device-checked 2026-10-27).
+        val frame = wireFormat.userText("what's the weather?").json()
+        assertFalse(frame.has("clientContent"))
+        assertEquals("what's the weather?", frame.getJSONObject("realtimeInput").getString("text"))
     }
 
     @Test fun toolResultsAreFunctionResponsesInOrder() {

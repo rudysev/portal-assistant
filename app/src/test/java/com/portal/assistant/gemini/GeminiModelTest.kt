@@ -1,33 +1,33 @@
 package com.portal.assistant.gemini
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure JVM tests for the model-id → subtitle label. */
+/** Pins the Model catalog: what Settings offers, each Model's name, and which ones offer Google Search. */
 class GeminiModelTest {
 
-    @Test fun vendorAndVersionFromFullId() {
-        assertEquals("Gemini 2.5", GeminiModel.prettyName("gemini-2.5-flash-native-audio-latest"))
+    @Test fun catalogOffersGemini25AsTheDefaultAndGemini38() {
+        assertEquals(
+            listOf("gemini-2.5-flash-native-audio-latest", "gemini-3.8-live"),
+            GeminiModel.AVAILABLE.map { it.id },
+        )
+        assertEquals("gemini-2.5-flash-native-audio-latest", GeminiModel.DEFAULT.id)
     }
 
-    @Test fun stripsModelsPrefix() {
-        assertEquals("Gemini 2.5", GeminiModel.prettyName("models/gemini-2.5-flash"))
+    @Test fun eachModelIsShownByItsName() {
+        assertEquals(listOf("Gemini 2.5", "Gemini 3.8"), GeminiModel.AVAILABLE.map { it.name })
     }
 
-    @Test fun vendorOnlyWhenNoNumericVersion() {
-        assertEquals("Gemini", GeminiModel.prettyName("gemini-pro"))
-        assertEquals("Gemini", GeminiModel.prettyName("gemini"))
+    @Test fun onlyGemini25OffersGoogleSearch() {
+        assertTrue(GeminiModel.of("gemini-2.5-flash-native-audio-latest").googleSearch)
+        assertFalse(GeminiModel.of("gemini-3.8-live").googleSearch)
     }
 
-    @Test fun worksForOtherVendors() {
-        assertEquals("Claude 3", GeminiModel.prettyName("claude-3-5-sonnet"))
-    }
-
-    @Test fun emptyReturnsInput() {
-        assertEquals("", GeminiModel.prettyName(""))
-    }
-
-    @Test fun defaultIsTheConfiguredModel() {
-        assertEquals("Gemini 2.5", GeminiModel.prettyName())
+    @Test fun anIdNoLongerOfferedIsNotFoundAndFallsBackToGemini25() {
+        assertNull(GeminiModel.find("gemini-1.0-retired"))
+        assertEquals(GeminiModel.DEFAULT, GeminiModel.of("gemini-1.0-retired"))
     }
 }

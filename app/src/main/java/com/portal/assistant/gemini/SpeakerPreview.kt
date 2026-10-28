@@ -21,8 +21,8 @@ object SpeakerPreview {
 
     /**
      * The session config for one preview: [apiKey] as the credential, the selected [model], the candidate
-     * [speaker] (null = Server default), [SYSTEM_INSTRUCTION], and no function declarations (the client's
-     * `googleSearch` grounding stays — harmless). [SpeakerPreviewPlayer] gets its session from
+     * [speaker] (null = Server default), [SYSTEM_INSTRUCTION], and no function declarations (Google Search stays
+     * on a model that offers it — harmless). [SpeakerPreviewPlayer] gets its session from
      * [GeminiBackend.Factory], the same path as a conversation, so what the user hears is what they get.
      */
     fun sessionConfig(apiKey: String, model: String, speaker: GeminiSpeaker.Speaker?): BackendConfig = BackendConfig(
