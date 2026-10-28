@@ -271,6 +271,8 @@ class AssistantEngine(
                 dispatch(Event.UserSpeaking)
             }
 
+            BackendEvent.SpeechActivity -> dispatch(Event.UserSpeaking)
+
             is BackendEvent.OutputTranscript -> {
                 advanceTranscript(Transcript.Event.JarvisText(event.text, state.phase))
                 // Model activity only while already SPEAKING: a belated frame after listening restarted must not enter
@@ -299,13 +301,9 @@ class AssistantEngine(
             // The close that follows ends the conversation.
             is BackendEvent.ClosingSoon -> Unit
 
-            is BackendEvent.Failed -> {
-                postDisconnectNotice(event.error)
-                dispatch(Event.Disconnected)
-            }
-
-            BackendEvent.Closed -> {
-                postDisconnectNotice(backendError = null)
+            // A failure carries its error for the notice; a bare close has none.
+            is BackendEvent.Failed, BackendEvent.Closed -> {
+                postDisconnectNotice((event as? BackendEvent.Failed)?.error)
                 dispatch(Event.Disconnected)
             }
         }

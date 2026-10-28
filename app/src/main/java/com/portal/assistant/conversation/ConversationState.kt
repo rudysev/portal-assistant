@@ -32,7 +32,7 @@ sealed interface Event {
     /** Socket setup complete — ready to stream. */
     data object Ready : Event
 
-    /** The server transcribed some user speech (proxy for "the user is talking"). */
+    /** The server transcribed some user speech, or its VAD heard the user start or stop (proxy for "talking"). */
     data object UserSpeaking : Event
 
     /**

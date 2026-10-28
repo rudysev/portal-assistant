@@ -16,7 +16,8 @@ import org.json.JSONObject
  *  - **binary frame** = one raw PCM chunk (16 kHz up / 24 kHz down) — no base64, it's a LAN socket.
  *  - **text frame (JSON)** = control, keyed by `type`. `input_transcript` and `output_transcript` carry
  *    **deltas** (new text since the last frame for that side), not the full utterance — the engine accumulates
- *    them into the chat bubble, same as Gemini Live.
+ *    them into the chat bubble, same as Gemini Live. `user_started_speaking` / `user_stopped_speaking` are the
+ *    host's VAD edges, sent ahead of the transcript.
  *
  * The host should emit `model_generating` before its first audio frame; the transport reports it anyway if it
  * doesn't. Pure — the socket is
@@ -98,4 +99,6 @@ private val SIGNALS: Map<String, BackendEvent> = mapOf(
     "model_generating" to BackendEvent.ModelGenerating,
     "turn_complete" to BackendEvent.TurnComplete,
     "interrupted" to BackendEvent.Interrupted,
+    "user_started_speaking" to BackendEvent.SpeechActivity,
+    "user_stopped_speaking" to BackendEvent.SpeechActivity,
 )

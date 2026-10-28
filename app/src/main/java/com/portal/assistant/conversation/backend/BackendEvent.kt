@@ -15,6 +15,12 @@ sealed interface BackendEvent {
     /** A delta of the user's transcribed speech. */
     data class InputTranscript(val text: String) : BackendEvent
 
+    /**
+     * The backend's own VAD heard the user start or stop speaking — no text. Only a backend whose transcript lags the
+     * speech sends it (the local host: VAD stop + Whisper), so the no-speech window counts from the speech itself.
+     */
+    data object SpeechActivity : BackendEvent
+
     /** A delta of the model's own words, transcribed as it speaks. */
     data class OutputTranscript(val text: String) : BackendEvent
 

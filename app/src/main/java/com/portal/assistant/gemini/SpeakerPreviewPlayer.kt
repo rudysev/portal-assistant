@@ -146,6 +146,7 @@ class SpeakerPreviewPlayer(private val apiKey: String, private val model: String
 
                 // A one-sentence intro with no function declarations — nothing else matters here.
                 is BackendEvent.InputTranscript,
+                BackendEvent.SpeechActivity,
                 is BackendEvent.OutputTranscript,
                 BackendEvent.Interrupted,
                 BackendEvent.ModelGenerating,
