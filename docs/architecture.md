@@ -13,7 +13,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
     but only if the reducer sends it (still in flight): a marked result overtaken by a barge-in ends nothing, since
     the model never heard it. The turn end (normal or stalled) then ends the conversation instead of re-listening.
     `Interrupted` keeps it. Results sent during a final turn clear `turnComplete` (`awaitsSignOff`): the turn ends on
-    the sign-off's own `turnComplete`, or the stall if the model never replies.
+    the sign-off's own `turnComplete`, or the stall if the model never replies. Until the sign-off's audio arrives
+    (`PlaybackBusy`; `signOffPending`), a `turnComplete` ends nothing: Gemini 3.8 completes the tool-call turn before
+    it hears our response, so a fast tool's result is sent ahead of that turn's own `turnComplete`. Not
+    `ModelActivity`: it may be a lagging transcript of words spoken before the tool call.
   - **Stall = dead-air clock (arm-on-drain).** The server can stream a long answer's audio *ahead of
     realtime*, so it sits queued in `PcmPlayer` (which paces playback via blocking `AudioTrack` writes). The
     reducer arms/cancels the stall only via `stallDecision(state, event)` (in `conversation/StallDecision.kt`) —
