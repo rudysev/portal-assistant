@@ -6,7 +6,7 @@ Detail behind the map in `CLAUDE.md`. The hard rules live there, not here.
 A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake's `WakeMatcher`):
 - `conversation/ConversationState.kt` — pure `reduce(state, event, multiTurn)` state machine
   (CONNECTING → LISTENING → SPEAKING → ENDED), **fully unit-tested**. Exactly two client timers:
-  **no-speech** (release the mic when the user stops; re-armed on transcription) and a **stall
+  **no-speech** (release the mic when the user stops; re-armed on transcription, and on the local host's VAD start/stop) and a **stall
   watchdog** (model took the turn but produced no audio/`turnComplete`). Race-free turn end =
   `turnComplete && playbackIdle && no tools in flight` — replaces the reference app's CAS latch.
   - **Final turn.** A `ToolResultsReady` result marked `ToolResult.finalTurn` sets `ConversationState.finalTurn`,
@@ -98,7 +98,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (`postDisconnectNotice`; internal `DisconnectNotice`: offline copy first, then a server message as is, else
   "Connection lost" / "Couldn't reach Jarvis" by `connectedOk` — raw socket text is only logged). The **no-speech
   grace** (internal `NoSpeechGrace`) defers the no-speech end while the mic still hears local speech, up to
-  `MAX_GRACES` re-arms of the same timer; a server transcript re-arms it in full and resets the budget.
+  `MAX_GRACES` re-arms of the same timer; a server transcript re-arms it in full and resets the budget, as does the
+  local host's VAD start/stop (`BackendEvent.SpeechActivity`), so its Whisper lag after the user stops is covered.
   `AssistantEngineTest` drives all of this on the test thread with recording fakes (`AssistantEngineFakes.kt`): a
   hand-stepped clock, a backend and a mic that call in synchronously.
   The **Listening tone** plays at the conversation's mic open in `start()` (only there — never on a follow-up

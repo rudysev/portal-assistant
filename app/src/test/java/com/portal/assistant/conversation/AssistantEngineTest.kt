@@ -280,6 +280,37 @@ class AssistantEngineTest {
         assertEquals(1, ends)
     }
 
+    @Test fun aShortRequestWhoseTranscriptLandsAfterTheDeadlineStillStartsATurn() {
+        // Local: "thanks, that's all" spoken 0.8 s after Ready for ~1 s; the host's VAD stop (0.8 s) plus Whisper puts
+        // its input_transcript past the 5 s mark, with the mic silent since ~1.8 s. The host's VAD start and stop
+        // re-arm the window, so it counts from when the user stopped speaking.
+        listening()
+        for (at in START_MS + 800..START_MS + 1_800 step 100) {
+            speakAt(at)
+            if (at == START_MS + 1_000) emit(BackendEvent.SpeechActivity) // VAD start
+        }
+        clock.advanceTo(START_MS + 2_600)
+        emit(BackendEvent.SpeechActivity) // VAD stop
+
+        clock.advanceTo(START_MS + 5_300)
+        emit(BackendEvent.InputTranscript("thanks, that's all"))
+
+        assertEquals(0, ends)
+        assertEquals(listOf("thanks, that's all"), sink.turnsShown.map { it.text })
+    }
+
+    @Test fun speechActivityWithNoTranscriptEndsTheConversationOneWindowAfterIt() {
+        listening()
+        clock.advanceTo(START_MS + 2_600)
+        emit(BackendEvent.SpeechActivity)
+
+        clock.advanceTo(START_MS + 2_600 + NO_SPEECH_MS - 1)
+        assertEquals(0, ends)
+        clock.advanceTo(START_MS + 2_600 + NO_SPEECH_MS)
+        assertEquals(1, ends)
+        assertTrue(sink.turnsShown.isEmpty()) // nothing to show without a transcript
+    }
+
     // ---- the stall -------------------------------------------------------------------------------------------------
 
     @Test fun theStallFiresOnlyOnceTheAudioHasDrainedIntoDeadAir() {

@@ -5,9 +5,11 @@ package com.portal.assistant.conversation
  * mic still hears the user at the deadline.
  *
  * Why it exists: the no-speech timer is re-armed only by [ConversationState.Event.UserSpeaking], which the
- * engine derives **solely** from the Gemini server's `inputTranscription` (server VAD endpointing +
- * transcription + network RTT). A follow-up started late in the listening window can therefore finish *after*
- * the local 5s timer fires, dropping the in-progress query. The engine feeds a cheap **local** mic-energy
+ * engine derives from the server: Gemini's `inputTranscription` (server VAD endpointing + transcription +
+ * network RTT), or the local host's transcript and VAD edges. A follow-up started late in the listening
+ * window can therefore finish *after* the local 5s timer fires, dropping the in-progress query. (The local
+ * host's VAD stop covers its Whisper lag after the user stops; this grace covers speech still going at the
+ * deadline.) The engine feeds a cheap **local** mic-energy
  * signal (last frame whose gained level cleared [VAD_LEVEL]) into [shouldExtend]: while the user is still
  * talking at a checkpoint, defer the end; the budget ([MAX_GRACES]) bounds the case where energy persists but
  * the server never confirms (i.e. noise), so background noise can't pin the mic. A server transcript resets

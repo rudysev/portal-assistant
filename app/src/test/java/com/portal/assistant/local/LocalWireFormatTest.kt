@@ -27,6 +27,14 @@ class LocalWireFormatTest {
         assertEquals(listOf(BackendEvent.TurnComplete), wireFormat.decode("""{"type":"turn_complete"}"""))
         assertEquals(listOf(BackendEvent.Interrupted), wireFormat.decode("""{"type":"interrupted"}"""))
         assertEquals(
+            listOf(BackendEvent.SpeechActivity),
+            wireFormat.decode("""{"type":"user_started_speaking"}"""),
+        )
+        assertEquals(
+            listOf(BackendEvent.SpeechActivity),
+            wireFormat.decode("""{"type":"user_stopped_speaking"}"""),
+        )
+        assertEquals(
             listOf(BackendEvent.InputTranscript("set a timer")),
             wireFormat.decode("""{"type":"input_transcript","text":"set a timer"}"""),
         )
