@@ -123,4 +123,42 @@ class FinalTurnStateTest {
         val silent = reduceAll(toolTurn + Event.StallTimeout)
         assertEquals(Phase.ENDED, silent.state.phase)
     }
+
+    @Test fun theToolCallTurnsOwnTurnCompleteArrivingAfterTheResultsDoesNotEndTheFinalTurn() {
+        // Gemini 3.8 completes the tool-call turn before it hears our response, and a fast tool's result is sent
+        // before that turnComplete lands; the sign-off then comes as its own turn.
+        val toolTurn = listOf(
+            Event.Ready,
+            Event.ToolCallReceived(listOf(fc("c1"))),
+            Event.ToolResultsReady(listOf(final("c1"))),
+            Event.TurnComplete,
+        )
+        val waiting = reduceAll(toolTurn)
+        assertEquals(Phase.SPEAKING, waiting.state.phase) // the model still owes its sign-off
+        assertEquals(false, Action.CancelStallTimer in waiting.actions) // ...or the stall ends it
+
+        val signedOff = reduceAll(
+            toolTurn + listOf(Event.ModelActivity, Event.PlaybackBusy, Event.TurnComplete, Event.PlaybackIdle),
+        )
+        assertEquals(Phase.ENDED, signedOff.state.phase)
+        assertEquals(listOf(Action.FireAfterSpeech, Action.End), signedOff.actions.takeLast(2))
+
+        val silent = reduceAll(toolTurn + Event.StallTimeout)
+        assertEquals(Phase.ENDED, silent.state.phase)
+    }
+
+    @Test fun aLateTranscriptOfTheToolCallTurnDoesNotEndTheFinalTurnEarly() {
+        // An output transcript (or a text-only generating frame) of words spoken before the tool call can land
+        // after our results, ahead of that turn's own turnComplete: only the sign-off's audio begins the reply.
+        val d = reduceAll(
+            listOf(
+                Event.Ready,
+                Event.ToolCallReceived(listOf(fc("c1"))),
+                Event.ToolResultsReady(listOf(final("c1"))),
+                Event.ModelActivity,
+                Event.TurnComplete,
+            ),
+        )
+        assertEquals(Phase.SPEAKING, d.state.phase)
+    }
 }

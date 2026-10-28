@@ -123,6 +123,11 @@ sealed interface Action {
  *   their request expects no reply (a music command that worked): the next turn end ends the conversation instead
  *   of re-listening. A marked result dropped as no longer in flight sets nothing: the model never heard it. Holds
  *   until the conversation ends (an [Event.Interrupted] keeps it).
+ * @param signOffPending a final turn's results were sent and no sign-off audio ([Event.PlaybackBusy]) has arrived
+ *   since. A [Event.TurnComplete] meanwhile is the tool-call turn's own, not the sign-off's (Gemini 3.8 completes
+ *   that turn before it hears our response), so it ends nothing; the stall covers a model that never replies. Only
+ *   audio counts as the reply: an [Event.ModelActivity] may be a lagging transcript of words spoken before the tool
+ *   call.
  */
 data class ConversationState(
     val phase: Phase = Phase.CONNECTING,
@@ -130,6 +135,7 @@ data class ConversationState(
     val playbackIdle: Boolean = true,
     val toolsInFlight: Set<String> = emptySet(),
     val finalTurn: Boolean = false,
+    val signOffPending: Boolean = false,
 ) {
     /**
      * The results of [event] sent to the model: those still in flight. The rest were cancelled or overtaken by a
@@ -209,7 +215,7 @@ private fun listeningBody(state: ConversationState, event: Event): Decision = wh
 }
 
 private fun speakingBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (event) {
-    Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false), emptyList())
+    Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false, signOffPending = false), emptyList())
 
     Event.ModelActivity -> Decision(state, emptyList())
 
@@ -220,11 +226,16 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
         if (drained.turnComplete) endOfTurn(drained, multiTurn) else Decision(drained, emptyList())
     }
 
-    Event.TurnComplete -> endOfTurn(state.copy(turnComplete = true), multiTurn)
+    Event.TurnComplete -> turnCompleteBody(state, multiTurn)
 
     Event.Interrupted -> {
         // Flush leaves us idle with no tools — always dead air until the model resumes.
-        val cleared = state.copy(turnComplete = false, playbackIdle = true, toolsInFlight = emptySet())
+        val cleared = state.copy(
+            turnComplete = false,
+            playbackIdle = true,
+            toolsInFlight = emptySet(),
+            signOffPending = false,
+        )
         Decision(cleared, listOf(Action.FlushPlayback))
     }
 
@@ -252,15 +263,20 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
     else -> unchanged(state)
 }
 
+/** Before the sign-off has begun, a turnComplete is the tool-call turn's own: it ends nothing. */
+private fun turnCompleteBody(state: ConversationState, multiTurn: Boolean): Decision =
+    if (state.signOffPending) unchanged(state) else endOfTurn(state.copy(turnComplete = true), multiTurn)
+
 private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsReady, multiTurn: Boolean): Decision {
     val validResults = state.sent(event)
     val remaining = state.toolsInFlight - event.results.map { it.id }.toSet()
     // A final turn's results owe a sign-off: the turn now ends on the reply's own turnComplete (or the stall).
-    val turnComplete = state.turnComplete && !state.awaitsSignOff(event)
+    val awaitsSignOff = state.awaitsSignOff(event)
     val next = state.copy(
         toolsInFlight = remaining,
-        turnComplete = turnComplete,
+        turnComplete = state.turnComplete && !awaitsSignOff,
         finalTurn = state.finalTurnAfter(event),
+        signOffPending = state.signOffPending || awaitsSignOff,
     )
     val send = if (validResults.isNotEmpty()) {
         listOf(Action.SendToolResponse(validResults))

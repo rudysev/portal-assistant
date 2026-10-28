@@ -20,7 +20,7 @@ enum class StallDecision { Arm, Cancel, None }
  * | SPEAKING | PlaybackBusy | Cancel |
  * | SPEAKING | ModelActivity | Arm iff dead air (idle + no tools) |
  * | SPEAKING | PlaybackIdle | Cancel if turn ends; else Arm iff no tools |
- * | SPEAKING | TurnComplete | Cancel iff turn ends (idle + no tools) |
+ * | SPEAKING | TurnComplete | Cancel iff turn ends (idle + no tools, no sign-off pending) |
  * | SPEAKING | Interrupted | Arm (clears to idle + no tools) |
  * | SPEAKING | StallTimeout | Cancel iff no tools (else ignored) |
  * | SPEAKING | ToolCallReceived | Cancel (tools own the turn) |
@@ -51,8 +51,9 @@ private fun speakingStall(state: ConversationState, event: Event): StallDecision
         // This event sets playbackIdle=true; turn ends when turnComplete && no tools.
         Event.PlaybackIdle -> if (state.turnComplete && noTools) StallDecision.Cancel else armIf(noTools)
 
-        // The model is done, so the turn ends iff nothing plays and no tools run.
-        Event.TurnComplete -> cancelIf(nothingInFlight(state))
+        // The model is done, so the turn ends iff nothing plays and no tools run — unless it's the tool-call turn's
+        // own turnComplete before the sign-off, which ends nothing (the stall stays armed).
+        Event.TurnComplete -> cancelIf(!state.signOffPending && nothingInFlight(state))
 
         // A barge-in flushes playback and tools (idle + no tools): dead air until the model resumes.
         Event.Interrupted -> StallDecision.Arm
