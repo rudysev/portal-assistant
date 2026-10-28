@@ -3,9 +3,11 @@ package com.portal.assistant.conversation.tools.music
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.FakeHush
 import com.portal.assistant.conversation.tools.ToolOutput
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -23,6 +25,12 @@ class MusicTest {
 
     private fun nowPlaying(): ToolOutput = music().nowPlaying.invoke(JSONObject())
 
+    private fun mediaControl(action: String): ToolOutput =
+        music().mediaControl.invoke(JSONObject().put("action", action))
+
+    private fun setRepeat(mode: String?): ToolOutput =
+        music().setRepeat.invoke(if (mode == null) JSONObject() else JSONObject().put("mode", mode))
+
     private fun spotify(playing: Boolean, title: String? = "One More Time", artist: String? = "Daft Punk") =
         ActiveSession(
             SessionInfo(
@@ -34,10 +42,23 @@ class MusicTest {
                 canNext = true,
                 canPrev = true,
                 hasMetadata = true,
+                canSetRepeat = true,
             ),
             title = title,
             artist = artist,
         )
+
+    /** The model reads [expected] exactly: same keys and values (key order isn't part of JSON). */
+    private fun assertJson(expected: String, output: ToolOutput) =
+        assertEquals(JSONObject(expected).asMap(), output.response.asMap())
+
+    private fun Any?.plain(): Any? = when (this) {
+        is JSONObject -> asMap()
+        is JSONArray -> (0 until length()).map { get(it).plain() }
+        else -> this
+    }
+
+    private fun JSONObject.asMap(): Map<String, Any?> = keys().asSequence().associateWith { get(it).plain() }
 
     private fun ToolOutput.keys() = response.keys().asSequence().toSet()
 
@@ -167,6 +188,244 @@ class MusicTest {
         sessions.sessions = listOf(ActiveSession(spotify(playing = true).info.copy(pkg = own), "Jarvis", null))
 
         assertEquals(setOf("playing"), nowPlaying().keys())
+    }
+
+    // media_control
+
+    @Test fun mediaControlIsDeclaredAsBefore() {
+        val tool = music().mediaControl
+
+        assertEquals("portal.media_control", tool.name)
+        assertEquals(
+            JSONObject(
+                """{"name":"portal.media_control",
+                   "description":"Control music/media playback on the device: play (resume), pause, skip to next or previous track.",
+                   "parameters":{"type":"OBJECT",
+                     "properties":{
+                       "action":{"type":"STRING","description":"One of: play, pause, next, previous."}},
+                     "required":["action"]}}""",
+            ).asMap(),
+            tool.declaration.asMap(),
+        )
+    }
+
+    @Test fun eachActionDrivesThePickedSessionAndMakesAFinalTurn() {
+        val alexa = spotify(playing = false).info.copy(index = 0, pkg = "com.amazon.alexa", hasMetadata = false)
+        sessions.sessions = listOf(ActiveSession(alexa), ActiveSession(spotify(playing = true).info.copy(index = 1)))
+
+        listOf("play", "pause", "next", "previous").forEach { action ->
+            val result = mediaControl(action)
+
+            assertJson("""{"action":"$action","app":"Spotify"}""", result)
+            assertEquals(FINAL_TURN, result.finalTurnInstruction)
+        }
+        assertEquals(listOf("play 1", "pause 1", "next 1", "previous 1"), sessions.calls)
+    }
+
+    @Test fun synonymsNameTheirAction() {
+        sessions.sessions = listOf(spotify(playing = true))
+
+        val actions = listOf("resume", " Stop ", "skip", "back").map { mediaControl(it).response.getString("action") }
+
+        assertEquals(listOf("play", "pause", "next", "previous"), actions)
+        assertEquals(listOf("play 0", "pause 0", "next 0", "previous 0"), sessions.calls)
+    }
+
+    @Test fun anUnknownActionIsAnErrorAndNotAFinalTurn() {
+        sessions.sessions = listOf(spotify(playing = true))
+
+        val result = mediaControl("rewind")
+
+        assertJson("""{"error":"action must be play, pause, next, or previous"}""", result)
+        assertNull(result.finalTurnInstruction)
+        assertTrue(sessions.calls.isEmpty())
+    }
+
+    @Test fun mediaControlWithNoSessionAccessAsksForNotificationAccess() {
+        sessions.sessions = null
+
+        val result = mediaControl("next")
+
+        assertJson(
+            """{"error":"media control isn't enabled — grant notification access in Settings"}""",
+            result,
+        )
+        assertNull(result.finalTurnInstruction)
+    }
+
+    @Test fun mediaControlWithNothingPlayingIsAnError() {
+        val result = mediaControl("next")
+
+        assertJson("""{"error":"nothing is playing"}""", result)
+        assertNull(result.finalTurnInstruction)
+    }
+
+    @Test fun anActionNoSessionSupportsIsAnError() {
+        sessions.sessions = listOf(ActiveSession(spotify(playing = true).info.copy(canNext = false)))
+
+        val result = mediaControl("next")
+
+        assertJson("""{"error":"no media session supports that action"}""", result)
+        assertNull(result.finalTurnInstruction)
+        assertTrue(sessions.calls.isEmpty())
+    }
+
+    @Test fun ourOwnSessionIsNeverDriven() {
+        sessions.sessions = listOf(ActiveSession(spotify(playing = true).info.copy(pkg = own)))
+
+        val result = mediaControl("next")
+
+        assertJson("""{"error":"no media session supports that action"}""", result)
+        assertTrue(sessions.calls.isEmpty())
+    }
+
+    // pause under the hush
+
+    @Test fun aPauseUnderAHeldHushKeepsThePauseWithoutTheSession() {
+        hush.start()
+        sessions.sessions = listOf(spotify(playing = false))
+
+        val result = mediaControl("pause")
+
+        assertEquals(1, hush.keepPausedCalls)
+        assertJson("""{"action":"pause"}""", result)
+        assertEquals(FINAL_TURN, result.finalTurnInstruction)
+        assertTrue(sessions.calls.isEmpty())
+    }
+
+    @Test fun aStopUnderAHeldHushNeedsNoSessionAccess() {
+        hush.start()
+        sessions.sessions = null
+
+        val result = mediaControl(" Stop ")
+
+        assertEquals(1, hush.keepPausedCalls)
+        assertJson("""{"action":"pause"}""", result)
+        assertEquals(FINAL_TURN, result.finalTurnInstruction)
+    }
+
+    @Test fun aPauseWhoseKeptPauseIsDeniedPausesTheSession() {
+        val denied = FakeHush(keepPausedGranted = false).apply { start() }
+        sessions.sessions = listOf(spotify(playing = false))
+
+        val result = Music(sessions, apps, denied, own).mediaControl.invoke(JSONObject().put("action", "pause"))
+
+        assertEquals(1, denied.keepPausedCalls)
+        assertEquals(listOf("pause 0"), sessions.calls)
+        assertJson("""{"action":"pause","app":"Spotify"}""", result)
+        assertEquals(FINAL_TURN, result.finalTurnInstruction)
+    }
+
+    @Test fun aPauseWithNoHushHeldPausesTheSession() {
+        sessions.sessions = listOf(spotify(playing = true))
+
+        val result = mediaControl("pause")
+
+        assertEquals(listOf("pause 0"), sessions.calls)
+        assertJson("""{"action":"pause","app":"Spotify"}""", result)
+        assertEquals(FINAL_TURN, result.finalTurnInstruction)
+    }
+
+    @Test fun aPauseAfterTheHushWasLostPausesTheSession() {
+        hush.start()
+        hush.loseFocus()
+        sessions.sessions = listOf(spotify(playing = true))
+
+        val result = mediaControl("pause")
+
+        assertEquals(listOf("pause 0"), sessions.calls)
+        assertJson("""{"action":"pause","app":"Spotify"}""", result)
+    }
+
+    @Test fun everyOtherActionUnderAHeldHushGoesToTheSession() {
+        hush.start()
+        sessions.sessions = listOf(spotify(playing = false))
+
+        listOf("play", "next", "previous").forEach { mediaControl(it) }
+
+        assertEquals(0, hush.keepPausedCalls)
+        assertEquals(listOf("play 0", "next 0", "previous 0"), sessions.calls)
+    }
+
+    // set_repeat
+
+    @Test fun setRepeatIsDeclaredAsBefore() {
+        val tool = music().setRepeat
+
+        assertEquals("portal.set_repeat", tool.name)
+        assertEquals(
+            JSONObject(
+                """{"name":"portal.set_repeat",
+                   "description":"Set repeat on the currently-playing music: 'one' repeats the current song, 'all' repeats the album/playlist/queue, 'off' turns repeat off.",
+                   "parameters":{"type":"OBJECT",
+                     "properties":{
+                       "mode":{"type":"STRING","description":"One of: one (repeat this song), all (repeat the album/playlist), off."}},
+                     "required":["mode"]}}""",
+            ).asMap(),
+            tool.declaration.asMap(),
+        )
+    }
+
+    @Test fun eachRepeatModeIsSetOnTheSessionAndMakesAFinalTurn() {
+        sessions.sessions = listOf(spotify(playing = true))
+
+        listOf("one" to "one", "all" to "all", "off" to "off", " None " to "off").forEach { (word, mode) ->
+            val result = setRepeat(word)
+
+            assertJson("""{"repeat":"$mode","app":"Spotify"}""", result)
+            assertEquals(FINAL_TURN, result.finalTurnInstruction)
+        }
+        assertEquals(listOf("repeat one 0", "repeat all 0", "repeat off 0", "repeat off 0"), sessions.calls)
+    }
+
+    @Test fun aBadRepeatModeIsAnError() {
+        sessions.sessions = null // the mode is checked before session access
+
+        listOf("stop", "", null).forEach { mode ->
+            val result = setRepeat(mode)
+
+            assertJson("""{"error":"repeat must be one, all, or off"}""", result)
+            assertNull(result.finalTurnInstruction)
+        }
+    }
+
+    @Test fun setRepeatWithNoSessionAccessAsksForNotificationAccess() {
+        sessions.sessions = null
+
+        val result = setRepeat("one")
+
+        assertJson(
+            """{"error":"media control isn't enabled — grant notification access in Settings"}""",
+            result,
+        )
+        assertNull(result.finalTurnInstruction)
+    }
+
+    @Test fun setRepeatWithNothingPlayingIsAnError() {
+        val result = setRepeat("one")
+
+        assertJson("""{"error":"nothing is playing"}""", result)
+        assertNull(result.finalTurnInstruction)
+    }
+
+    @Test fun repeatUnsupportedByTheAppIsAnError() {
+        sessions.sessions = listOf(ActiveSession(spotify(playing = true).info.copy(canSetRepeat = false)))
+
+        val result = setRepeat("all")
+
+        assertJson("""{"error":"repeat isn't available on the current app"}""", result)
+        assertNull(result.finalTurnInstruction)
+        assertTrue(sessions.calls.isEmpty())
+    }
+
+    @Test fun aFailedRepeatCallIsAnError() {
+        sessions.sessions = listOf(spotify(playing = true))
+        sessions.repeatFailure = IllegalStateException("session gone")
+
+        val result = setRepeat("one")
+
+        assertJson("""{"error":"couldn't set repeat on Spotify: session gone"}""", result)
+        assertNull(result.finalTurnInstruction)
     }
 
     // --- play_music ---
