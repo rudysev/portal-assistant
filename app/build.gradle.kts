@@ -43,6 +43,12 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+  // Prebuilt dependency .so files, packaged as they are: stripping needs an NDK, which nothing here installs, and
+  // without one AGP warns on every native-lib merge. libvosk/libandroidx.graphics.path ship stripped already; JNA's
+  // libjnidispatch keeps its symbols (~130 KB per ABI).
+  packaging {
+    jniLibs { keepDebugSymbols += setOf("**/libvosk.so", "**/libandroidx.graphics.path.so", "**/libjnidispatch.so") }
+  }
   buildFeatures {
     compose = true
     buildConfig = true
@@ -124,12 +130,15 @@ tasks.check { dependsOn("detektMain", "detektTest") }
 // The plugin's variant detekt classpath (the Kotlin compile classpath) lacks BuildConfig, which javac compiles, so
 // type resolution reports it unresolved ("compiler errors found during analysis"). The plugin sets the classpath only
 // as a convention, which any from() discards, so restate it in full: Kotlin libraries plus the variant's javac classes.
-listOf("Debug", "Release").forEach { variant ->
+// `libraries` goes in as the FileCollection itself, not via kotlinc.map {} as the plugin's convention does: the
+// Provider drops the build dependencies of its artifact transforms, which Gradle deprecates
+// ("undeclared_artifact_transform_input"). So the unit-test task (no BuildConfig gap) is restated too.
+listOf("Debug", "Release", "DebugUnitTest").forEach { variant ->
   tasks.matching { it.name == "detekt$variant" }.configureEach {
     val kotlinc = tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compile${variant}Kotlin")
     val javac = tasks.named<JavaCompile>("compile${variant}JavaWithJavac")
     (this as dev.detekt.gradle.Detekt).classpath.setFrom(
-      kotlinc.map { it.libraries },
+      kotlinc.get().libraries,
       javac.flatMap { it.destinationDirectory },
     )
   }
