@@ -20,11 +20,12 @@ enum class StallDecision { Arm, Cancel, None }
  * | SPEAKING | PlaybackBusy | Cancel |
  * | SPEAKING | ModelActivity | Arm iff dead air (idle + no tools) |
  * | SPEAKING | PlaybackIdle | Cancel if turn ends; else Arm iff no tools |
- * | SPEAKING | TurnComplete | Cancel iff turn ends (idle + no tools, no sign-off pending) |
+ * | SPEAKING | TurnComplete | Cancel iff turn ends (idle + no tools, no answer pending) |
  * | SPEAKING | Interrupted | Arm (clears to idle + no tools) |
  * | SPEAKING | StallTimeout | Cancel iff no tools (else ignored) |
  * | SPEAKING | ToolCallReceived | Cancel (tools own the turn) |
- * | SPEAKING | ToolResultsReady / ToolCancelled | Cancel if drain ends the turn; else Arm iff emptied and idle |
+ * | SPEAKING | ToolResultsReady / ToolCancelled | Cancel if drain ends the turn (never for sent results: they owe an
+ * answer); else Arm iff emptied and idle |
  * | SPEAKING | Disconnected | None (engine teardown clears the timer) |
  */
 fun stallDecision(state: ConversationState, event: Event): StallDecision = when (state.phase) {
@@ -52,8 +53,8 @@ private fun speakingStall(state: ConversationState, event: Event): StallDecision
         Event.PlaybackIdle -> if (state.turnComplete && noTools) StallDecision.Cancel else armIf(noTools)
 
         // The model is done, so the turn ends iff nothing plays and no tools run — unless it's the tool-call turn's
-        // own turnComplete before the sign-off, which ends nothing (the stall stays armed).
-        Event.TurnComplete -> cancelIf(!state.signOffPending && nothingInFlight(state))
+        // own turnComplete before the answer to our results, which ends nothing (the stall stays armed).
+        Event.TurnComplete -> cancelIf(!state.answerPending && nothingInFlight(state))
 
         // A barge-in flushes playback and tools (idle + no tools): dead air until the model resumes.
         Event.Interrupted -> StallDecision.Arm
@@ -65,7 +66,7 @@ private fun speakingStall(state: ConversationState, event: Event): StallDecision
         is Event.ToolResultsReady -> toolDrainStall(
             state,
             state.toolsInFlight - event.results.map { it.id }.toSet(),
-            awaitsSignOff = state.awaitsSignOff(event),
+            awaitsAnswer = state.awaitsAnswer(event),
         )
 
         is Event.ToolCancelled -> toolDrainStall(state, state.toolsInFlight - event.ids.toSet())
@@ -82,10 +83,10 @@ private fun cancelIf(condition: Boolean): StallDecision = if (condition) StallDe
 private fun toolDrainStall(
     state: ConversationState,
     remaining: Set<String>,
-    awaitsSignOff: Boolean = false,
+    awaitsAnswer: Boolean = false,
 ): StallDecision = when {
     remaining.isNotEmpty() || state.toolsInFlight.isEmpty() || !state.playbackIdle -> StallDecision.None
-    state.turnComplete && !awaitsSignOff -> StallDecision.Cancel
+    state.turnComplete && !awaitsAnswer -> StallDecision.Cancel
     else -> StallDecision.Arm
 }
 

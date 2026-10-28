@@ -373,8 +373,9 @@ class ConversationStateTest {
         assertEquals(emptyList<Action>(), d.actions)
     }
 
-    @Test fun toolResultsReadyEndsWhenTurnAlreadyComplete() {
-        // turnComplete + idle were waiting on tools — drain must end immediately, not arm stall.
+    @Test fun toolResultsReadyAfterTurnCompleteAwaitsTheAnswer() {
+        // That turnComplete was the tool-call turn's own: the sent results owe an answer, so the turn stays open
+        // (stall armed) and ends on the answer's turnComplete.
         val speaking = ConversationState(
             phase = Phase.SPEAKING,
             turnComplete = true,
@@ -382,26 +383,16 @@ class ConversationStateTest {
             toolsInFlight = setOf("c1"),
         )
         val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), false)
-        assertEquals(Phase.ENDED, d.state.phase)
+        assertEquals(Phase.SPEAKING, d.state.phase)
+        assertEquals(false, d.state.turnComplete)
         assertTrue(d.actions.filterIsInstance<Action.SendToolResponse>().isNotEmpty())
-        assertEquals(listOf(Action.FireAfterSpeech, Action.End), d.actions.takeLast(2))
-        assertTrue(d.actions.none { it is Action.ArmStallTimer })
-    }
+        assertTrue(d.actions.contains(Action.ArmStallTimer))
 
-    @Test fun toolResultsReadyReListensWhenTurnAlreadyCompleteMultiTurn() {
-        val speaking = ConversationState(
-            phase = Phase.SPEAKING,
-            turnComplete = true,
-            playbackIdle = true,
-            toolsInFlight = setOf("c1"),
-        )
-        val d = reduce(speaking, Event.ToolResultsReady(listOf(tr("c1"))), multiTurn = true)
-        assertEquals(Phase.LISTENING, d.state.phase)
-        assertTrue(d.actions.filterIsInstance<Action.SendToolResponse>().isNotEmpty())
-        assertEquals(
-            listOf(Action.FireAfterSpeech, Action.StartForwarding, Action.ArmNoSpeechTimer, Action.CancelStallTimer),
-            d.actions.takeLast(4),
-        )
+        var state = d.state
+        for (e in listOf(Event.PlaybackBusy, Event.TurnComplete, Event.PlaybackIdle)) {
+            state = reduce(state, e, false).state
+        }
+        assertEquals(Phase.ENDED, state.phase)
     }
 
     @Test fun toolCancelledEndsWhenTurnAlreadyComplete() {
@@ -455,6 +446,7 @@ class ConversationStateTest {
                 Event.ToolResultsReady(listOf(tr("c1"))),
                 Event.ToolCallReceived(listOf(fc("c2"))),
                 Event.ToolResultsReady(listOf(tr("c2"))),
+                Event.PlaybackBusy,
                 Event.TurnComplete,
                 Event.PlaybackIdle,
             ),
@@ -478,6 +470,54 @@ class ConversationStateTest {
             multiTurn = false,
         )
         assertEquals(Phase.ENDED, d.state.phase)
+    }
+
+    // Gemini 3.8 completes the tool-call turn before it hears our response, then answers in a turn of its own.
+    private fun answerAfter(toolTurn: List<Event>): List<Event> =
+        listOf(Event.Ready, Event.ToolCallReceived(listOf(fc("c1")))) + toolTurn +
+            listOf(Event.ModelActivity, Event.PlaybackBusy, Event.TurnComplete, Event.PlaybackIdle)
+
+    @Test fun theToolCallTurnsOwnTurnCompleteAfterTheResultsDoesNotReopenTheMic() {
+        // A fast tool: our results are sent before that turn's turnComplete lands.
+        val toolTurn = listOf(Event.ToolResultsReady(listOf(tr("c1"))), Event.TurnComplete)
+        val waiting = reduceAll(listOf(Event.Ready, Event.ToolCallReceived(listOf(fc("c1")))) + toolTurn, true)
+        assertEquals(Phase.SPEAKING, waiting.state.phase)
+        assertEquals(1, waiting.actions.count { it == Action.StartForwarding }) // only the opening's
+        assertEquals(1, waiting.actions.count { it == Action.ArmNoSpeechTimer }) // no walk-away clock on the answer
+        assertEquals(false, Action.CancelStallTimer in waiting.actions) // the stall covers an answer that never comes
+
+        val answered = reduceAll(answerAfter(toolTurn), multiTurn = true)
+        assertEquals(Phase.LISTENING, answered.state.phase)
+        assertEquals(2, answered.actions.count { it == Action.StartForwarding }) // reopened after the answer only
+    }
+
+    @Test fun theToolCallTurnsOwnTurnCompleteBeforeTheResultsDoesNotReopenTheMic() {
+        // A slow tool: that turn's turnComplete lands while the tool runs.
+        val toolTurn = listOf(Event.TurnComplete, Event.ToolResultsReady(listOf(tr("c1"))))
+        val waiting = reduceAll(listOf(Event.Ready, Event.ToolCallReceived(listOf(fc("c1")))) + toolTurn, true)
+        assertEquals(Phase.SPEAKING, waiting.state.phase)
+        assertEquals(1, waiting.actions.count { it == Action.StartForwarding })
+        assertEquals(1, waiting.actions.count { it == Action.ArmNoSpeechTimer })
+        assertTrue(Action.ArmStallTimer in waiting.actions)
+
+        val answered = reduceAll(answerAfter(toolTurn), multiTurn = true)
+        assertEquals(Phase.LISTENING, answered.state.phase)
+        assertEquals(2, answered.actions.count { it == Action.StartForwarding })
+    }
+
+    @Test fun aToolAnswerThatNeverComesReListensOnTheStall() {
+        val d = reduceAll(
+            listOf(
+                Event.Ready,
+                Event.ToolCallReceived(listOf(fc("c1"))),
+                Event.ToolResultsReady(listOf(tr("c1"))),
+                Event.TurnComplete,
+                Event.StallTimeout,
+            ),
+            multiTurn = true,
+        )
+        assertEquals(Phase.LISTENING, d.state.phase)
+        assertEquals(listOf(Action.StartForwarding, Action.ArmNoSpeechTimer), d.actions.takeLast(3).take(2))
     }
 
     // ---- AfterSpeech (deferred side effects fire on real turn-end) ---------------------------------
@@ -646,12 +686,13 @@ class ConversationStateTest {
         val withTool = ConversationState(phase = Phase.SPEAKING, toolsInFlight = setOf("c1"))
         assertStall(withTool, Event.ToolResultsReady(listOf(tr("c1"))), StallDecision.Arm)
         assertStall(withTool, Event.ToolCancelled(listOf("c1")), StallDecision.Arm)
-        // Turn already complete → Cancel (endOfTurn ends; multi-turn needs the cancel)
+        // Turn already complete: sent results still owe an answer → Arm; a cancel ends the turn → Cancel
         assertStall(
             withTool.copy(turnComplete = true),
             Event.ToolResultsReady(listOf(tr("c1"))),
-            StallDecision.Cancel,
+            StallDecision.Arm,
         )
+        assertStall(withTool.copy(turnComplete = true), Event.ToolCancelled(listOf("c1")), StallDecision.Cancel)
         // Still playing → None
         assertStall(
             withTool.copy(playbackIdle = false),

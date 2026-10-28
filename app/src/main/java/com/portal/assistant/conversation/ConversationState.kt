@@ -123,11 +123,11 @@ sealed interface Action {
  *   their request expects no reply (a music command that worked): the next turn end ends the conversation instead
  *   of re-listening. A marked result dropped as no longer in flight sets nothing: the model never heard it. Holds
  *   until the conversation ends (an [Event.Interrupted] keeps it).
- * @param signOffPending a final turn's results were sent and no sign-off audio ([Event.PlaybackBusy]) has arrived
- *   since. A [Event.TurnComplete] meanwhile is the tool-call turn's own, not the sign-off's (Gemini 3.8 completes
- *   that turn before it hears our response), so it ends nothing; the stall covers a model that never replies. Only
- *   audio counts as the reply: an [Event.ModelActivity] may be a lagging transcript of words spoken before the tool
- *   call.
+ * @param answerPending tool results were sent and no answer audio ([Event.PlaybackBusy]) has arrived since. A
+ *   [Event.TurnComplete] meanwhile is the tool-call turn's own, not the answer's (Gemini 3.8 completes that turn
+ *   before it hears our response, then answers in a turn of its own), so it ends nothing; the stall covers a model
+ *   that never answers. Only audio counts as the answer: an [Event.ModelActivity] may be a lagging transcript of
+ *   words spoken before the tool call. A final turn's answer is its sign-off.
  */
 data class ConversationState(
     val phase: Phase = Phase.CONNECTING,
@@ -135,7 +135,7 @@ data class ConversationState(
     val playbackIdle: Boolean = true,
     val toolsInFlight: Set<String> = emptySet(),
     val finalTurn: Boolean = false,
-    val signOffPending: Boolean = false,
+    val answerPending: Boolean = false,
 ) {
     /**
      * The results of [event] sent to the model: those still in flight. The rest were cancelled or overtaken by a
@@ -146,8 +146,8 @@ data class ConversationState(
     /** The turn is final once [event]'s results are sent: it already was, or a sent result is marked. */
     fun finalTurnAfter(event: Event.ToolResultsReady): Boolean = finalTurn || sent(event).any { it.finalTurn }
 
-    /** Results sent during a final turn: the model answers them with its sign-off, so the turn isn't over yet. */
-    fun awaitsSignOff(event: Event.ToolResultsReady): Boolean = finalTurnAfter(event) && sent(event).isNotEmpty()
+    /** Results sent: the model answers them (a final turn with its sign-off), so the turn isn't over yet. */
+    fun awaitsAnswer(event: Event.ToolResultsReady): Boolean = sent(event).isNotEmpty()
 }
 
 /** The result of [reduce]: the next state and the side effects to run. */
@@ -215,7 +215,7 @@ private fun listeningBody(state: ConversationState, event: Event): Decision = wh
 }
 
 private fun speakingBody(state: ConversationState, event: Event, multiTurn: Boolean): Decision = when (event) {
-    Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false, signOffPending = false), emptyList())
+    Event.PlaybackBusy -> Decision(state.copy(playbackIdle = false, answerPending = false), emptyList())
 
     Event.ModelActivity -> Decision(state, emptyList())
 
@@ -234,7 +234,7 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
             turnComplete = false,
             playbackIdle = true,
             toolsInFlight = emptySet(),
-            signOffPending = false,
+            answerPending = false,
         )
         Decision(cleared, listOf(Action.FlushPlayback))
     }
@@ -263,20 +263,20 @@ private fun speakingBody(state: ConversationState, event: Event, multiTurn: Bool
     else -> unchanged(state)
 }
 
-/** Before the sign-off has begun, a turnComplete is the tool-call turn's own: it ends nothing. */
+/** Before the answer to our results has begun, a turnComplete is the tool-call turn's own: it ends nothing. */
 private fun turnCompleteBody(state: ConversationState, multiTurn: Boolean): Decision =
-    if (state.signOffPending) unchanged(state) else endOfTurn(state.copy(turnComplete = true), multiTurn)
+    if (state.answerPending) unchanged(state) else endOfTurn(state.copy(turnComplete = true), multiTurn)
 
 private fun toolResultsBody(state: ConversationState, event: Event.ToolResultsReady, multiTurn: Boolean): Decision {
     val validResults = state.sent(event)
     val remaining = state.toolsInFlight - event.results.map { it.id }.toSet()
-    // A final turn's results owe a sign-off: the turn now ends on the reply's own turnComplete (or the stall).
-    val awaitsSignOff = state.awaitsSignOff(event)
+    // Sent results owe an answer: the turn now ends on the answer's own turnComplete (or the stall).
+    val awaitsAnswer = state.awaitsAnswer(event)
     val next = state.copy(
         toolsInFlight = remaining,
-        turnComplete = state.turnComplete && !awaitsSignOff,
+        turnComplete = state.turnComplete && !awaitsAnswer,
         finalTurn = state.finalTurnAfter(event),
-        signOffPending = state.signOffPending || awaitsSignOff,
+        answerPending = state.answerPending || awaitsAnswer,
     )
     val send = if (validResults.isNotEmpty()) {
         listOf(Action.SendToolResponse(validResults))
