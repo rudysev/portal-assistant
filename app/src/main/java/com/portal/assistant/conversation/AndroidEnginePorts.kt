@@ -15,6 +15,7 @@ import com.portal.assistant.system.LocationProvider
 import com.portal.assistant.system.NetworkStatus
 import com.portal.assistant.ui.RecordingOverlay
 import com.portal.assistant.ui.UiVisibility
+import com.portal.commons.CapturePolicy
 import com.portal.commons.DebugLog
 import com.portal.commons.PcmCapture
 import com.portal.commons.audio.AudioRecordPcmDevice
@@ -67,7 +68,7 @@ internal class MainLooperClock : EngineClock {
  * Each [openMic] starts a capture request with a listener bound to that open's frame handler, so frames from an older
  * request's capture thread never reach a newer one; [closeMic] pauses it, freeing the mic slot before it returns.
  *
- * The capture's idle watchdog is on ([PcmCapture.DEFAULT_IDLE_REBUILD_MS]): if the slot is stolen or goes half-dead
+ * The capture's idle watchdog is on ([CapturePolicy.DEFAULT_IDLE_REBUILD_MS]): if the slot is stolen or goes half-dead
  * mid-conversation (no frame for that long), the device is rebuilt and the mic reacquired in place, otherwise the turn
  * would go silent until the no-speech timer ends it. The read-error rebuild is off; the idle watchdog already covers
  * sustained errors and stalls.
@@ -89,9 +90,10 @@ internal class DeviceAudio(private val hush: Hush) : EngineAudio {
         postToMain = { mainHandler.post(it) },
         log = { DebugLog.log(it) },
         threadName = "assistant-capture",
-        idleRebuildMs = PcmCapture.DEFAULT_IDLE_REBUILD_MS,
-        silenceWindowMs = SILENCE_WINDOW_MS,
-        rebuildOnSilence = true,
+        policy = CapturePolicy(
+            idleRebuildMs = CapturePolicy.DEFAULT_IDLE_REBUILD_MS,
+            silence = CapturePolicy.Silence(SILENCE_WINDOW_MS, rebuildFirst = true),
+        ),
     )
 
     override fun startHush() = hush.start()
