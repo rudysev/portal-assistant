@@ -35,3 +35,18 @@ sealed interface LookupResponse {
     /** No response: offline, DNS, TLS, a dropped connection. [reason] is for the log. */
     data class Failure(val reason: String) : LookupResponse
 }
+
+/**
+ * Why this response has no body, as the `{"error": …}` of the lookup it's for ([what]: "weather", "search"):
+ * unavailable, with the code on a non-2xx, or timed out. Null for a [LookupResponse.Body]. The one mapping every
+ * lookup uses, so their errors read alike to the model.
+ */
+internal fun LookupResponse.lookupError(what: String): String? = when (this) {
+    is LookupResponse.Body -> null
+    is LookupResponse.Status -> "${unavailable(what)} (HTTP $code)"
+    LookupResponse.TimedOut -> "$what timed out"
+    is LookupResponse.Failure -> unavailable(what)
+}
+
+/** A lookup's error when its provider can't be read: no response, or a body it can't parse. */
+internal fun unavailable(what: String): String = "$what unavailable"
