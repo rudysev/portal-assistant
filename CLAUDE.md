@@ -26,6 +26,7 @@ git submodule update --init --recursive   # from the portal-apps workspace (need
 ./gradlew assembleDebug   # JDK 21 + Android SDK
 ./gradlew buildHealth     # after any dependency change (CI job, not in check)
 ./setup.sh                # install, grant mic + overlay, prompt for API key; --key-only <KEY> non-interactive
+./setup.sh --tavily-key-only <KEY>   # only (re)stage the optional Search key (Web search) on an installed app
 npx -y @meta-quest/hzdb adb shell "cat /sdcard/Android/data/com.portal.assistant/files/debug.txt"
 ```
 
