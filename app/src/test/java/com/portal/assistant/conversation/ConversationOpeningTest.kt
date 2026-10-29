@@ -280,7 +280,7 @@ class ConversationOpeningTest {
             Trigger.MicTap,
             inputs().copy(
                 modelId = modelId,
-                modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+                modelOffersGoogleSearch = Backends.offersGoogleSearch(modelId),
                 toolDeclarations = registered,
             ),
         )
@@ -303,7 +303,7 @@ class ConversationOpeningTest {
             Trigger.MicTap,
             inputs().copy(
                 modelId = modelId,
-                modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+                modelOffersGoogleSearch = Backends.offersGoogleSearch(modelId),
                 searchKeyPresent = searchKey,
                 toolDeclarations = registered,
             ),
@@ -347,7 +347,7 @@ class ConversationOpeningTest {
 
     /** Every tool registered, both lookup tools included, so only the opening decides which are declared. */
     private fun lookupInputs(googleSearch: Boolean, searchKey: Boolean) = inputs().copy(
-        modelGoogleSearch = googleSearch,
+        modelOffersGoogleSearch = googleSearch,
         searchKeyPresent = searchKey,
         toolDeclarations = listOf(
             getTime,
@@ -384,7 +384,7 @@ class ConversationOpeningTest {
     private fun inputs() = OpeningInputs(
         backendChoice = geminiChoice(apiKey = "user-key"),
         modelId = "gemini-2.5-flash-native-audio-latest",
-        modelGoogleSearch = true,
+        modelOffersGoogleSearch = true,
         searchKeyPresent = false,
         speakerId = null,
         listeningToneEnabled = true,

@@ -131,7 +131,7 @@ class AssistantEngine(
         val inputs = OpeningInputs(
             backendChoice = backendChoice,
             modelId = modelId,
-            modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+            modelOffersGoogleSearch = Backends.offersGoogleSearch(modelId),
             searchKeyPresent = openingReads.searchKeyPresent(),
             speakerId = openingReads.speakerId(),
             listeningToneEnabled = openingReads.listeningToneEnabled(),

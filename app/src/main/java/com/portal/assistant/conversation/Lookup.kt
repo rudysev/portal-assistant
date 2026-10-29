@@ -25,11 +25,11 @@ enum class Lookup(val toolName: String?) {
          */
         fun decide(
             kind: AppPrefs.VoiceBackendKind,
-            modelGoogleSearch: Boolean,
+            modelOffersGoogleSearch: Boolean,
             searchKeyPresent: Boolean,
         ): Set<Lookup> = when {
             kind == AppPrefs.VoiceBackendKind.LOCAL -> emptySet()
-            modelGoogleSearch -> setOf(GOOGLE_SEARCH)
+            modelOffersGoogleSearch -> setOf(GOOGLE_SEARCH)
             searchKeyPresent -> setOf(WEATHER, WEB_SEARCH)
             else -> setOf(WEATHER)
         }
