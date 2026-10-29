@@ -11,7 +11,8 @@
     time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
     first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `realtimeInput.text` turn — the
     `Trigger.SuggestionChip`'s text becomes the opening's `firstText`. On a model without Google Search with no
-    Search key (pure `ui/showsSearchKeyNudge`, Gemini only), a quiet accent "Add a search key …" line under the
+    Search key (pure `ui/showsSearchKeyNudge`: asks `Lookup.decide` whether a key would add Web search, so Gemini
+    only), a quiet accent "Add a search key …" line under the
     chips opens Settings.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-

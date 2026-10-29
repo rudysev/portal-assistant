@@ -216,9 +216,13 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/tools/lookup/` — **Jarvis's own Lookups** (ADR 0002), each a pure module behind one port,
   **`LookupHttp`**: run one request (a GET with query, or a POST with a JSON body when `jsonBody` is set, plus
   headers, bounded by the request's `timeoutMs`) and return `Body` (2xx), `Status(code, body)`, `TimedOut` or
-  `Failure`. The Android adapter `OkHttpLookupHttp` derives its client from `Http.shared` (sharing its pools) and sets
-  each call's OkHttp call timeout to `timeoutMs`; it logs each call's outcome and time to the debug log. Not
-  unit-tested; tests use `FakeLookupHttp` with recorded provider responses. **Weather** (`Weather`,
+  `Failure`; `lookupError(what)` is the one mapping of a non-`Body` to a lookup's `{"error": …}` ("<what>
+  unavailable (HTTP n)", "<what> timed out", "<what> unavailable"), shared by Weather and Web search. The Android
+  adapter `OkHttpLookupHttp` derives its client from `Http.shared` (sharing its pools) and sets each call's OkHttp
+  call timeout to `timeoutMs`; it logs each call's outcome and time to the debug log (host and path, never the
+  query). Not unit-tested; tests use `FakeLookupHttp` with recorded provider responses. `Weather.onDevice(here)`
+  (`DeviceWeather.kt`) is the one way the device builds Weather, for the tool and for Settings' save; `Place.kt`
+  holds `Coordinates`, `Place` and `PlaceSearch`, so `system/` needs no Weather type for them. **Weather** (`Weather`,
   `portal.get_weather(location?, days? 1–7, default 1)`, never a final turn) uses Open-Meteo: geocoding
   (`geocoding-api.open-meteo.com/v1/search`, `count=1`, the locale's language) for a named place, then the forecast
   (`api.open-meteo.com/v1/forecast`: `current` temperature/feels-like/WMO code/wind, `daily` high/low/WMO
@@ -280,8 +284,8 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
 `TimerScheduler` + the observable `TimerStore`, `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
-and Android adapters, and `tools/lookup/` = the Lookups (the `LookupHttp` port + `OkHttpLookupHttp`, `Weather`,
-`WeatherCodes`, `WebSearch`; `SearchKeyCheck`: the Search key's Save & verify);
+and Android adapters, and `tools/lookup/` = the Lookups (the `LookupHttp` port + `OkHttpLookupHttp`, `Weather` +
+`Weather.onDevice`, `Place`/`PlaceSearch`, `WeatherCodes`, `WebSearch`; `SearchKeyCheck`: the Search key's Save & verify);
 `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `ProvisionedKey` (import-once of the keys `setup.sh` stages), `LocationProvider`,
 `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
