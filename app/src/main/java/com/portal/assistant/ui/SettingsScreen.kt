@@ -1,6 +1,8 @@
 package com.portal.assistant.ui
 
+import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,10 +51,13 @@ import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
 import com.portal.assistant.conversation.tools.PackageCatalog
+import com.portal.assistant.conversation.tools.lookup.PlaceSearch
 import com.portal.assistant.conversation.tools.music.MediaRouting
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
+import com.portal.assistant.system.LocationOverride
 import com.portal.assistant.system.LocationProvider
+import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.Dims
 import com.portal.assistant.ui.theme.Measure
 import com.portal.assistant.ui.theme.SECONDARY_ALPHA
@@ -213,77 +219,142 @@ private fun BackendSections(subtle: Color, ioDispatcher: CoroutineDispatcher) {
 /**
  * The location used for weather and other location-aware answers. Pre-filled from the override, else the
  * detected label; while geolocation is still in flight it polls briefly for the detected value. Saving looks the
- * place up once ([LocationProvider.saveOverride]) and says what it found ([LocationNotice]).
+ * place up once ([LocationProvider.saveOverride]) and says what it found ([LocationNotice]); the resolved place shows
+ * again on reopen. Clear ([LocationProvider.clearOverride]) removes the override with its match, so weather goes
+ * back to the network's location.
  */
 @Composable
 private fun LocationSection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
     val context = LocalContext.current
     // The Activity's scope: navigating back mid-lookup must not cancel the save.
     val scope = LocalLifecycleOwner.current.lifecycleScope
-    var saving by remember { mutableStateOf(false) }
-    var notice by remember { mutableStateOf<String?>(null) }
-    var place by remember {
-        mutableStateOf(LocationProvider.override(context) ?: LocationProvider.detectedLabel(context).orEmpty())
+    val form = remember {
+        LocationForm(LocationProvider.storedOverride(context), LocationProvider.detectedLabel(context).orEmpty())
     }
-    // The last-persisted value — gates the Save button (disabled until the field differs) and re-disables it
-    // after a save, so saving gives feedback without leaving the screen.
-    var savedPlace by remember { mutableStateOf(place) }
 
-    // If geo is still in flight when the screen opens, poll until the result lands (up to 10 s).
-    // Stops early if the user starts typing — their input wins over the auto-detected value.
-    LaunchedEffect(Unit) {
-        if (place.isNotEmpty()) return@LaunchedEffect
-        LocationProvider.refreshIfStale(context) // no-op if already running; ensures a retry on failure
-        var detected: String? = null
-        var polls = 0
-        while (detected == null && polls++ < GEO_POLLS && place.isEmpty()) {
-            delay(GEO_POLL_MS)
-            if (place.isEmpty()) detected = LocationProvider.detectedLabel(context) // user typed: don't overwrite
-        }
-        if (detected != null) {
-            place = detected
-            savedPlace = detected // a detected fill is the baseline, not an unsaved edit
-        }
-    }
+    LaunchedEffect(Unit) { awaitDetectedLabel(context, form) }
 
     Column {
         SectionHeading("Location", "Used for weather and other location-aware answers.", subtle)
         OutlinedTextField(
-            value = place,
-            onValueChange = {
-                if (it.length <= 200) {
-                    place = it
-                    notice = null
-                }
-            },
+            value = form.place,
+            onValueChange = form::edit,
             singleLine = true,
             label = { Text("Location (e.g. New York, NY)") },
             modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(Modifier.size(18.dp))
-        Button(
-            onClick = {
-                val candidate = place
-                saving = true
+        LocationButtons(
+            form = form,
+            onSave = {
+                val candidate = form.place
+                form.busy = true
                 scope.launch {
-                    val search = withContext(ioDispatcher) { LocationProvider.saveOverride(context, candidate) }
-                    savedPlace = candidate // persist only; the back arrow navigates away
-                    notice = LocationNotice.afterSave(search)
-                    saving = false
+                    form.saved(
+                        candidate,
+                        withContext(ioDispatcher) {
+                            LocationProvider.saveOverride(context, candidate)
+                        },
+                    )
                 }
             },
-            enabled = !saving && place.isNotBlank() && place.trim() != savedPlace.trim(),
-            colors = settingsButtonColors(),
-        ) { Text(if (saving) "Saving…" else "Save") }
+            onClear = {
+                form.busy = true
+                scope.launch {
+                    form.cleared(
+                        withContext(ioDispatcher) {
+                            LocationProvider.clearOverride(context)
+                            LocationProvider.detectedLabel(context).orEmpty()
+                        },
+                    )
+                }
+            },
+        )
 
-        notice?.let {
+        form.notice?.let {
             Spacer(Modifier.size(8.dp))
             Text(it, color = subtle, fontSize = TextSize.Body)
         }
 
         Spacer(Modifier.size(18.dp))
         WeatherCredit(subtle = subtle)
+    }
+}
+
+/**
+ * If geo is still in flight when the screen opens, poll until the result lands (up to 10 s) and fill it in. Stops
+ * early if the user starts typing — their input wins over the auto-detected value.
+ */
+private suspend fun awaitDetectedLabel(context: Context, form: LocationForm) {
+    if (form.place.isNotEmpty()) return
+    LocationProvider.refreshIfStale(context) // no-op if already running; ensures a retry on failure
+    var detected: String? = null
+    var polls = 0
+    while (detected == null && polls++ < GEO_POLLS && form.place.isEmpty()) {
+        delay(GEO_POLL_MS)
+        if (form.place.isEmpty()) detected = LocationProvider.detectedLabel(context) // user typed: don't overwrite
+    }
+    detected?.let(form::detected)
+}
+
+/** Save, and Clear while an override is stored. */
+@Composable
+private fun LocationButtons(form: LocationForm, onSave: () -> Unit, onClear: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(onClick = onSave, enabled = form.canSave, colors = settingsButtonColors()) {
+            Text(if (form.busy) "Saving…" else "Save")
+        }
+        if (form.hasOverride) {
+            TextButton(onClick = onClear, enabled = !form.busy) { Text("Clear", color = Accent) }
+        }
+    }
+}
+
+/**
+ * The Location section's state: the field ([place]), its last-persisted baseline ([savedPlace], which gates Save so
+ * saving gives feedback without leaving the screen), what's said beneath ([notice]) and whether an override is
+ * stored ([hasOverride], which shows Clear). Opens on the [stored] override, else the [detected] label.
+ */
+private class LocationForm(stored: LocationOverride?, detected: String) {
+    var place by mutableStateOf(stored?.text ?: detected)
+    var savedPlace by mutableStateOf(place)
+    var notice by mutableStateOf(LocationNotice.stored(stored))
+    var hasOverride by mutableStateOf(stored != null)
+    var busy by mutableStateOf(false)
+
+    val canSave: Boolean get() = !busy && place.isNotBlank() && place.trim() != savedPlace.trim()
+
+    fun edit(text: String) {
+        if (text.length <= MAX_PLACE_CHARS) {
+            place = text
+            notice = null
+        }
+    }
+
+    /** A detected fill is the baseline, not an unsaved edit. */
+    fun detected(label: String) {
+        place = label
+        savedPlace = label
+    }
+
+    fun saved(candidate: String, search: PlaceSearch) {
+        savedPlace = candidate // persist only; the back arrow navigates away
+        notice = LocationNotice.afterSave(search)
+        hasOverride = true
+        busy = false
+    }
+
+    /** Back to the [detected] label, as when no override was ever set. */
+    fun cleared(detected: String) {
+        detected(detected)
+        notice = LocationNotice.CLEARED
+        hasOverride = false
+        busy = false
+    }
+
+    private companion object {
+        const val MAX_PLACE_CHARS = 200
     }
 }
 

@@ -34,37 +34,45 @@ object LocationProvider {
     /** Explicit user-set location override (free text), or null when only the IP-geo result is available. */
     fun override(context: Context): String? = storedOverride(context)?.text
 
-    /** The stored override with its coordinates when it was found on save; text-only otherwise (or saved before). */
+    /** The stored override with its match when it was found on save; text-only otherwise (or saved before). */
     fun storedOverride(context: Context): LocationOverride? {
         val p = AppPrefs.prefs(context)
         return LocationOverride.read(
-            p.getString(AppPrefs.KEY_LOC_OVERRIDE, null),
-            p.getString(AppPrefs.KEY_LOC_OVERRIDE_COORDS, null),
+            LocationOverride.Stored(
+                text = p.getString(AppPrefs.KEY_LOC_OVERRIDE, null),
+                coordinates = p.getString(AppPrefs.KEY_LOC_OVERRIDE_COORDS, null),
+                placeName = p.getString(AppPrefs.KEY_LOC_OVERRIDE_PLACE, null),
+            ),
         )
     }
 
     /** "Here" for Weather, read when the tool runs: the stored override (with its coordinates) and the IP-geo fix. */
-    fun here(context: Context): Here {
-        val override = storedOverride(context)
-        return Here(override?.text, override?.coordinates, current(context))
-    }
+    fun here(context: Context): Here = LocationOverride.here(storedOverride(context), current(context))
 
     /**
      * Save [place] as the override (Settings is its only writer): looks it up once through Weather's place lookup,
-     * then writes the text and its coordinates together, or the text alone (clearing any old coordinates) when it
-     * isn't found or can't be looked up. Blocking (network, up to [Weather.DEADLINE_MS]): call off the main thread.
+     * then writes the text with its match (resolved name and coordinates), or the text alone (clearing any old
+     * match) when it isn't found or can't be looked up. Blocking (network, up to [Weather.DEADLINE_MS]): call off
+     * the main thread.
      */
     fun saveOverride(context: Context, place: String): PlaceSearch {
         val search = Weather.onDevice { here(context) }.findPlace(place)
         // Logs why, never the place: it's text the user typed.
         if (search is PlaceSearch.Failed) DebugLog.log("location override lookup failed: ${search.reason}")
-        val saved = LocationOverride.saved(place, search)
-        AppPrefs.prefs(context).edit {
-            putString(AppPrefs.KEY_LOC_OVERRIDE, saved.text)
-            saved.storedCoordinates?.let { putString(AppPrefs.KEY_LOC_OVERRIDE_COORDS, it) }
-                ?: remove(AppPrefs.KEY_LOC_OVERRIDE_COORDS)
-        }
+        write(context, LocationOverride.saved(place, search).stored)
         return search
+    }
+
+    /** Clear the override (Settings): its text and match go together, so Weather goes back to the IP-geo fix. */
+    fun clearOverride(context: Context) = write(context, LocationOverride.CLEARED)
+
+    /** Writes all of the override's prefs at once: each value put, or removed when null. */
+    private fun write(context: Context, stored: LocationOverride.Stored) = AppPrefs.prefs(context).edit {
+        mapOf(
+            AppPrefs.KEY_LOC_OVERRIDE to stored.text,
+            AppPrefs.KEY_LOC_OVERRIDE_COORDS to stored.coordinates,
+            AppPrefs.KEY_LOC_OVERRIDE_PLACE to stored.placeName,
+        ).forEach { (key, value) -> if (value == null) remove(key) else putString(key, value) }
     }
 
     /** Human label for the Settings pre-fill: "City, Region" from the IP-geo cache, or null. */
