@@ -20,7 +20,7 @@ data class Opening(
     val transcriptSeed: TranscriptSeed,
     /**
      * The conversation's Lookups ([Lookup.decide], less any whose tool isn't registered): the only lookups the
-     * backend config asks for or declares, and the only ones the session prompt names.
+     * backend config asks for or declares (and the session prompt names Google Search only when it's one).
      */
     val lookups: Set<Lookup>,
     /** Credential, model, Chosen speaker, the session prompt, the tool declarations and whether to ask for Google

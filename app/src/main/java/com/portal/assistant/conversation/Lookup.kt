@@ -4,8 +4,8 @@ import com.portal.assistant.system.AppPrefs
 
 /**
  * A **Lookup**: Jarvis fetching live information while it answers. A conversation has only the lookups decided when
- * it opens ([decide]); the declared tools and the prompt's lookup lines ([SystemPrompt]) both follow that decision,
- * so they can't disagree.
+ * it opens ([decide]); the declared tools and the prompt's Google Search line ([SystemPrompt]) both follow that
+ * decision, so they can't disagree.
  *
  * [toolName] is the function a lookup is declared as, or null for [GOOGLE_SEARCH] (the model's own, asked for in
  * setup rather than declared).

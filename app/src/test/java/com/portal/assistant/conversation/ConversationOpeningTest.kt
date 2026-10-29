@@ -157,7 +157,8 @@ class ConversationOpeningTest {
             Trigger.WakeWord("jarvis"),
             inputs().copy(locationOverride = null, deviceLocation = seattle),
         ).sessionPrompt
-        assertTrue(prompt.contains("Location: Seattle, Washington, United States (lat 47.61, lon -122.33)."))
+        assertTrue(prompt.lines().contains("- Location: Seattle, Washington, United States."))
+        assertFalse(prompt.contains("lat "))
     }
 
     @Test fun theLocationIsUnknownWithNeitherOverrideNorIpGeo() {
@@ -170,7 +171,7 @@ class ConversationOpeningTest {
 
     @Test fun theTimeIsTheSnapshotsClockInItsZone() {
         val prompt = open(Trigger.WakeWord("jarvis"), inputs()).sessionPrompt
-        val timeLine = prompt.lines().single { it.startsWith("Time: ") }
+        val timeLine = prompt.lines().single { it.startsWith("- Time at conversation start: ") }
         assertTrue(timeLine, timeLine.contains("2026"))
         assertTrue(timeLine, timeLine.endsWith("(America/Los_Angeles)."))
     }
@@ -220,7 +221,7 @@ class ConversationOpeningTest {
         assertEquals(AppPrefs.VoiceBackendKind.LOCAL, config.kind)
     }
 
-    // --- Lookups: decided at opening; the declared tools and the prompt lines both follow ---
+    // --- Lookups: decided at opening; the declared tools follow (and the Google Search line, its only prompt line) ---
 
     @Test fun aModelWithGoogleSearchGetsGoogleSearchOnlyWithOrWithoutASearchKey() {
         for (searchKey in listOf(true, false)) {
@@ -230,8 +231,7 @@ class ConversationOpeningTest {
             assertTrue(label, opening.backendConfig.googleSearch)
             assertEquals(label, listOf("portal.get_time"), declaredNames(opening))
             assertTrue(label, opening.sessionPrompt.contains(GOOGLE_SEARCH_LINE))
-            assertFalse(label, opening.sessionPrompt.contains("portal.get_weather"))
-            assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
+            assertFalse(label, opening.sessionPrompt.contains("portal."))
             assertTrue(label, opening.sessionPrompt.contains(CLOSING_RULE))
         }
     }
@@ -242,8 +242,8 @@ class ConversationOpeningTest {
         assertFalse(opening.backendConfig.googleSearch)
         assertEquals(listOf("portal.get_time", "portal.get_weather", "portal.web_search"), declaredNames(opening))
         assertFalse(opening.sessionPrompt.contains("Google Search"))
-        assertTrue(opening.sessionPrompt.contains("- Weather (portal.get_weather):"))
-        assertTrue(opening.sessionPrompt.contains("- Web search (portal.web_search):"))
+        // Their declarations say when to call them; the prompt names no tool.
+        assertFalse(opening.sessionPrompt.contains("portal."))
         assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
     }
 
@@ -253,13 +253,12 @@ class ConversationOpeningTest {
         assertFalse(opening.backendConfig.googleSearch)
         assertEquals(listOf("portal.get_time", "portal.get_weather"), declaredNames(opening))
         assertFalse(opening.sessionPrompt.contains("Google Search"))
-        assertTrue(opening.sessionPrompt.contains("- Weather (portal.get_weather):"))
-        assertFalse(opening.sessionPrompt.contains("portal.web_search"))
+        assertFalse(opening.sessionPrompt.contains("portal."))
         assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
     }
 
     @Test fun aLookupWhoseToolIsNotRegisteredIsNeitherDeclaredNorNamed() {
-        // Until its tool is registered, a model without Google Search has no lookup: only the closing rule.
+        // Until its tool is registered, a model without Google Search has no lookup: only the shared rule.
         val opening = open(
             Trigger.MicTap,
             lookupInputs(googleSearch = false, searchKey = true).copy(toolDeclarations = listOf(getTime)),
@@ -267,12 +266,11 @@ class ConversationOpeningTest {
         assertEquals(emptySet<Lookup>(), opening.lookups)
         assertEquals(listOf("portal.get_time"), declaredNames(opening))
         assertFalse(opening.sessionPrompt.contains("Google Search"))
-        assertFalse(opening.sessionPrompt.contains("portal.get_weather"))
-        assertFalse(opening.sessionPrompt.contains("portal.web_search"))
+        assertFalse(opening.sessionPrompt.contains("portal."))
         assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
     }
 
-    @Test fun gemini38DeclaresTheWeatherToolWithItsPromptLineAndGemini25DoesNot() {
+    @Test fun gemini38DeclaresTheWeatherToolAndGemini25DoesNot() {
         // The real Weather declaration, as the tool registry registers it, against the real Model catalog.
         val weather = Weather(LookupHttp { error("not called") }, { error("not called") }, { Locale.US }, { 0L })
         val registered = listOf(getTime, weather.declaration)
@@ -287,14 +285,12 @@ class ConversationOpeningTest {
 
         val on38 = openOn("gemini-3.8-live")
         assertEquals(listOf("portal.get_time", "portal.get_weather"), declaredNames(on38))
-        assertTrue(on38.sessionPrompt.contains(WEATHER_LINE))
 
         val on25 = openOn(GeminiModel.DEFAULT.id)
         assertEquals(listOf("portal.get_time"), declaredNames(on25))
-        assertFalse(on25.sessionPrompt.contains("portal.get_weather"))
     }
 
-    @Test fun gemini38WithASearchKeyDeclaresWebSearchWithItsPromptLineAndOtherwiseItIsNeither() {
+    @Test fun gemini38WithASearchKeyDeclaresWebSearchAndOtherwiseItIsNot() {
         // The real lookup declarations, as the tool registry registers them, against the real Model catalog.
         val weather = Weather(LookupHttp { error("not called") }, { error("not called") }, { Locale.US }, { 0L })
         val webSearch = WebSearch(LookupHttp { error("not called") }) { error("not called") }
@@ -311,14 +307,12 @@ class ConversationOpeningTest {
 
         val withKey = openOn("gemini-3.8-live", searchKey = true)
         assertEquals(listOf("portal.get_time", "portal.get_weather", "portal.web_search"), declaredNames(withKey))
-        assertTrue(withKey.sessionPrompt.contains(WEB_SEARCH_LINE))
 
         for ((label, opening) in listOf(
             "3.8 without a key" to openOn("gemini-3.8-live", searchKey = false),
             "2.5 with a key" to openOn(GeminiModel.DEFAULT.id, searchKey = true),
         )) {
             assertFalse(label, "portal.web_search" in declaredNames(opening))
-            assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
         }
     }
 
@@ -334,8 +328,7 @@ class ConversationOpeningTest {
                 assertFalse(label, opening.backendConfig.googleSearch)
                 assertEquals(label, listOf("portal.get_time"), declaredNames(opening))
                 assertFalse(label, opening.sessionPrompt.contains("Google Search"))
-                assertFalse(label, opening.sessionPrompt.contains("portal.get_weather"))
-                assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
+                assertFalse(label, opening.sessionPrompt.contains("portal."))
                 assertTrue(label, opening.sessionPrompt.contains(CLOSING_RULE))
             }
         }
@@ -397,14 +390,7 @@ class ConversationOpeningTest {
     )
 
     private companion object {
-        const val GOOGLE_SEARCH_LINE =
-            "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
-                "recent events). Base answers on results.\n"
-        const val WEATHER_LINE =
-            "- Weather (portal.get_weather): Use for weather and forecasts. Omit location for here.\n"
-        const val WEB_SEARCH_LINE =
-            "- Web search (portal.web_search): Use for other live info (news, scores, prices, hours, recent " +
-                "events). Set topic news/finance when it fits. Base answers on results.\n"
-        const val CLOSING_RULE = "If you can't look it up, say 'I can't check that' — never guess."
+        const val GOOGLE_SEARCH_LINE = "- Google Search: use it for live information."
+        const val CLOSING_RULE = "if you can't, say \"I can't check that\" instead of guessing."
     }
 }

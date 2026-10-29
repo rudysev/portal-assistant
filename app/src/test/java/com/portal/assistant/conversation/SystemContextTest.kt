@@ -5,47 +5,46 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure JVM tests for the device-context system-prompt enrichment (timezone in Phase 1.1). */
+/** Pure JVM tests for the system prompt's Device Context section. */
 class SystemContextTest {
 
-    @Test fun enrichAppendsHeaderAndLines() {
-        val out = SystemContext.enrich("BASE", listOf("line one", "line two"))
-        assertTrue("keeps the base prompt", out.startsWith("BASE"))
-        assertTrue("includes the header", out.contains(SystemContext.HEADER))
-        assertTrue(out.contains("line one"))
-        assertTrue(out.contains("line two"))
+    @Test fun enrichAppendsADeviceContextSectionOfBullets() {
+        assertEquals(
+            "BASE\n\n# Device Context\n- line one\n- line two",
+            SystemContext.enrich("BASE", listOf("line one", "line two")),
+        )
     }
 
     @Test fun enrichEmptyLinesIsNoOp() {
         assertEquals("BASE", SystemContext.enrich("BASE", emptyList()))
     }
 
-    @Test fun timeLineFormatsClockAndZone() {
+    @Test fun timeLineSaysItIsTheTimeAtConversationStart() {
         val line = SystemContext.timeLine("Saturday, June 21, 2026 at 9:30 PM", "America/Los_Angeles")
         assertEquals(
-            "Time: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles).",
+            "Time at conversation start: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles).",
             line,
         )
     }
 
     @Test fun enrichComposesWithTimeLine() {
         val out = SystemContext.enrich("BASE", listOf(SystemContext.timeLine("now", "Z")))
-        assertTrue(out.contains("Time: now (Z)."))
+        assertTrue(out.contains("- Time at conversation start: now (Z)."))
     }
 
-    @Test fun locationLineFormatsPlaceAndCoords() {
+    @Test fun locationLineNamesThePlaceWithoutCoordinates() {
         val line = SystemContext.locationLine(
             DeviceLocation("Seattle", "Washington", "United States", 47.6062, -122.3321),
         )
         assertEquals(
-            "Location: Seattle, Washington, United States (lat 47.61, lon -122.33).",
+            "Location: Seattle, Washington, United States.",
             line,
         )
     }
 
     @Test fun locationLineOmitsBlankParts() {
         val line = SystemContext.locationLine(DeviceLocation("Tokyo", "", "", 35.68, 139.69))
-        assertTrue(line.contains("Location: Tokyo (lat 35.68, lon 139.69)."))
+        assertEquals("Location: Tokyo.", line)
     }
 
     @Test fun overrideLineUsesUserText() {

@@ -31,8 +31,9 @@ object ResumeContext {
     }
 
     /**
-     * Append the prior conversation [turns] to [systemPrompt] as a labelled transcript so the resumed
-     * session continues with context. Returns [systemPrompt] unchanged when there is nothing to replay.
+     * Append the prior conversation [turns] to [systemPrompt] as a `# Conversation So Far` section (always
+     * the prompt's last) holding a labelled transcript, so the resumed session continues with context.
+     * Returns [systemPrompt] unchanged when there is nothing to replay.
      * [Role.USER] → `"User"`, [Role.MODEL] → `"Assistant"`.
      */
     fun withHistory(systemPrompt: String, turns: List<Turn>): String {
@@ -44,6 +45,5 @@ object ResumeContext {
         return "$systemPrompt\n\n$HISTORY_HEADER\n$history"
     }
 
-    private const val HISTORY_HEADER =
-        "Here is the conversation so far — continue it naturally, using this as context:"
+    private const val HISTORY_HEADER = "# Conversation So Far\nContinue from these earlier turns."
 }

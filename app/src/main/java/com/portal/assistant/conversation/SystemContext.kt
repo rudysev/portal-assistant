@@ -1,51 +1,45 @@
 package com.portal.assistant.conversation
 
 import com.portal.assistant.system.DeviceLocation
-import java.util.Locale
 
 /**
- * Pure helper that appends **device context** to the system instruction so the model can answer time/date-
- * (and, later, location-) relative questions accurately without the user stating where or when they are —
- * e.g. "what time is it?", "what's the weather?", relative dates. The caller resolves the clock/zone (and
- * location) and passes plain strings, so this stays Android-free and unit-tested (same pure-logic pattern
- * as [ResumeContext]).
+ * Pure helper that appends the **Device Context** section to the system instruction, so the model can answer time/
+ * date- and location-relative questions ("what time is it?", relative dates, "near me") without the user stating
+ * where or when they are. The caller resolves the clock/zone and location and passes plain strings, so this stays
+ * Android-free and unit-tested (same pure-logic pattern as [ResumeContext]).
  *
- * Applied to **both** fresh and resumed openings ([ConversationOpening]), so a mic-tap resume keeps the
- * context. Currently two lines: local time ([timeLine]) and approximate location
- * ([locationLine]/[overrideLine], or [LOCATION_UNKNOWN]).
+ * Applied to **both** fresh and resumed openings ([ConversationOpening]), so a mic-tap resume keeps the context.
+ * Two bullets: the time at conversation start ([timeLine]; `portal.get_time` gives the time now) and approximate
+ * location ([locationLine]/[overrideLine], or [LOCATION_UNKNOWN]). No coordinates: nothing in the prompt reads them
+ * (Weather resolves the Settings location itself).
  */
 object SystemContext {
 
-    const val HEADER = "Device Context:"
+    const val HEADER = "# Device Context"
 
-    /** Append a context block ([lines], one item per line) to [systemPrompt]. No-op when [lines] is empty. */
+    /** Append a Device Context section ([lines], one bullet each) to [systemPrompt]. No-op when [lines] is empty. */
     fun enrich(systemPrompt: String, lines: List<String>): String = if (lines.isEmpty()) {
         systemPrompt
     } else {
-        "$systemPrompt\n\n$HEADER\n" +
-            lines.joinToString("\n")
+        "$systemPrompt\n\n$HEADER\n" + lines.joinToString("\n") { "- $it" }
     }
 
     /**
      * The local date/time line, e.g.
-     * `"Time: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles)."`
+     * `"Time at conversation start: Saturday, June 21, 2026 at 9:30 PM (America/Los_Angeles)."`
      * [localDateTime] is preformatted by the caller; [zoneId] is the IANA zone (e.g. `America/Los_Angeles`).
      */
-    fun timeLine(localDateTime: String, zoneId: String): String = "Time: $localDateTime ($zoneId)."
+    fun timeLine(localDateTime: String, zoneId: String): String =
+        "Time at conversation start: $localDateTime ($zoneId)."
 
     /** Injected when no location is known yet, so the model asks rather than assuming a place. */
     const val LOCATION_UNKNOWN =
         "Location: unknown — if a question needs a location, ask the user."
 
-    /**
-     * The approximate-location line, e.g.
-     * `"Location: Seattle, Washington, United States (lat 47.61, lon -122.33)."`
-     * Use this for location-relative answers (weather, "near me") without the user stating where they are.
-     */
+    /** The approximate-location line from IP geolocation, e.g. `"Location: Seattle, Washington, United States."` */
     fun locationLine(loc: DeviceLocation): String {
         val place = listOf(loc.city, loc.region, loc.country).filter { it.isNotEmpty() }.joinToString(", ")
-        val coords = String.format(Locale.US, "(lat %.2f, lon %.2f)", loc.lat, loc.lon)
-        return "Location: $place $coords."
+        return "Location: $place."
     }
 
     /** A user-set location override (free text), which wins over IP geolocation. */

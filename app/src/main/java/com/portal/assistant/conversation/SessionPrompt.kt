@@ -3,11 +3,11 @@ package com.portal.assistant.conversation
 /**
  * Pure assembly of the session system instruction sent to the voice backend at connect time.
  *
- * Layers (in order):
- * 1. [SystemPrompt] — role + built-in tool usage rules, with the lines of the conversation's Lookups
- * 2. [ExternalToolPrompt] — enabled external-provider guidance (when any)
- * 3. [SystemContext] — device clock/location snapshot
- * 4. [ResumeContext] — prior transcript on a mic-tap resume (when any)
+ * Layers (in order, Markdown `#` sections):
+ * 1. [SystemPrompt] — Role and Objective, Personality and Tone, Speaking, Tools (Google Search line when a Lookup)
+ * 2. [ExternalToolPrompt] — enabled external-provider bullets, under `# Tools` (when any)
+ * 3. [SystemContext] — `# Device Context`: time at conversation start and location
+ * 4. [ResumeContext] — `# Conversation So Far`: prior transcript on a mic-tap resume (when any), always last
  *
  * Android-free so the layering is unit-tested; [ConversationOpening] calls it with [externalToolLines] from
  * [com.portal.assistant.conversation.tools.ToolRegistry.externalPromptLines] (same session parse as tool

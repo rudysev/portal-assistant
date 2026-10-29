@@ -1,49 +1,53 @@
 package com.portal.assistant.conversation
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** Pure JVM tests for session system-prompt assembly. */
 class SessionPromptTest {
 
-    @Test fun layersBuiltinExternalDeviceInOrder() {
+    private val builtin = SystemPrompt.build(emptySet())
+    private val kasa = "- Kasa. Tools: com.portal.kasa.set_plug."
+    private val time = "Time at conversation start: now (Z)."
+
+    private fun headings(prompt: String) = prompt.lines().filter { it.startsWith("#") }
+
+    @Test fun externalLinesSitUnderToolsThenDeviceContextFollows() {
         val out = SessionPrompt.build(
-            builtinRules = "BUILTIN",
-            externalToolLines = listOf("- Kasa. Tools: com.portal.kasa.set_plug."),
-            deviceContextLines = listOf("Time: now (Z)."),
+            builtinRules = builtin,
+            externalToolLines = listOf(kasa),
+            deviceContextLines = listOf(time),
         )
-        val builtinIdx = out.indexOf("BUILTIN")
-        val externalIdx = out.indexOf(ExternalToolPrompt.HEADER)
-        val deviceIdx = out.indexOf(SystemContext.HEADER)
-        assertTrue(builtinIdx >= 0)
-        assertTrue(externalIdx > builtinIdx)
-        assertTrue(deviceIdx > externalIdx)
-        assertTrue(out.contains("com.portal.kasa.set_plug"))
-        assertTrue(out.contains("Time: now (Z)."))
+        assertEquals(
+            "$builtin\n$kasa\n\n# Device Context\n- $time",
+            out,
+        )
+        assertEquals(
+            listOf("# Role and Objective", "# Personality and Tone", "# Speaking", "# Tools", "# Device Context"),
+            headings(out),
+        )
     }
 
-    @Test fun omitsExternalBlockWhenNoProviders() {
+    @Test fun withoutProvidersToolsIsJustTheBuiltinRules() {
         val out = SessionPrompt.build(
-            builtinRules = "BUILTIN",
+            builtinRules = builtin,
             externalToolLines = emptyList(),
-            deviceContextLines = listOf("Time: now (Z)."),
+            deviceContextLines = listOf(time),
         )
-        assertFalse(out.contains(ExternalToolPrompt.HEADER))
-        assertTrue(out.contains(SystemContext.HEADER))
+        assertEquals("$builtin\n\n# Device Context\n- $time", out)
     }
 
-    @Test fun resumeHistoryAppendedLast() {
+    @Test fun resumeHistoryIsTheLastSection() {
         val out = SessionPrompt.build(
-            builtinRules = "BUILTIN",
-            externalToolLines = emptyList(),
-            deviceContextLines = listOf("Time: now (Z)."),
+            builtinRules = builtin,
+            externalToolLines = listOf(kasa),
+            deviceContextLines = listOf(time),
             resumeTurns = listOf(Turn(Role.USER, "Hi"), Turn(Role.MODEL, "Hello")),
         )
-        val deviceIdx = out.indexOf(SystemContext.HEADER)
-        val historyIdx = out.indexOf("Here is the conversation so far")
-        assertTrue(historyIdx > deviceIdx)
-        assertTrue(out.contains("User: Hi"))
-        assertTrue(out.contains("Assistant: Hello"))
+        assertEquals("# Conversation So Far", headings(out).last())
+        assertEquals(
+            "\n\n# Conversation So Far\nContinue from these earlier turns.\nUser: Hi\nAssistant: Hello",
+            out.substringAfter("- $time"),
+        )
     }
 }
