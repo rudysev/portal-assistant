@@ -10,7 +10,9 @@
     Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
     time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
     first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `realtimeInput.text` turn — the
-    `Trigger.SuggestionChip`'s text becomes the opening's `firstText`.
+    `Trigger.SuggestionChip`'s text becomes the opening's `firstText`. On a model without Google Search with no
+    Search key (pure `ui/showsSearchKeyNudge`, Gemini only), a quiet accent "Add a search key …" line under the
+    chips opens Settings.
   - **Connecting / listening (pre-transcript):** a center-stage `ConversationStatus` — a large cross-faded
     "Connecting…/Listening…" word above a reactive `ListeningOrb` (indeterminate pulse while connecting; mic-
     level scaling while listening). The orb is the sole audio-reactive element here, so the bottom bar shows
@@ -33,7 +35,9 @@
   `gemini/SpeakerPreviewPlayer` shell: a short Live session with the selected model + candidate Speaker, one
   "introduce yourself" text turn, its own `PcmPlayer`; one preview at a time, stopped when the dialog closes,
   paused while a conversation is live — independent of the engine; a preview that played to completion is
-  kept in memory for that dialog open, so re-tapping its row replays it with no session), a **Sounds** section
+  kept in memory for that dialog open, so re-tapping its row replays it with no session), API key and **Search
+  key** sections (Gemini only; one shared Save & verify form, `ui/ConnectionSettings.UserKeySection`, checked by
+  `GeminiKeyCheck` / `SearchKeyCheck` → `util/KeyVerdict`, "Save anyway" after a network error), a **Sounds** section
   right after the backend/API-key sections, shown for both backends (the Listening tone switch —
   `AppPrefs.listeningToneEnabled`, default on; switching it on previews the tone via `ListeningTonePlayer`, off
   is silent, and no preview plays while a conversation is live — pure `ListeningTone.previewsOnSwitch`), location

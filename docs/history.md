@@ -58,10 +58,22 @@ supplies **their own** key (BYOD), set two ways:
   through creating one and prompts them to paste it (full setup takes **no** key argument; pass one
   non-interactively only via `./setup.sh --key-only <KEY>`). It writes the key to the app's external files
   dir (`api_key.txt`); the app imports it into prefs on first launch and deletes the file (import-once,
-  `AppPrefs.importProvisionedKey`, called from `MainActivity`/`AssistantService` onCreate). So a
-  non-technical user is set up with **no typing**.
+  `AppPrefs.importProvisionedKeys` → `ProvisionedKey.importOnce`, called from `MainActivity`/`AssistantService`
+  onCreate). So a non-technical user is set up with **no typing**.
 - **In the app** — **Settings → API key** lets them add or change it manually; **Save & verify** confirms
   the key against the API (`GeminiKeyCheck`) before storing via `AppPrefs.setApiKey`.
+
+The **Search key** (the user's own free Tavily key for Web search on a model without Google Search) is a second,
+**optional** BYOD key, never built in, provisioned the same two ways:
+- **At install** — full `./setup.sh` offers it after the Gemini key (Enter skips; a key already on the device is
+  kept); `./setup.sh --tavily-key-only <KEY>` (re)provisions it non-interactively. Both check it against Tavily's
+  usage endpoint (no credit spent) and stage it as `search_key.txt`, imported once by the same
+  `AppPrefs.importProvisionedKeys` into prefs `search_key`. Only `setup.sh` offers it: the one-click installers
+  (`provisioning/install.sh` / `install.ps1`) still provision only the Gemini key.
+- **In the app** — **Settings → Search key**, the same Save & verify form (`SearchKeyCheck`, a pure status →
+  `KeyVerdict` mapping shared in shape with `GeminiKeyCheck`), stored via `AppPrefs.setSearchKey`. The opening
+  reads `AppPrefs.hasSearchKey` once per conversation, so a new key applies from the next one. On a model without
+  Google Search with no Search key, the idle home shows a quiet "Add a search key" line that opens Settings.
 
 `AssistantService` injects `Backends.resolve()` per conversation (`credential` + factory + backend kind), so a
 key, backend, or local-host change in Settings applies on the next turn with no restart. The idle home shows
