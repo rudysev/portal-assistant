@@ -7,14 +7,13 @@ package com.portal.assistant.conversation
  * It holds only rules that span tools. Every per-tool rule lives in that tool's declaration
  * ([com.portal.assistant.conversation.tools.ToolRegistry]), so the two can't drift; the one tool line here is
  * Google Search's, which has no declaration (the model's own, asked for in setup), and only when the conversation
- * has it. The enabled external providers' [externalToolLines] (already bullets, from
- * [com.portal.assistant.conversation.tools.ExternalToolSpec.parse], the same pass as their declarations) close it.
+ * has it. External providers' tools get no line either: their declarations say when to call them.
  */
 object SystemPrompt {
 
-    fun build(lookups: Set<Lookup>, externalToolLines: List<String> = emptyList()): String {
+    fun build(lookups: Set<Lookup>): String {
         val googleSearch = if (Lookup.GOOGLE_SEARCH in lookups) listOf(GOOGLE_SEARCH_LINE) else emptyList()
-        val toolsSection = (listOf(TOOLS) + googleSearch + externalToolLines).joinToString("\n")
+        val toolsSection = (listOf(TOOLS) + googleSearch).joinToString("\n")
         return listOf(ROLE, PERSONALITY, SPEAKING, toolsSection).joinToString("\n\n")
     }
 

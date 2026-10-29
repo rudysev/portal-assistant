@@ -16,9 +16,8 @@ import java.util.concurrent.TimeoutException
  * enabled providers via PackageManager meta-data and invokes their tools via [android.content.ContentResolver.call].
  * Pure policy (allowlist, namespace, shape, collisions) lives in [ExternalToolSpec]; this is the Android shell.
  *
- * **Snapshot once:** discovery runs lazily the first time [declarations] or [promptLines] is read for a
- * session and is cached, so declarations and prompt bullets stay fixed at session setup (same as built-ins). One
- * instance per conversation (held by
+ * **Snapshot once:** discovery runs lazily the first time [declarations] is read for a session and is cached, so
+ * declarations stay fixed at session setup (same as built-ins). One instance per conversation (held by
  * [ToolRegistry]); [dispose] shuts the invoke executor down on teardown.
  *
  * **Self-timeout:** the engine's stall watchdog is gated off while a tool is in flight, so a hung provider
@@ -35,9 +34,6 @@ class ExternalToolProvider(context: Context) {
     private val tools: ExternalTools by lazy { discover() }
 
     fun declarations(): List<JSONObject> = tools.declarations
-
-    /** Enabled-provider prompt bullets — same session [discover] snapshot as [declarations]. */
-    fun promptLines(): List<String> = tools.promptLines
 
     fun handles(name: String): Boolean = name in tools.authorityByName
 

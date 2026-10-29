@@ -7,8 +7,8 @@
   `(turns, phase)`:
   - **Idle home:** an ambient clock/date, the greeting, and a short row of **static suggestion chips**
     ("What's the weather?", "Set a 10-minute timer") — a calm, clock-first glance, not a command menu.
-    Enabled external providers (Kasa, calendar, …) are described in the **session system prompt** at connect
-    time, not as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
+    Enabled external providers (Kasa, calendar, …) reach Jarvis only as tool declarations at connect time, not
+    as extra chips. A slow `AmbientGlow` breathes behind it. **Tapping a chip sends its text as the
     first turn** (not just opening the mic): `VoiceBackend.sendText` → `GeminiWireFormat.userText`, a `realtimeInput.text` turn — the
     `Trigger.SuggestionChip`'s text becomes the opening's `firstText`. On a model without Google Search with no
     Search key (pure `ui/showsSearchKeyNudge`: asks `Lookup.decide` whether a key would add Web search, so Gemini

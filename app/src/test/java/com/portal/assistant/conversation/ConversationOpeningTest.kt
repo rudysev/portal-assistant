@@ -176,14 +176,11 @@ class ConversationOpeningTest {
         assertTrue(timeLine, timeLine.endsWith("(America/Los_Angeles)."))
     }
 
-    @Test fun enabledExternalProvidersAreDescribedInThePrompt() {
-        val line = "- Kasa: control the smart plugs in the house."
-        assertTrue(
-            open(
-                Trigger.WakeWord("jarvis"),
-                inputs().copy(externalPromptLines = listOf(line)),
-            ).sessionPrompt.contains(line),
-        )
+    @Test fun anExternalToolIsDeclaredButNotNamedInThePrompt() {
+        val kasa = JSONObject().put("name", "com.portal.kasa.set_plug")
+        val opening = open(Trigger.WakeWord("jarvis"), inputs().copy(toolDeclarations = listOf(kasa)))
+        assertEquals(listOf(kasa), opening.backendConfig.functionDeclarations)
+        assertFalse(opening.sessionPrompt.contains("com.portal.kasa"))
     }
 
     // --- The backend's session config ---
@@ -386,7 +383,6 @@ class ConversationOpeningTest {
         deviceLocation = null,
         onScreenTurns = emptyList(),
         toolDeclarations = emptyList(),
-        externalPromptLines = emptyList(),
     )
 
     private companion object {

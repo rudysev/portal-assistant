@@ -15,11 +15,9 @@ class SystemPromptTest {
         setOf(Lookup.WEATHER, Lookup.WEB_SEARCH),
     )
 
-    private val kasa = "- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug."
-
     @Test fun theSectionsAreMarkdownHeadingsInAFixedOrder() {
         for (lookups in decidableLookupSets) {
-            val headings = SystemPrompt.build(lookups, listOf(kasa)).lines().filter { it.startsWith("#") }
+            val headings = SystemPrompt.build(lookups).lines().filter { it.startsWith("#") }
             assertEquals(
                 lookups.toString(),
                 listOf("# Role and Objective", "# Personality and Tone", "# Speaking", "# Tools"),
@@ -42,13 +40,6 @@ class SystemPromptTest {
         for (lookups in decidableLookupSets - setOf(setOf(Lookup.GOOGLE_SEARCH))) {
             assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("Google Search"))
         }
-    }
-
-    @Test fun externalProviderLinesAreTheLastToolsBullets() {
-        val calendar = "- Manage your calendar by voice. Tools: com.portal.calendar.add_event."
-        val prompt = SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH), listOf(calendar, kasa))
-        assertTrue(prompt.endsWith("\n- Google Search: use it for live information.\n$calendar\n$kasa"))
-        assertEquals(SystemPrompt.build(emptySet()), SystemPrompt.build(emptySet(), emptyList()))
     }
 
     @Test fun noBuiltinToolIsNamedSoEachRuleLivesOnlyInItsDeclaration() {

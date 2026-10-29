@@ -66,7 +66,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   pure `ConversationOpening.open(trigger, OpeningInputs)` says how a conversation it let through opens, as an
   `Opening`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model + whether it
   offers Google Search (`Backends.offersGoogleSearch`), Search key present, Chosen speaker, Listening tone setting,
-  `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt lines); `Opening` is the
+  `now`, location override + IP-geo, on-screen turns, tool declarations); `Opening` is the
   transcript seed (fresh / resume with turns shown + replayed, within `RESUME_MAX_CHARS`), the conversation's
   **Lookups** (`conversation/Lookup.kt`, `Lookup.decide`: a model with Google Search → Google Search only; without
   → Weather, plus Web search with a Search key; Local → none — less any lookup whose tool isn't registered), the
@@ -197,12 +197,12 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `realtimeInput.audio`. Neither uses `clientContent` or the deprecated `mediaChunks`: Gemini 3.8 ignores both
   (it takes `clientContent` only as initial history, which it never answers).
 - `conversation/tools/ToolRunner.kt` — the **Tool runner**, how one conversation's tools run: it owns the
-  `ToolSet` (interface: declarations, external prompt lines, `invoke`, `dispose` — `ToolRegistry` is the production
+  `ToolSet` (interface: declarations, `invoke`, `dispose` — `ToolRegistry` is the production
   one, routing unchanged: built-ins win, then external providers, then `unknown tool`), the `AfterSpeech` queue, the
   single-thread `tool-exec` executor and each batch's bookkeeping. The engine maps `ExecuteTools` → `run`,
   `FireAfterSpeech` → `turnEnded`, hands it `state.toolsInFlight` after every event (`keepOnly` cancels whatever
   the reducer no longer waits on — never run if queued, interrupted if running) and calls `dispose()` once on
-  teardown; the Opening's inputs read declarations + prompt lines from it. **Batch promise:** N calls in, one
+  teardown; the Opening's inputs read declarations from it. **Batch promise:** N calls in, one
   ordered list of N results out, delivered once on the engine's handler — cancelled → `{"error":"cancelled"}`,
   thrown → `{"error": message}`, each call settled exactly once (a cancel counts it down, so a partially
   cancelled batch can't wedge the turn in SPEAKING) — and nothing after `dispose()`. **Final turn:** a tool returns

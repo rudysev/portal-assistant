@@ -271,8 +271,6 @@ class FakeToolSet(private val log: MutableList<String>) : ToolSet {
 
     override fun declarations(): List<JSONObject> = listOf(JSONObject().put("name", "portal.get_time"))
 
-    override fun externalPromptLines(): List<String> = emptyList()
-
     override fun invoke(name: String, args: JSONObject): ToolOutput {
         invoked += name
         return builtIns.firstOrNull { it.name == name }?.invoke(args) ?: ToolOutput(JSONObject().put("ok", name))

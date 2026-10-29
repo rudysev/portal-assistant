@@ -63,7 +63,6 @@ data class OpeningInputs(
     val onScreenTurns: List<Turn>,
     /** Every registered tool; [ConversationOpening.open] drops the lookup tools it didn't decide on. */
     val toolDeclarations: List<JSONObject>,
-    val externalPromptLines: List<String>,
 )
 
 /**
@@ -101,7 +100,6 @@ object ConversationOpening {
         val lookups = decided.filterTo(LinkedHashSet()) { it.toolName == null || it.toolName in declaredNames }
         val sessionPrompt = SessionPrompt.build(
             lookups = lookups,
-            externalToolLines = inputs.externalPromptLines,
             deviceContextLines = deviceContextLines(inputs),
             resumeTurns = resumeTurns,
         )

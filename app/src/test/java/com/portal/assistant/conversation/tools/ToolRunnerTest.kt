@@ -210,8 +210,6 @@ class ToolRunnerTest {
 
         override fun declarations(): List<JSONObject> = listOf(JSONObject().put("name", "tool"))
 
-        override fun externalPromptLines(): List<String> = listOf("- a provider")
-
         override fun invoke(name: String, args: JSONObject): ToolOutput {
             invoked += name
             val result = scripts[name]?.invoke() ?: ToolOutput(JSONObject())

@@ -128,7 +128,7 @@ a JSON array of LLM tool declarations (the same OpenAPI subset the built-in tool
 [
   {
     "name": "com.example.kasa.set_light",          // reverse-domain; must NOT start with "portal."
-    "description": "Turn a named smart light on or off.",   // required, non-blank — sent to the model
+    "description": "Turn a named smart light on or off.",   // required, non-blank — the model's only guide
     "parameters": {                                 // required — an OpenAPI-style object schema
       "type": "object",
       "properties": {
@@ -148,6 +148,10 @@ a JSON string (`com.portal.assistant.tools.extra.RESULT`) — that's what the mo
 fast: the call is timed out after a few seconds, so a slow tool blocks the conversation. Defer heavy work
 to a worker and return an ack.
 
+**Writing declarations.** The system prompt says nothing about your tools: the model decides from your
+declarations alone. Say in each `description` when to call the tool, and in each parameter what to pass, once
+each; no capitals for emphasis and no implementation detail.
+
 **Rules the assistant enforces** (so a bad or hostile provider can't misbehave):
 
 - **Namespace** — tool names are reverse-domain (`com.example.kasa.set_light`) and **must not** start with
@@ -155,8 +159,8 @@ to a worker and return an ack.
 - **Shape** — a declaration missing a non-blank `description` or a `parameters` object is dropped, so the
   model never sees junk.
 - **Summary** — the `com.portal.assistant.tools.summary` sentence is required; a provider that omits it is
-  hidden from Settings, its tools are **not declared**, and it gets no system-prompt bullet — there is no
-  fallback to the per-tool descriptions.
+  hidden from Settings and its tools are **not declared**. The summary is for the user only; it isn't sent to
+  the model.
 - **Opt-in** — discovery alone grants nothing. Every provider is **off by default**; the user enables it in
   **Settings → External tools**, where each provider shows its one-sentence summary under the app name.
 

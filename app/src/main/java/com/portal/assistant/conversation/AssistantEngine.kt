@@ -140,7 +140,6 @@ class AssistantEngine(
             deviceLocation = openingReads.deviceLocation(),
             onScreenTurns = openingReads.onScreenTurns(),
             toolDeclarations = conversationTools.declarations(),
-            externalPromptLines = conversationTools.externalPromptLines(),
         )
         val opening = ConversationOpening.open(trigger, inputs)
         // Sent as the first user turn once the socket is ready (a tapped suggestion); see onBackendEvent.
