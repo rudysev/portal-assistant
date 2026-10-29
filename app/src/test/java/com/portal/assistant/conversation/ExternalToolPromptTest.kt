@@ -33,14 +33,12 @@ class ExternalToolPromptTest {
         assertTrue(ExternalToolPrompt.lines(parsed).isEmpty())
     }
 
-    @Test fun enrichAddsHeaderWhenLinesPresent() {
+    @Test fun enrichAppendsTheLinesUnderThePromptsLastSectionWithNoHeaderOfTheirOwn() {
         val out = ExternalToolPrompt.enrich(
-            "BASE",
+            "# Tools\n- BASE",
             listOf("- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug."),
         )
-        assertTrue(out.startsWith("BASE"))
-        assertTrue(out.contains(ExternalToolPrompt.HEADER))
-        assertTrue(out.contains("com.portal.kasa.set_plug"))
+        assertEquals("# Tools\n- BASE\n- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug.", out)
     }
 
     @Test fun enrichNoOpWhenEmpty() {

@@ -1,52 +1,79 @@
 package com.portal.assistant.conversation
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure JVM tests for the system prompt: role, built-in tool rules and the lines of the declared Lookups. */
+/** Pure JVM tests for the system prompt's built-in sections: the same skeleton whatever the Lookups. */
 class SystemPromptTest {
 
-    @Test fun theClosingRuleIsPinnedAndPresentWhateverTheLookups() {
-        val closingRule = "- Lookups: If you can't look it up, say 'I can't check that' — never guess.\n"
-        for (lookups in listOf(emptySet(), setOf(Lookup.GOOGLE_SEARCH), setOf(Lookup.WEATHER, Lookup.WEB_SEARCH))) {
-            assertTrue(lookups.toString(), SystemPrompt.build(lookups).contains(closingRule))
+    private val everyLookupSet = listOf(
+        emptySet(),
+        setOf(Lookup.GOOGLE_SEARCH),
+        setOf(Lookup.WEATHER),
+        setOf(Lookup.WEATHER, Lookup.WEB_SEARCH),
+    )
+
+    @Test fun theSectionsAreMarkdownHeadingsInAFixedOrder() {
+        for (lookups in everyLookupSet) {
+            val headings = SystemPrompt.build(lookups).lines().filter { it.startsWith("#") }
+            assertEquals(
+                lookups.toString(),
+                listOf("# Role and Objective", "# Personality and Tone", "# Speaking", "# Tools"),
+                headings,
+            )
         }
     }
 
-    @Test fun theOldSharedGoogleSearchLineIsGone() {
-        // The single line that named Google Search to every model (and said "if you can't find it") is split up.
-        for (lookups in listOf(emptySet(), setOf(Lookup.GOOGLE_SEARCH), setOf(Lookup.WEATHER, Lookup.WEB_SEARCH))) {
-            assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("If you can't find it"))
+    @Test fun theSharedLookupRuleIsAlwaysUnderTools() {
+        val rule = "if you can't, say \"I can't check that\" instead of guessing."
+        for (lookups in everyLookupSet) {
+            val prompt = SystemPrompt.build(lookups)
+            assertTrue(lookups.toString(), prompt.indexOf(rule) > prompt.indexOf("# Tools"))
         }
     }
 
     @Test fun theGoogleSearchLineAppearsOnlyWithGoogleSearch() {
-        val line = "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
-            "recent events). Base answers on results.\n"
-        assertTrue(SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH)).contains(line))
-        assertFalse(SystemPrompt.build(emptySet()).contains("Google Search"))
-        assertFalse(SystemPrompt.build(setOf(Lookup.WEATHER, Lookup.WEB_SEARCH)).contains("Google Search"))
+        val line = "- Google Search: use it for live information."
+        assertTrue(SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH)).endsWith("\n$line"))
+        for (lookups in everyLookupSet - setOf(setOf(Lookup.GOOGLE_SEARCH))) {
+            assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("Google Search"))
+        }
     }
 
-    @Test fun theWeatherAndWebSearchLinesNameTheirToolsOnlyWhenDeclared() {
-        val both = SystemPrompt.build(setOf(Lookup.WEATHER, Lookup.WEB_SEARCH))
-        assertTrue(both.contains("- Weather (portal.get_weather):"))
-        assertTrue(both.contains("- Web search (portal.web_search):"))
-        val none = SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH))
-        assertFalse(none.contains("portal.get_weather"))
-        assertFalse(none.contains("portal.web_search"))
+    @Test fun noToolIsNamedSoEachRuleLivesOnlyInItsDeclaration() {
+        for (lookups in everyLookupSet) {
+            assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("portal."))
+        }
     }
 
-    @Test fun portalBuiltinsPresent() {
+    @Test fun theRoleNamesJarvisAndSaysHowAConversationContinuesAndEnds() {
         val prompt = SystemPrompt.build(emptySet())
-        assertTrue(prompt.contains("portal.set_volume"))
-        assertTrue(prompt.contains("portal.get_time"))
+        assertTrue(prompt.contains("You are Jarvis"))
+        assertTrue(prompt.contains("the user can simply keep talking (no wake word needed)"))
+        assertTrue(prompt.contains("The conversation ends when they say they're done or go quiet."))
+        // The old ban contradicted the final turn (the user asking to end is how it ends).
+        assertFalse(prompt.contains("goodbye"))
     }
 
-    @Test fun endingRuleNamesTheToolAndNoLongerClaimsConversationsEndAutomatically() {
+    @Test fun thePromptIsModelNeutral() {
+        for (lookups in everyLookupSet) {
+            assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("Gemini"))
+        }
+    }
+
+    @Test fun itSaysItsWordsAreSpokenAndGivesAnAnswerLength() {
         val prompt = SystemPrompt.build(emptySet())
-        assertTrue(prompt.contains("portal.end_conversation"))
-        assertFalse(prompt.contains("end automatically"))
+        assertTrue(prompt.contains("Your words are spoken aloud"))
+        assertTrue(prompt.contains("usually two to three sentences"))
+    }
+
+    @Test fun noCapitalisedEmphasis() {
+        val shouting = Regex("""\b[A-Z]{3,}\b""")
+        for (lookups in everyLookupSet) {
+            val shouted = shouting.findAll(SystemPrompt.build(lookups)).map { it.value }.toList()
+            assertEquals(lookups.toString(), emptyList<String>(), shouted)
+        }
     }
 }

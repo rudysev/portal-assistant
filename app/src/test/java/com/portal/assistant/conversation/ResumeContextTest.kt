@@ -9,8 +9,8 @@ class ResumeContextTest {
 
     private fun turn(role: Role, text: String) = Turn(role, text)
 
-    // The exact header withHistory inserts before the transcript (kept in sync with ResumeContext).
-    private val header = "Here is the conversation so far — continue it naturally, using this as context:"
+    // The exact section withHistory inserts before the transcript: a heading, then one line.
+    private val header = "# Conversation So Far\nContinue from these earlier turns."
 
     // ---- recentContext (char budget) ---------------------------------------------------------------
 

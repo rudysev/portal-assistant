@@ -3,7 +3,8 @@ package com.portal.assistant.conversation
 import com.portal.assistant.conversation.tools.ExternalTools
 
 /**
- * Appends enabled external-tool provider guidance to the system instruction at session setup.
+ * Appends enabled external-tool provider guidance to the system instruction at session setup, as more bullets
+ * under the prompt's last section — `# Tools`, which [SystemPrompt] puts last for this — with no header of its own.
  *
  * Each provider APK supplies a one-sentence [com.portal.assistant.conversation.tools.ToolContract.META_SUMMARY]
  * and tool declarations; [com.portal.assistant.conversation.tools.ExternalToolSpec.parse] turns those into
@@ -16,14 +17,11 @@ import com.portal.assistant.conversation.tools.ExternalTools
  */
 object ExternalToolPrompt {
 
-    const val HEADER = "External tools:"
-
-    /** Append an external-tools block when [lines] is non-empty. */
+    /** Append [lines] (already bullets) under [systemPrompt]'s last section. No-op when [lines] is empty. */
     fun enrich(systemPrompt: String, lines: List<String>): String = if (lines.isEmpty()) {
         systemPrompt
     } else {
-        "$systemPrompt\n\n$HEADER\n" +
-            lines.joinToString("\n")
+        "$systemPrompt\n" + lines.joinToString("\n")
     }
 
     /** Prompt bullets from a session [parse][com.portal.assistant.conversation.tools.ExternalToolSpec.parse] result. */
