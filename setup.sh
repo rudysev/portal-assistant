@@ -125,10 +125,17 @@ INSTR
   done
 }
 
+# The key goes to the device on stdin, never inside the adb command string (so it isn't in the process list or
+# subject to the device shell's quoting).
 stage_search_key() {
+  local tmp="$EXTDIR/$PKG.tmp_search_key"
   adb_x shell "mkdir -p $EXTDIR" >/dev/null 2>&1 || true
-  adb_x shell "printf '%s' '$1' > $EXTDIR/$PKG.tmp_search_key && mv $EXTDIR/$PKG.tmp_search_key $EXTDIR/$SEARCH_PROVISION_FILE" >/dev/null 2>&1
-  ok "Search key saved to the Portal (${#1} chars) — Jarvis imports it on launch."
+  if printf '%s' "$1" |
+    adb_x shell "cat > $tmp && mv $tmp $EXTDIR/$SEARCH_PROVISION_FILE" >/dev/null 2>&1; then
+    ok "Search key saved to the Portal (${#1} chars) — Jarvis imports it on launch."
+  else
+    warn "Couldn't save the Search key to the Portal — add it in Jarvis > Settings > Search key."
+  fi
 }
 
 # Orchestrate the Search key step, like provision_key: force=1 always asks; otherwise a key already on the
