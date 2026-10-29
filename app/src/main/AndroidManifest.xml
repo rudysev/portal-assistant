@@ -62,6 +62,7 @@
              declared as named meta-data (portal-wake's plugin contract). The lead "hey" lives in the phrase;
              portal-wake derives keyword + lead from it. id is omitted (defaults to the keyword "jarvis").
              The key strings are mirrored literals (XML can't reference portal-wake's WakeContract).
+             min_confidence mirrors VoskDetector.JARVIS_MIN_CONF (JarvisWakeFloorTest keeps them equal).
              tools:ignore ExportedReceiver: the wake contract is open by design (any wake app may hand off, and
              the apps aren't guaranteed to share a signing key), so a permission would break the plug-in model. -->
         <receiver
@@ -72,7 +73,7 @@
                 <action android:name="com.portal.wake.action.WAKE" />
             </intent-filter>
             <meta-data android:name="com.portal.wake.phrase"         android:value="hey jarvis" />
-            <meta-data android:name="com.portal.wake.min_confidence" android:value="0.6" />
+            <meta-data android:name="com.portal.wake.min_confidence" android:value="0.95" />
         </receiver>
 
         <!-- Fires when a portal.set_timer alarm elapses (explicit PendingIntent → no intent-filter).

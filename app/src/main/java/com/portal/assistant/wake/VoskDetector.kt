@@ -1,7 +1,6 @@
 package com.portal.assistant.wake
 
 import android.content.Context
-import com.portal.commons.audio.WakeMatcher
 import com.portal.commons.audio.WakeMicConfig
 import com.portal.commons.audio.WakeMicEngine
 import com.portal.commons.audio.WakeModel
@@ -31,11 +30,17 @@ class VoskDetector(context: Context, modelDir: File, listener: Detector.Listener
 
     override fun close() = engine.close()
 
-    private companion object {
-        /** "hey jarvis" at the strict floor, matching portal-wake's built-in jarvis default so accuracy is identical.
-         *  Non-null: the phrase is a valid two-word phrase. */
+    internal companion object {
+        /**
+         * The "jarvis" confidence a wake must clear, also declared to portal-wake in the manifest so both detectors
+         * judge alike. Genuine wakes on the Portal decode jarvis at 0.98 or above (208 of 211 logged); speakerphone
+         * speech across the room decoded a clean "hey jarvis" with jarvis at 0.90, which this rejects.
+         */
+        const val JARVIS_MIN_CONF = 0.95
+
+        /** "hey jarvis" at [JARVIS_MIN_CONF]. Non-null: the phrase is a valid two-word phrase. */
         val WAKE_WORD =
-            checkNotNull(WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = WakeMatcher.STRICT_MIN_CONF)) {
+            checkNotNull(WakeWord.fromPhrase("hey jarvis", id = "jarvis", minConf = JARVIS_MIN_CONF)) {
                 "built-in phrase \"hey jarvis\""
             }
     }
