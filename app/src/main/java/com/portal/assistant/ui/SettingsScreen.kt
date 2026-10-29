@@ -200,6 +200,9 @@ private fun BackendSections(subtle: Color, ioDispatcher: CoroutineDispatcher) {
 
             Spacer(Modifier.size(36.dp))
             ApiKeySection(subtle = subtle, ioDispatcher = ioDispatcher)
+
+            Spacer(Modifier.size(36.dp))
+            SearchKeySection(subtle = subtle, ioDispatcher = ioDispatcher)
         }
     }
 }

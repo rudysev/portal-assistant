@@ -63,7 +63,7 @@ class AssistantService : Service() {
         DebugLog.file = File(getExternalFilesDir(null), "debug.txt")
         // Pick up a key dropped by the install script (import-once; no-op if none). Lets a non-technical
         // user be set up at install with no typing — they can still change it in Settings later.
-        AppPrefs.importProvisionedKey(applicationContext)
+        AppPrefs.importProvisionedKeys(applicationContext)
         // Warm the IP-geo cache on every service creation, regardless of which action started it — so a
         // "hey jarvis what's the weather" as the FIRST trigger after install (which arrives via ACTION_START,
         // not the standby branch that runs prewarm) still has a location to inject. Async + self-guarding.

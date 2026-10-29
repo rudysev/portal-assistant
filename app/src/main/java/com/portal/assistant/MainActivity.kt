@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AppPrefs.importProvisionedKey(applicationContext) // pick up an install-script key before the UI reads it
+        AppPrefs.importProvisionedKeys(applicationContext) // pick up install-script keys before the UI reads them
         // Kick the IP-geo lookup off at launch (setup.sh opens the app at install) so the cache is warm long
         // before the first "what's the weather" — async + self-guarding, a no-op once a fix is stored.
         LocationProvider.refreshIfStale(applicationContext)
