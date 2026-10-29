@@ -10,7 +10,7 @@ class ListTimersTool(private val scheduler: TimerScheduler) : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.list_timers",
-           "description":"List active timers with their remaining time. Use this when the user asks how much time is left.",
+           "description":"List active timers with their remaining time. Use it when the user asks how much time is left; don't guess time left from the portal.set_timer response.",
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 

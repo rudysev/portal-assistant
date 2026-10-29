@@ -22,12 +22,12 @@ internal class PlayMusic(private val apps: MusicApps) : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.play_music",
-           "description":"Start playing music by name on a music app. Set 'query' to what to play — a song, artist, album, or playlist, e.g. 'Here Comes the Sun', 'Taylor Swift', 'some jazz', or 'Discover Weekly'. Set 'app' ONLY when the user names a specific app to play on (e.g. 'play Zanarkand on TIDAL' -> app 'TIDAL'); otherwise omit it and their default music app is used. If the target app is Spotify Free, prefer including the ARTIST in the query (e.g. 'play Bohemian Rhapsody' -> 'Bohemian Rhapsody Queen') — Spotify Free can't on-demand-play one exact track, so an artist-level query is what actually starts playback there. Don't add words like 'live', 'cover', 'remix', or 'karaoke' unless the user asked for that. If the result has 'searchUnsupported', the app was only opened (it couldn't start the exact search) — tell the user you opened it rather than claiming it's playing. For resume/pause/skip of the current track use portal.media_control instead.",
+           "description":"Start playing a song, artist, album or playlist on a music app. If the result has 'searchUnsupported', the app was only opened: tell the user you opened it rather than claiming it's playing. For resume/pause/skip of the current track use portal.media_control instead.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "query":{"type":"STRING","description":"What to play — a song (ideally with its artist), artist, album, or playlist."},
-               "app":{"type":"STRING","description":"Optional. The music app to play on, only when the user names one (e.g. 'Spotify', 'TIDAL', 'Apple Music'). Omit to use the user's default music app."},
-               "type":{"type":"STRING","description":"Optional. The KIND to play, only when the user makes it explicit — one of 'song', 'artist', 'album', 'playlist'. E.g. 'play the album Thriller' -> 'album'; 'play the artist Adele' -> 'artist'. Omit for a general request or when unsure, and the app picks the best match."}},
+               "query":{"type":"STRING","description":"What to play, e.g. 'Here Comes the Sun', 'Taylor Swift', 'some jazz' or 'Discover Weekly'. Add the artist only for a song clearly by one artist (e.g. 'Bohemian Rhapsody Queen'); otherwise use the user's words. Don't add words like 'live', 'cover', 'remix' or 'karaoke' unless the user asked for that."},
+               "app":{"type":"STRING","description":"The music app to play on, only when the user names one (e.g. 'play Zanarkand on TIDAL' -> 'TIDAL'). Omit it to use their default music app."},
+               "type":{"type":"STRING","description":"What kind to play, only when the user says so: 'song', 'artist', 'album' or 'playlist' (e.g. 'play the album Thriller' -> 'album'). Omit it otherwise."}},
              "required":["query"]}}""",
     )
 
