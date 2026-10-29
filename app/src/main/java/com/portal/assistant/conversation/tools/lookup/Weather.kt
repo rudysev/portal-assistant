@@ -221,7 +221,10 @@ class Weather(
     }
 
     companion object {
-        /** One deadline across the place lookup and the forecast. Provisional (mirrors the external tool bound). */
+        /**
+         * One deadline across the place lookup and the forecast. Measured on a Portal gen2 (2026-10-28): the
+         * slowest whole lookup took 2.4 s (a cold place lookup, then the forecast), so 5 s leaves about twice that.
+         */
         const val DEADLINE_MS = 5_000L
 
         /** The forecast goes at most a week ahead. */

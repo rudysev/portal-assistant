@@ -91,7 +91,10 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
     }
 
     companion object {
-        /** The one request's bound, connect to body. Provisional (mirrors the external tool bound). */
+        /**
+         * The one request's bound, connect to body. Measured on a Portal gen2 (2026-10-28): the slowest search took
+         * 2.6 s (Tavily's own `response_time` at most 2.6 s of it), so 5 s leaves about twice that.
+         */
         const val TIMEOUT_MS = 5_000L
 
         /** A snippet's longest, so three sources stay around 1.5k chars for the model. */
