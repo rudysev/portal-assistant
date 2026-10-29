@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
 import com.portal.assistant.conversation.tools.ExternalToolProvider
@@ -57,6 +59,7 @@ import com.portal.assistant.ui.theme.TextSize
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -107,7 +110,7 @@ fun SettingsScreen(
             SoundsSection(subtle = subtle)
 
             Spacer(Modifier.size(36.dp))
-            LocationSection(subtle = subtle)
+            LocationSection(subtle = subtle, ioDispatcher = ioDispatcher)
 
             Spacer(Modifier.size(36.dp))
             MusicAppSection(subtle = subtle, ioDispatcher = ioDispatcher)
@@ -209,11 +212,16 @@ private fun BackendSections(subtle: Color, ioDispatcher: CoroutineDispatcher) {
 
 /**
  * The location used for weather and other location-aware answers. Pre-filled from the override, else the
- * detected label; while geolocation is still in flight it polls briefly for the detected value.
+ * detected label; while geolocation is still in flight it polls briefly for the detected value. Saving looks the
+ * place up once ([LocationProvider.saveOverride]) and says what it found ([LocationNotice]).
  */
 @Composable
-private fun LocationSection(subtle: Color) {
+private fun LocationSection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
     val context = LocalContext.current
+    // The Activity's scope: navigating back mid-lookup must not cancel the save.
+    val scope = LocalLifecycleOwner.current.lifecycleScope
+    var saving by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
     var place by remember {
         mutableStateOf(LocationProvider.override(context) ?: LocationProvider.detectedLabel(context).orEmpty())
     }
@@ -242,7 +250,12 @@ private fun LocationSection(subtle: Color) {
         SectionHeading("Location", "Used for weather and other location-aware answers.", subtle)
         OutlinedTextField(
             value = place,
-            onValueChange = { if (it.length <= 200) place = it },
+            onValueChange = {
+                if (it.length <= 200) {
+                    place = it
+                    notice = null
+                }
+            },
             singleLine = true,
             label = { Text("Location (e.g. New York, NY)") },
             modifier = Modifier.fillMaxWidth(),
@@ -251,12 +264,23 @@ private fun LocationSection(subtle: Color) {
         Spacer(Modifier.size(18.dp))
         Button(
             onClick = {
-                LocationProvider.setOverride(context, place)
-                savedPlace = place // persist only; the back arrow navigates away
+                val candidate = place
+                saving = true
+                scope.launch {
+                    val search = withContext(ioDispatcher) { LocationProvider.saveOverride(context, candidate) }
+                    savedPlace = candidate // persist only; the back arrow navigates away
+                    notice = LocationNotice.afterSave(search)
+                    saving = false
+                }
             },
-            enabled = place.isNotBlank() && place.trim() != savedPlace.trim(),
+            enabled = !saving && place.isNotBlank() && place.trim() != savedPlace.trim(),
             colors = settingsButtonColors(),
-        ) { Text("Save") }
+        ) { Text(if (saving) "Saving…" else "Save") }
+
+        notice?.let {
+            Spacer(Modifier.size(8.dp))
+            Text(it, color = subtle, fontSize = TextSize.Body)
+        }
 
         Spacer(Modifier.size(18.dp))
         WeatherCredit(subtle = subtle)

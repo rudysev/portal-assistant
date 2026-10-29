@@ -3,7 +3,6 @@ package com.portal.assistant.conversation.tools
 import android.content.Context
 import android.os.SystemClock
 import com.portal.assistant.audio.Hush
-import com.portal.assistant.conversation.tools.lookup.Here
 import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
 import com.portal.assistant.conversation.tools.lookup.Weather
 import com.portal.assistant.conversation.tools.lookup.WebSearch
@@ -37,17 +36,11 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         Music(AndroidMediaSessions(appContext), AndroidMusicApps(appContext), hush, appContext.packageName)
     private val appLauncher = AppLauncher(appContext)
 
-    // Weather reads "here" and the locale when it runs. The override's stored coordinates arrive with the override
-    // geocoding on save; until then it's the override text, looked up per call, else the IP-geo location.
+    // Weather reads "here" and the locale when it runs: the override's coordinates found on save, else its text
+    // looked up per call, else the IP-geo location.
     private val weather = Weather(
         OkHttpLookupHttp(),
-        here = {
-            Here(
-                overrideText = LocationProvider.override(appContext),
-                overrideCoordinates = null,
-                device = LocationProvider.current(appContext),
-            )
-        },
+        here = { LocationProvider.here(appContext) },
         locale = { Locale.getDefault() },
         nowMs = { SystemClock.elapsedRealtime() },
     )
