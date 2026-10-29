@@ -13,7 +13,7 @@ object EndConversationTool : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.end_conversation",
-           "description":"End the conversation. Call ONLY when the user clearly asks to end or dismiss it ('goodbye', 'bye', 'that's all', 'we're done', 'stop listening', 'never mind'); never for thanks or acknowledgements alone ('thanks', 'ok', 'perfect').",
+           "description":"End the conversation. Call it only when the user clearly asks to end or dismiss it ('goodbye', 'bye', 'that's all', 'we're done', 'stop listening', 'never mind'), then give one brief sign-off; never for thanks or acknowledgements alone ('thanks', 'ok', 'perfect').",
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 

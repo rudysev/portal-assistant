@@ -12,7 +12,7 @@ object GetTimeTool : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.get_time",
-           "description":"Returns the current local date and time on the device.",
+           "description":"Current local date and time. Use it for the time now; Device Context's time is from when the conversation started.",
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
