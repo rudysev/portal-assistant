@@ -14,7 +14,7 @@
   returns to **standby** (mic-less, no bar) instead of `stopSelf`, and `prewarm()` pre-builds OkHttp +
   conversation classes + Live-host DNS + the installed tool-provider snapshot. So a wake hand-off hits a warm process — dropping the cold first
   "hey jarvis" → orange bar latency substantially (`detected → bar`).
-- **Phase 2.b — multi-turn (ongoing conversation).** ✅ Built (`AssistantEngine.MULTI_TURN = true`): after
+- **Phase 2.b — multi-turn (ongoing conversation).** ✅ Built (once an `AssistantEngine.MULTI_TURN` switch, later removed: the reducer is multi-turn only): after
   each answer the mic re-opens for a follow-up and the conversation ends only when the user goes silent
   (the no-speech timer). The mic stays open across turns (frames dropped while SPEAKING) so portal-wake
   can't reclaim mid-conversation. The **connect buffer** is now built (in the Mic gate, `conversation/MicGate`):

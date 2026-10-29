@@ -11,10 +11,10 @@ import java.util.concurrent.Executor
 /**
  * The impure shell around the pure [reduce] state machine: it owns the [VoiceBackend], the [ToolRunner] and the two
  * timers, drives the mic, player, tone and hush ([EngineAudio]) and the UI ([ConversationSink]), and runs the
- * conversation as an ongoing multi-turn exchange (Phase 2.b — [MULTI_TURN] = true): after each answer the mic re-opens
- * for a follow-up, and the conversation ends when the user goes silent (the no-speech timer), after a final turn
- * (the user asks to end, or a working music command), or on error. Every mic frame goes through the conversation's
- * [MicGate].
+ * conversation as an ongoing multi-turn exchange: after each answer the mic re-opens for a follow-up (the mic stays
+ * open across turns, frames dropped while SPEAKING, so portal-wake can't reclaim mid-conversation), and the
+ * conversation ends when the user goes silent (the no-speech timer), after a final turn (the user asks to end, or a
+ * working music command), or on error. Every mic frame goes through the conversation's [MicGate].
  *
  * **Single orchestration thread.** Everything funnels through [dispatch] on the [EngineClock]'s thread (the main
  * looper in production): the backend callbacks (e.g. OkHttp thread), the player's drain (writer thread), and the
@@ -362,7 +362,7 @@ class AssistantEngine(
 
     private fun dispatch(event: Event) {
         if (ended) return
-        val decision = reduce(state, event, MULTI_TURN)
+        val decision = reduce(state, event)
         // PlaybackBusy fires once per audio chunk (hundreds per answer) without changing phase — logging it
         // floods debug.txt and rolls out the lines that matter. Log every other transition; skip that one.
         val noisy = event == Event.PlaybackBusy && decision.state.phase == state.phase
@@ -463,11 +463,6 @@ class AssistantEngine(
     }
 
     companion object {
-        // Phase 2.b: ongoing conversation — re-open the mic after each answer (the no-speech timer
-        // ends it on silence). The mic stays open across turns (frames dropped while SPEAKING), so
-        // portal-wake can't reclaim mid-conversation.
-        private const val MULTI_TURN = true
-
         // The only two client timers (see ConversationState). Tunable on device.
         private const val NO_SPEECH_MS = 5_000L // release the mic if the user says nothing (device-tuned 2.b)
     }

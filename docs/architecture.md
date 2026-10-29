@@ -4,7 +4,7 @@ Detail behind the map in `CLAUDE.md`. The hard rules live there, not here.
 
 
 A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake's `WakeMatcher`):
-- `conversation/ConversationState.kt` — pure `reduce(state, event, multiTurn)` state machine
+- `conversation/ConversationState.kt` — pure `reduce(state, event)` state machine
   (CONNECTING → LISTENING → SPEAKING → ENDED), **fully unit-tested**. Exactly two client timers:
   **no-speech** (release the mic when the user stops; re-armed on transcription, and on the local host's VAD start/stop) and a **stall
   watchdog** (model took the turn but produced no audio/`turnComplete`). Race-free turn end =
