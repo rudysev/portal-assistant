@@ -159,6 +159,10 @@ class Weather(
         throw LookupFailed(UNAVAILABLE, e)
     }
 
+    /**
+     * The model's view of [forecast]. Open-Meteo sends null for a value it doesn't have (often far-off days): that
+     * one field is left out (of that day, or of current), the rest still answered.
+     */
     private fun forecastJson(place: Place, units: Units, forecast: JSONObject): JSONObject {
         val current = forecast.getJSONObject("current")
         val daily = forecast.getJSONObject("daily")
@@ -170,10 +174,10 @@ class Weather(
                 JSONObject()
                     .put("date", date.toString())
                     .put("day", date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                    .put("high", daily.getJSONArray("temperature_2m_max").getDouble(i).roundToInt())
-                    .put("low", daily.getJSONArray("temperature_2m_min").getDouble(i).roundToInt())
-                    .put("conditions", WeatherCodes.words(daily.getJSONArray("weather_code").getInt(i)))
-                    .put("precipitation_chance", daily.getJSONArray("precipitation_probability_max").getInt(i)),
+                    .putPresent("high", daily.rounded("temperature_2m_max", i))
+                    .putPresent("low", daily.rounded("temperature_2m_min", i))
+                    .putPresent("conditions", daily.rounded("weather_code", i)?.let(WeatherCodes::words))
+                    .putPresent("precipitation_chance", daily.rounded("precipitation_probability_max", i)),
             )
         }
         return JSONObject()
@@ -183,13 +187,23 @@ class Weather(
             .put(
                 "current",
                 JSONObject()
-                    .put("temperature", current.getDouble("temperature_2m").roundToInt())
-                    .put("feels_like", current.getDouble("apparent_temperature").roundToInt())
-                    .put("conditions", WeatherCodes.words(current.getInt("weather_code")))
-                    .put("wind", current.getDouble("wind_speed_10m").roundToInt()),
+                    .putPresent("temperature", current.rounded("temperature_2m"))
+                    .putPresent("feels_like", current.rounded("apparent_temperature"))
+                    .putPresent("conditions", current.rounded("weather_code")?.let(WeatherCodes::words))
+                    .putPresent("wind", current.rounded("wind_speed_10m")),
             )
             .put("days", days)
     }
+
+    /** [key]'s number rounded, or null when it's null or missing. */
+    private fun JSONObject.rounded(key: String): Int? = if (isNull(key)) null else getDouble(key).roundToInt()
+
+    /** Entry [i] of the daily array [key] rounded, or null when that entry is null. */
+    private fun JSONObject.rounded(key: String, i: Int): Int? =
+        getJSONArray(key).let { if (it.isNull(i)) null else it.getDouble(i).roundToInt() }
+
+    private fun JSONObject.putPresent(key: String, value: Any?): JSONObject =
+        if (value == null) this else put(key, value)
 
     /** A lookup step that failed; its [message] is the tool's `{"error": …}`. */
     private class LookupFailed(override val message: String, cause: Throwable? = null) : Exception(message, cause)
