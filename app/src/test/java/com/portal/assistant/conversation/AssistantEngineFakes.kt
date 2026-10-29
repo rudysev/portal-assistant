@@ -203,6 +203,8 @@ class FakeOpeningReads : OpeningReads {
 
     override fun modelId(): String = "gemini-2.5-flash-native-audio-latest"
 
+    override fun searchKeyPresent(): Boolean = false
+
     override fun speakerId(): String? = null
 
     override fun listeningToneEnabled(): Boolean = listeningToneEnabled

@@ -3,6 +3,7 @@ package com.portal.assistant.conversation.backend
 import android.content.Context
 import com.portal.assistant.BuildConfig
 import com.portal.assistant.gemini.GeminiBackend
+import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.local.LocalBackend
 import com.portal.assistant.system.AppPrefs
 import java.util.concurrent.Executors
@@ -57,6 +58,9 @@ object Backends {
         storedLocalWssUrl = null,
         devApiKey = BuildConfig.GEMINI_API_KEY,
     ).credential
+
+    /** Whether the Gemini Model [modelId] offers Google Search ([GeminiModel.Model.googleSearch]). */
+    fun offersGoogleSearch(modelId: String): Boolean = GeminiModel.of(modelId).googleSearch
 
     /**
      * Pure resolution of backend + credential — extracted for unit tests (no Android [Context] needed).

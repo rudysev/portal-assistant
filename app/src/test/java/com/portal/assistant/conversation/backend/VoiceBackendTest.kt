@@ -136,25 +136,29 @@ class VoiceBackendTest {
         assertFalse(generationConfig.has("speechConfig"))
     }
 
-    private fun geminiSetup(model: String, functionDeclarations: List<JSONObject> = emptyList()): JSONObject =
-        JSONObject(
-            (
-                GeminiBackend.wireFormat(
-                    BackendConfig(
-                        credential = "key",
-                        model = model,
-                        systemPrompt = "p",
-                        functionDeclarations = functionDeclarations,
-                    ),
-                ).setup() as Frame.Text
-                ).text,
-        ).getJSONObject("setup")
+    private fun geminiSetup(
+        model: String,
+        functionDeclarations: List<JSONObject> = emptyList(),
+        googleSearch: Boolean = false,
+    ): JSONObject = JSONObject(
+        (
+            GeminiBackend.wireFormat(
+                BackendConfig(
+                    credential = "key",
+                    model = model,
+                    systemPrompt = "p",
+                    functionDeclarations = functionDeclarations,
+                    googleSearch = googleSearch,
+                ),
+            ).setup() as Frame.Text
+            ).text,
+    ).getJSONObject("setup")
 
     private val getTime = JSONObject().put("name", "portal.get_time")
 
     @Test
-    fun `Gemini 2_5 opens with Google Search and the function declarations`() {
-        val tools = geminiSetup(GEMINI_2_5, listOf(getTime)).getJSONArray("tools")
+    fun `a session the opening gave Google Search asks for it beside the function declarations`() {
+        val tools = geminiSetup(GEMINI_2_5, listOf(getTime), googleSearch = true).getJSONArray("tools")
         assertEquals(2, tools.length())
         assertTrue(tools.getJSONObject(0).has("googleSearch"))
         assertEquals(
@@ -164,7 +168,7 @@ class VoiceBackendTest {
     }
 
     @Test
-    fun `Gemini 3_8 opens without Google Search but keeps the function declarations`() {
+    fun `a session without Google Search keeps the function declarations`() {
         val tools = geminiSetup(GEMINI_3_8, listOf(getTime)).getJSONArray("tools")
         assertEquals(1, tools.length())
         assertFalse(tools.getJSONObject(0).has("googleSearch"))

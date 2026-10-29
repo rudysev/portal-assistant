@@ -28,19 +28,16 @@ object GeminiBackend {
     const val DEAD_AIR_STALL_MS = 10_000L
 
     /**
-     * The session's frames: model, system prompt, tool declarations and Chosen speaker from [config], plus what
-     * that model offers ([GeminiModel.of] — an id no longer offered opens as the default's).
+     * The session's frames: model, system prompt, tool declarations, Chosen speaker and whether to ask for Google
+     * Search, all from [config] (the opening decided Google Search from [GeminiModel.Model.googleSearch]).
      */
-    internal fun wireFormat(config: BackendConfig): GeminiWireFormat {
-        val model = GeminiModel.of(config.model)
-        return GeminiWireFormat(
-            model = config.model,
-            systemPrompt = config.systemPrompt,
-            functionDeclarations = config.functionDeclarations,
-            speaker = config.speaker,
-            googleSearch = model.googleSearch,
-        )
-    }
+    internal fun wireFormat(config: BackendConfig): GeminiWireFormat = GeminiWireFormat(
+        model = config.model,
+        systemPrompt = config.systemPrompt,
+        functionDeclarations = config.functionDeclarations,
+        speaker = config.speaker,
+        googleSearch = config.googleSearch,
+    )
 
     /**
      * Where [config]'s session connects: the configured endpoint (or [DEFAULT_ENDPOINT]) with the API key added

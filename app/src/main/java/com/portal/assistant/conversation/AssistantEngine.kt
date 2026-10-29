@@ -127,9 +127,12 @@ class AssistantEngine(
         }
         val conversationTools = toolRunners(Executor { clock.post(it) })
         toolRunner = conversationTools
+        val modelId = openingReads.modelId()
         val inputs = OpeningInputs(
             backendChoice = backendChoice,
-            modelId = openingReads.modelId(),
+            modelId = modelId,
+            modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+            searchKeyPresent = openingReads.searchKeyPresent(),
             speakerId = openingReads.speakerId(),
             listeningToneEnabled = openingReads.listeningToneEnabled(),
             now = openingReads.localTime(),

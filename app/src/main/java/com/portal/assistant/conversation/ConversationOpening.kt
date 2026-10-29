@@ -18,7 +18,13 @@ data class Refusal(val notice: String)
 /** Everything a conversation opens with. */
 data class Opening(
     val transcriptSeed: TranscriptSeed,
-    /** Credential, model, Chosen speaker, the session prompt and the tool declarations. */
+    /**
+     * The conversation's Lookups ([Lookup.decide], less any whose tool isn't registered): the only lookups the
+     * backend config asks for or declares, and the only ones the session prompt names.
+     */
+    val lookups: Set<Lookup>,
+    /** Credential, model, Chosen speaker, the session prompt, the tool declarations and whether to ask for Google
+     *  Search. */
     val backendConfig: BackendConfig,
     /** The first turn is spoken — false only for a suggestion chip, whose text is the first turn. */
     val voiceQuery: Boolean,
@@ -44,6 +50,10 @@ data class OpeningInputs(
     /** Only [Backends.Choice.kind] and [Backends.Choice.credential] are read; its factory is never touched. */
     val backendChoice: Backends.Choice,
     val modelId: String,
+    /** The model offers Google Search ([Backends.offersGoogleSearch]). */
+    val modelGoogleSearch: Boolean,
+    /** A Search key is set (Web search on a model without Google Search). */
+    val searchKeyPresent: Boolean,
     /** The Chosen speaker, or null for Server default. */
     val speakerId: String?,
     val listeningToneEnabled: Boolean,
@@ -51,6 +61,7 @@ data class OpeningInputs(
     val locationOverride: String?,
     val deviceLocation: DeviceLocation?,
     val onScreenTurns: List<Turn>,
+    /** Every registered tool; [ConversationOpening.open] drops the lookup tools it didn't decide on. */
     val toolDeclarations: List<JSONObject>,
     val externalPromptLines: List<String>,
 )
@@ -58,10 +69,10 @@ data class OpeningInputs(
 /**
  * Decides whether a conversation can open ([refusalFor], from the backend choice alone) and then how it opens
  * ([open], from its [Trigger] and a plain-value snapshot, [OpeningInputs]): resume or fresh and what is replayed, voice
- * query or not, whether the Listening tone plays, the first text, and everything the voice backend is told up front
- * (the session prompt, via [SessionPrompt], and its [BackendConfig]). Every opening decision lives here; the engine
- * asks [refusalFor] before it builds anything, then gathers the snapshot and runs the I/O, and the service routes
- * triggers and reacts to a [Refusal].
+ * query or not, whether the Listening tone plays, the first text, its Lookups, and everything the voice backend is
+ * told up front (the session prompt, via [SessionPrompt], and its [BackendConfig]). Every opening decision lives
+ * here; the engine asks [refusalFor] before it builds anything, then gathers the snapshot and runs the I/O, and the
+ * service routes triggers and reacts to a [Refusal].
  *
  * Pure: no Android, no I/O, no clock reads (the clock is [OpeningInputs.now]) — so it's unit-tested end to end.
  */
@@ -80,7 +91,16 @@ object ConversationOpening {
             TranscriptSeed.Fresh
         }
         val resumeTurns = (transcriptSeed as? TranscriptSeed.Resume)?.turnsReplayed.orEmpty()
+        val decided = Lookup.decide(inputs.backendChoice.kind, inputs.modelGoogleSearch, inputs.searchKeyPresent)
+        // A lookup tool is declared only when decided; a decided lookup counts only once its tool is registered.
+        val declarations = inputs.toolDeclarations.filter { declaration ->
+            val name = declaration.optString("name")
+            name !in Lookup.toolNames || decided.any { it.toolName == name }
+        }
+        val declaredNames = declarations.map { it.optString("name") }.toSet()
+        val lookups = decided.filterTo(LinkedHashSet()) { it.toolName == null || it.toolName in declaredNames }
         val sessionPrompt = SessionPrompt.build(
+            builtinRules = SystemPrompt.build(lookups),
             externalToolLines = inputs.externalPromptLines,
             deviceContextLines = deviceContextLines(inputs),
             resumeTurns = resumeTurns,
@@ -90,13 +110,15 @@ object ConversationOpening {
             model = inputs.modelId,
             speaker = inputs.speakerId, // Local ignores it
             systemPrompt = sessionPrompt,
-            functionDeclarations = inputs.toolDeclarations,
+            functionDeclarations = declarations,
             kind = inputs.backendChoice.kind,
+            googleSearch = Lookup.GOOGLE_SEARCH in lookups,
         )
         val firstText = (trigger as? Trigger.SuggestionChip)?.text
         val voiceQuery = firstText == null
         return Opening(
             transcriptSeed = transcriptSeed,
+            lookups = lookups,
             backendConfig = backendConfig,
             voiceQuery = voiceQuery,
             listeningTonePlays = inputs.listeningToneEnabled && voiceQuery,
