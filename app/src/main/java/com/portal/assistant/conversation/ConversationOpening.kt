@@ -51,7 +51,7 @@ data class OpeningInputs(
     val backendChoice: Backends.Choice,
     val modelId: String,
     /** The model offers Google Search ([Backends.offersGoogleSearch]). */
-    val modelGoogleSearch: Boolean,
+    val modelOffersGoogleSearch: Boolean,
     /** A Search key is set (Web search on a model without Google Search). */
     val searchKeyPresent: Boolean,
     /** The Chosen speaker, or null for Server default. */
@@ -91,7 +91,7 @@ object ConversationOpening {
             TranscriptSeed.Fresh
         }
         val resumeTurns = (transcriptSeed as? TranscriptSeed.Resume)?.turnsReplayed.orEmpty()
-        val decided = Lookup.decide(inputs.backendChoice.kind, inputs.modelGoogleSearch, inputs.searchKeyPresent)
+        val decided = Lookup.decide(inputs.backendChoice.kind, inputs.modelOffersGoogleSearch, inputs.searchKeyPresent)
         // A lookup tool is declared only when decided; a decided lookup counts only once its tool is registered.
         val declarations = inputs.toolDeclarations.filter { declaration ->
             val name = declaration.optString("name")
