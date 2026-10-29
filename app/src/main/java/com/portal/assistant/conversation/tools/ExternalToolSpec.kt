@@ -12,14 +12,10 @@ data class DiscoveredProvider(
 )
 
 /**
- * The validated external tools for a session: [declarations] to send to Gemini, [authorityByName] for invoke,
- * and [promptLines] for the system instruction (built in the same [parse] pass so names always match).
+ * The validated external tools for a session: [declarations] to send to Gemini and [authorityByName] for invoke.
+ * Nothing goes in the system instruction: each declaration says when to call it.
  */
-data class ExternalTools(
-    val declarations: List<JSONObject>,
-    val authorityByName: Map<String, String>,
-    val promptLines: List<String> = emptyList(),
-)
+data class ExternalTools(val declarations: List<JSONObject>, val authorityByName: Map<String, String>)
 
 /**
  * Pure policy turning discovered providers + the user allowlist into the external tools the assistant will
@@ -30,8 +26,8 @@ data class ExternalTools(
  *    `portal.*` squatting a built-in) is dropped;
  *  - **shape**: a declaration missing a non-blank `description` or a `parameters` object is dropped, so
  *    Gemini never sees junk;
- *  - **summary**: a provider missing a non-blank [ToolContract.META_SUMMARY] contributes nothing (no
- *    declarations, no prompt line — same rule as Settings);
+ *  - **summary**: a provider missing a non-blank [ToolContract.META_SUMMARY] contributes no declarations (same
+ *    rule as Settings, whose row shows it);
  *  - **collisions**: providers are processed in package-name order, the first claim of a name wins, the
  *    rest are dropped — so the result never varies run-to-run.
  *
@@ -50,28 +46,20 @@ object ExternalToolSpec {
             .filter { it.pkg in enabledPkgs }
             .sortedBy { it.pkg } // deterministic collision order
             .forEach(collected::addProvider)
-        val promptLines = collected.toolsByPkg.keys.sorted().map { pkg ->
-            val names = collected.toolsByPkg.getValue(pkg).joinToString(", ")
-            "- ${collected.summariesByPkg.getValue(pkg)} Tools: $names."
-        }
-        return ExternalTools(collected.declarations, collected.authorityByName, promptLines)
+        return ExternalTools(collected.declarations, collected.authorityByName)
     }
 
     /** One [parse] pass's accepted tools, filled provider by provider in collision order. */
     private class Collected(private val onDropped: (String) -> Unit) {
         val declarations = mutableListOf<JSONObject>()
         val authorityByName = LinkedHashMap<String, String>()
-        val toolsByPkg = LinkedHashMap<String, MutableList<String>>()
-        val summariesByPkg = LinkedHashMap<String, String>()
         private val winnerPkg = HashMap<String, String>()
 
         fun addProvider(provider: DiscoveredProvider) {
-            val summary = provider.summary?.trim()?.takeIf { it.isNotEmpty() }
-            if (summary == null) {
+            if (provider.summary.isNullOrBlank()) {
                 onDropped("provider ${provider.pkg}: missing ${ToolContract.META_SUMMARY}")
                 return
             }
-            summariesByPkg.putIfAbsent(provider.pkg, summary)
             val array = runCatching { JSONArray(provider.declarationsJson.orEmpty()) }.getOrNull()
             if (array == null) {
                 onDropped("provider ${provider.pkg}: declarations not a JSON array")
@@ -98,7 +86,6 @@ object ExternalToolSpec {
             declarations.add(decl)
             authorityByName[name] = provider.authority
             winnerPkg[name] = provider.pkg
-            toolsByPkg.getOrPut(provider.pkg) { mutableListOf() }.add(name)
         }
 
         /** Why [decl] (named [name], from [pkg]) is dropped, or null when it is accepted. */

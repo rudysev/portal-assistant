@@ -50,8 +50,6 @@ class ToolRunner(
 
     fun declarations(): List<JSONObject> = toolSet.declarations()
 
-    fun externalPromptLines(): List<String> = toolSet.externalPromptLines()
-
     /** Start one batch: [calls] run in order on the tool executor; [onResults] gets the ordered list, once. */
     fun run(calls: List<FunctionCall>, onResults: (List<ToolResult>) -> Unit) {
         if (disposed) return

@@ -66,10 +66,9 @@ class ExternalToolSpecTest {
         val p = provider("com.example.lights", decl("com.example.lights.set_light"), summary = "")
         val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
         assertTrue(r.declarations.isEmpty())
-        assertTrue(r.promptLines.isEmpty())
     }
 
-    @Test fun promptLinesListToolNamesFromDeclarations() {
+    @Test fun everyValidDeclarationIsKeptInOrder() {
         val p = provider("com.example.lights", decl("com.example.lights.a"), decl("com.example.lights.b"))
         val r = ExternalToolSpec.parse(listOf(p), enabledPkgs = setOf("com.example.lights"))
         assertEquals(
@@ -77,10 +76,6 @@ class ExternalToolSpecTest {
             r.declarations.map {
                 it.optString("name")
             },
-        )
-        assertEquals(
-            listOf("- Test provider. Tools: com.example.lights.a, com.example.lights.b."),
-            r.promptLines,
         )
     }
 
@@ -107,16 +102,5 @@ class ExternalToolSpecTest {
         assertEquals("dev.aaa.app.tools", r1.authorityByName["shared.tool"])
         assertEquals(r1.authorityByName, r2.authorityByName) // input order doesn't matter
         assertEquals(1, r1.declarations.size)
-        assertEquals(listOf("- AAA. Tools: shared.tool."), r1.promptLines)
-    }
-
-    @Test fun promptLinesAreOrderedByPackageName() {
-        val kasa = provider("com.portal.kasa", decl("com.portal.kasa.set_plug"), summary = "Plugs.")
-        val calendar = provider("com.portal.calendar", decl("com.portal.calendar.add_event"), summary = "Calendar.")
-        val r = ExternalToolSpec.parse(listOf(kasa, calendar), enabledPkgs = setOf(kasa.pkg, calendar.pkg))
-        assertEquals(
-            listOf("- Calendar. Tools: com.portal.calendar.add_event.", "- Plugs. Tools: com.portal.kasa.set_plug."),
-            r.promptLines,
-        )
     }
 }
