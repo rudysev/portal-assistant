@@ -7,14 +7,7 @@ class AdjustVolumeTool(private val volume: VolumeController) : Tool {
 
     override val name = "portal.adjust_volume"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.adjust_volume",
-           "description":"Raise or lower the speaker volume by one step (for 'louder'/'quieter'/'turn it up/down'). For a specific level use portal.set_volume.",
-           "parameters":{"type":"OBJECT",
-             "properties":{
-               "direction":{"type":"STRING","description":"'up' or 'down'."}},
-             "required":["direction"]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         val raise = when (args.optString("direction").trim().lowercase()) {
@@ -23,5 +16,16 @@ class AdjustVolumeTool(private val volume: VolumeController) : Tool {
             else -> return ToolOutput.error("direction must be up or down")
         }
         return ToolOutput(volume.adjust(raise).toJson())
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.adjust_volume",
+               "description":"Raise or lower the speaker volume by one step (for 'louder'/'quieter'/'turn it up/down'). For a specific level use portal.set_volume.",
+               "parameters":{"type":"OBJECT",
+                 "properties":{
+                   "direction":{"type":"STRING","description":"'up' or 'down'."}},
+                 "required":["direction"]}}"""
     }
 }

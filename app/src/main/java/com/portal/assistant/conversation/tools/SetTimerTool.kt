@@ -8,15 +8,7 @@ class SetTimerTool(private val scheduler: TimerScheduler) : Tool {
 
     override val name = "portal.set_timer"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.set_timer",
-           "description":"Start a countdown timer that chimes when it ends.",
-           "parameters":{"type":"OBJECT",
-             "properties":{
-               "duration_seconds":{"type":"NUMBER","description":"Countdown length in seconds, converted from the user's phrasing (1 to 86400)."},
-               "label":{"type":"STRING","description":"Optional name, e.g. 'pasta', so it can be listed or cancelled by name."}},
-             "required":["duration_seconds"]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         // optDouble + round so a float duration (e.g. 30.7) isn't silently truncated by optInt.
@@ -30,5 +22,17 @@ class SetTimerTool(private val scheduler: TimerScheduler) : Tool {
                 .put("label", entry.label)
                 .put("duration_seconds", entry.durationSec),
         )
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.set_timer",
+               "description":"Start a countdown timer that chimes when it ends.",
+               "parameters":{"type":"OBJECT",
+                 "properties":{
+                   "duration_seconds":{"type":"NUMBER","description":"Countdown length in seconds, converted from the user's phrasing (1 to 86400)."},
+                   "label":{"type":"STRING","description":"Optional name, e.g. 'pasta', so it can be listed or cancelled by name."}},
+                 "required":["duration_seconds"]}}"""
     }
 }

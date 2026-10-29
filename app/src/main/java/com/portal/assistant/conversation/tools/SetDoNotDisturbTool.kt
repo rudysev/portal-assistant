@@ -7,17 +7,21 @@ class SetDoNotDisturbTool(private val dnd: DoNotDisturbController) : Tool {
 
     override val name = "portal.set_do_not_disturb"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.set_do_not_disturb",
-           "description":"Turn Do Not Disturb on or off. It stays in that state until changed again.",
-           "parameters":{"type":"OBJECT",
-             "properties":{
-               "enabled":{"type":"BOOLEAN","description":"true to turn Do Not Disturb on, false to turn it off."}},
-             "required":["enabled"]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         if (!args.has("enabled")) return ToolOutput.error("enabled required")
         return ToolOutput(dnd.setEnabled(args.optBoolean("enabled")))
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.set_do_not_disturb",
+               "description":"Turn Do Not Disturb on or off.",
+               "parameters":{"type":"OBJECT",
+                 "properties":{
+                   "enabled":{"type":"BOOLEAN","description":"true to turn Do Not Disturb on, false to turn it off."}},
+                 "required":["enabled"]}}"""
     }
 }
