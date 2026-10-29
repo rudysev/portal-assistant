@@ -1,8 +1,8 @@
 package com.portal.assistant.system
 
 import com.portal.assistant.conversation.tools.lookup.Coordinates
-import com.portal.assistant.conversation.tools.lookup.Weather.Place
-import com.portal.assistant.conversation.tools.lookup.Weather.PlaceSearch
+import com.portal.assistant.conversation.tools.lookup.Place
+import com.portal.assistant.conversation.tools.lookup.PlaceSearch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

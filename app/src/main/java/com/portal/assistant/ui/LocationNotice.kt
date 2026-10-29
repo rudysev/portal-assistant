@@ -1,6 +1,6 @@
 package com.portal.assistant.ui
 
-import com.portal.assistant.conversation.tools.lookup.Weather.PlaceSearch
+import com.portal.assistant.conversation.tools.lookup.PlaceSearch
 
 /** What Settings says under Location once an override is saved: the resolved place, or that it wasn't found. */
 object LocationNotice {
