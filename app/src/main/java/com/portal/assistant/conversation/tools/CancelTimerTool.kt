@@ -7,15 +7,7 @@ class CancelTimerTool(private val scheduler: TimerScheduler) : Tool {
 
     override val name = "portal.cancel_timer"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.cancel_timer",
-           "description":"Cancel an active timer by id or label.",
-           "parameters":{"type":"OBJECT",
-             "properties":{
-               "id":{"type":"NUMBER","description":"The timer id from portal.list_timers (call it first if unsure)."},
-               "label":{"type":"STRING","description":"The timer name, e.g. 'pasta'."}},
-             "required":[]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         val id = if (args.has("id")) args.optInt("id") else null
@@ -26,5 +18,17 @@ class CancelTimerTool(private val scheduler: TimerScheduler) : Tool {
             cancelled?.let { JSONObject().put("cancelled", true).put("id", it.id).put("label", it.label) }
                 ?: JSONObject().put("error", "no matching timer"),
         )
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.cancel_timer",
+               "description":"Cancel an active timer by id or label.",
+               "parameters":{"type":"OBJECT",
+                 "properties":{
+                   "id":{"type":"NUMBER","description":"The timer id from portal.list_timers (call it first if unsure)."},
+                   "label":{"type":"STRING","description":"The timer name, e.g. 'pasta'."}},
+                 "required":[]}}"""
     }
 }

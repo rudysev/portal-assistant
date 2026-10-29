@@ -7,14 +7,7 @@ class AdjustBrightnessTool(private val brightness: BrightnessController) : Tool 
 
     override val name = "portal.adjust_brightness"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.adjust_brightness",
-           "description":"Raise or lower the display brightness by one step of about 15% (for 'brighter'/'dimmer'/'turn it up/down'). For a specific level use portal.set_brightness.",
-           "parameters":{"type":"OBJECT",
-             "properties":{
-               "direction":{"type":"STRING","description":"'up' or 'down'."}},
-             "required":["direction"]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         val up = when (args.optString("direction").trim().lowercase()) {
@@ -23,5 +16,16 @@ class AdjustBrightnessTool(private val brightness: BrightnessController) : Tool 
             else -> return ToolOutput.error("direction must be up or down")
         }
         return ToolOutput(brightness.adjust(up))
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.adjust_brightness",
+               "description":"Raise or lower the display brightness by one step of about 15% (for 'brighter'/'dimmer'/'turn it up/down'). For a specific level use portal.set_brightness.",
+               "parameters":{"type":"OBJECT",
+                 "properties":{
+                   "direction":{"type":"STRING","description":"'up' or 'down'."}},
+                 "required":["direction"]}}"""
     }
 }

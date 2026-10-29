@@ -8,11 +8,7 @@ class ListTimersTool(private val scheduler: TimerScheduler) : Tool {
 
     override val name = "portal.list_timers"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.list_timers",
-           "description":"List active timers with their remaining time. Use it when the user asks how much time is left; don't guess time left from the portal.set_timer response.",
-           "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput {
         val timers = scheduler.list()
@@ -27,5 +23,13 @@ class ListTimersTool(private val scheduler: TimerScheduler) : Tool {
             )
         }
         return ToolOutput(JSONObject().put("timers", arr))
+    }
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.list_timers",
+               "description":"List active timers with their remaining time. Use it when the user asks how much time is left, finding the timer they mean by its label; don't guess time left from the portal.set_timer response.",
+               "parameters":{"type":"OBJECT","properties":{},"required":[]}}"""
     }
 }

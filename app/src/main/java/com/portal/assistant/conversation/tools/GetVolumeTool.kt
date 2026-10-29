@@ -7,11 +7,15 @@ class GetVolumeTool(private val volume: VolumeController) : Tool {
 
     override val name = "portal.get_volume"
 
-    override val declaration: JSONObject = JSONObject(
-        """{"name":"portal.get_volume",
-           "description":"Get the current speaker volume (0-100%) and whether it is muted.",
-           "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
-    )
+    override val declaration: JSONObject = JSONObject(DECLARATION)
 
     override fun invoke(args: JSONObject): ToolOutput = ToolOutput(volume.current().toJson())
+
+    companion object {
+        /** The declared JSON, readable without the `Context` this tool's collaborator needs. */
+        const val DECLARATION =
+            """{"name":"portal.get_volume",
+               "description":"Get the current speaker volume (0-100%) and whether it is muted.",
+               "parameters":{"type":"OBJECT","properties":{},"required":[]}}"""
+    }
 }
