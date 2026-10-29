@@ -71,11 +71,17 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   **Lookups** (`conversation/Lookup.kt`, `Lookup.decide`: a model with Google Search → Google Search only; without
   → Weather, plus Web search with a Search key; Local → none — less any lookup whose tool isn't registered), the
   `BackendConfig` (Google Search asked for only when it's a Lookup; lookup tools declared only when decided) with
-  the finished session prompt (assembled here via pure `SessionPrompt`: built-in `SystemPrompt.build(lookups)` —
-  a line per Lookup, then one shared closing rule ("If you can't look it up, say 'I can't check that'"), then the
-  other built-in tools — + enabled external-provider bullets from the same `ExternalToolSpec.parse` pass as the tool
-  declarations + `SystemContext` time/location — override > IP-geo > unknown — + `ResumeContext` on a resume),
-  voice query (false only for a chip), Listening tone plays (setting on ∧ voice query) and first text.
+  the finished session prompt (assembled here via pure `SessionPrompt`, Markdown `#` sections in a fixed order, the
+  same text on every backend: built-in `SystemPrompt.build(lookups)` — `# Role and Objective` (Jarvis, the device,
+  how a conversation continues and ends), `# Personality and Tone` (answer length), `# Speaking` (spoken aloud:
+  no markdown, numbers as spoken, ask again when unclear) and `# Tools` (one shared lookup rule naming no tool, and
+  a Google Search line only when it's a Lookup) — then enabled external-provider bullets under `# Tools`, from the
+  same `ExternalToolSpec.parse` pass as the tool declarations, then `SystemContext`'s `# Device Context` (time at
+  conversation start; location — override > IP-geo > unknown — with no coordinates), then `ResumeContext`'s
+  `# Conversation So Far` on a resume, always last; the prompt keeps only cross-tool rules, and every per-tool rule
+  lives in that tool's declaration alone — when to call in the description, what to pass in the parameter, no
+  capitals for emphasis — so the two can't drift), voice query (false only for a chip), Listening tone plays
+  (setting on ∧ voice query) and first text.
   `refusalFor(choice)` is the **only** credential rule (blank credential → the backend's "isn't set up yet"
   notice); the engine asks it before it builds anything, and the idle home's setup nudge asks it too. No Android, no
   I/O, no clock reads — fully unit-tested (`ConversationOpeningTest`).
