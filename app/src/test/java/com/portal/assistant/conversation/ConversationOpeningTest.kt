@@ -3,6 +3,7 @@ package com.portal.assistant.conversation
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.lookup.LookupHttp
 import com.portal.assistant.conversation.tools.lookup.Weather
+import com.portal.assistant.conversation.tools.lookup.WebSearch
 import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.DeviceLocation
@@ -293,6 +294,34 @@ class ConversationOpeningTest {
         assertFalse(on25.sessionPrompt.contains("portal.get_weather"))
     }
 
+    @Test fun gemini38WithASearchKeyDeclaresWebSearchWithItsPromptLineAndOtherwiseItIsNeither() {
+        // The real lookup declarations, as the tool registry registers them, against the real Model catalog.
+        val weather = Weather(LookupHttp { error("not called") }, { error("not called") }, { Locale.US }, { 0L })
+        val webSearch = WebSearch(LookupHttp { error("not called") }) { error("not called") }
+        val registered = listOf(getTime, weather.declaration, webSearch.declaration)
+        fun openOn(modelId: String, searchKey: Boolean) = open(
+            Trigger.MicTap,
+            inputs().copy(
+                modelId = modelId,
+                modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+                searchKeyPresent = searchKey,
+                toolDeclarations = registered,
+            ),
+        )
+
+        val withKey = openOn("gemini-3.8-live", searchKey = true)
+        assertEquals(listOf("portal.get_time", "portal.get_weather", "portal.web_search"), declaredNames(withKey))
+        assertTrue(withKey.sessionPrompt.contains(WEB_SEARCH_LINE))
+
+        for ((label, opening) in listOf(
+            "3.8 without a key" to openOn("gemini-3.8-live", searchKey = false),
+            "2.5 with a key" to openOn(GeminiModel.DEFAULT.id, searchKey = true),
+        )) {
+            assertFalse(label, "portal.web_search" in declaredNames(opening))
+            assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
+        }
+    }
+
     @Test fun theLocalBackendGetsNoLookupsWhateverTheModelOrSearchKey() {
         for (googleSearch in listOf(true, false)) {
             for (searchKey in listOf(true, false)) {
@@ -373,6 +402,9 @@ class ConversationOpeningTest {
                 "recent events). Base answers on results.\n"
         const val WEATHER_LINE =
             "- Weather (portal.get_weather): Use for weather and forecasts. Omit location for here.\n"
+        const val WEB_SEARCH_LINE =
+            "- Web search (portal.web_search): Use for other live info (news, scores, prices, hours, recent " +
+                "events). Set topic news/finance when it fits. Base answers on results.\n"
         const val CLOSING_RULE = "If you can't look it up, say 'I can't check that' — never guess."
     }
 }

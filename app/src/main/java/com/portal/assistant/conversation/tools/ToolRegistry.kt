@@ -6,9 +6,11 @@ import com.portal.assistant.audio.Hush
 import com.portal.assistant.conversation.tools.lookup.Here
 import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
 import com.portal.assistant.conversation.tools.lookup.Weather
+import com.portal.assistant.conversation.tools.lookup.WebSearch
 import com.portal.assistant.conversation.tools.music.AndroidMediaSessions
 import com.portal.assistant.conversation.tools.music.AndroidMusicApps
 import com.portal.assistant.conversation.tools.music.Music
+import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.commons.DebugLog
 import org.json.JSONObject
@@ -49,6 +51,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         locale = { Locale.getDefault() },
         nowMs = { SystemClock.elapsedRealtime() },
     )
+    private val webSearch = WebSearch(OkHttpLookupHttp()) { AppPrefs.searchKey(appContext) }
     private val external = ExternalToolProvider(appContext)
 
     // Music builds the **music commands** play_music, media_control and set_repeat (final when they work; a pause
@@ -73,8 +76,10 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         music.playMusic,
         OpenAppTool(appLauncher),
         EndConversationTool,
-        // A Lookup: declared only when the opening decides on it (a model without Google Search).
+        // Lookups: declared only when the opening decides on them (a model without Google Search; Web search also
+        // needs a Search key).
         weather,
+        webSearch,
     )
 
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }

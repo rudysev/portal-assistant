@@ -173,7 +173,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
   to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**), and the Lookup
-  `portal.get_weather` (**Weather**, below; registered always, declared only when the opening decides on it). **Music**
+  `portal.get_weather` (**Weather**) and `portal.web_search` (**Web search**) (both below; registered always,
+  declared only when the opening decides on them). **Music**
   (`conversation/tools/music/Music`, built by `ToolRegistry` per conversation) hands the registry its four tools,
   `play_music`, `media_control`, `set_repeat` and `now_playing`, and builds every result itself (session picking
   `MediaSelection`, routing `MediaRouting`, all JSON). It reaches the device only through two ports, each with an
@@ -231,7 +232,14 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   check. The bound is the tool's, not the conversation's (the two client timers are unchanged). `findPlace(name)`
   is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save.
   Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
-  (`WeatherTest`).
+  (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance)`, never a
+  final turn) uses Tavily `POST api.tavily.com/search` with the Search key (`AppPrefs.searchKey`, read when the tool
+  runs) as bearer auth: `search_depth=basic` (1 credit), `include_answer=basic`, `max_results=3`, the model's
+  `topic` passed through (anything else → `general`). The result is `{"answer", "sources":[{"title","snippet"}]}`:
+  no URLs, each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to
+  `SNIPPET_MAX_CHARS` (300) with an ellipsis; no answer (null or empty) → the sources alone. One request bounded by
+  `WebSearch.TIMEOUT_MS` (5 s, provisional). No key, an empty query, an HTTP status, a malformed body, a timeout or
+  no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —
@@ -259,7 +267,7 @@ session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Tran
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
 `TimerScheduler` + the observable `TimerStore`, `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
 and Android adapters, and `tools/lookup/` = the Lookups (the `LookupHttp` port + `OkHttpLookupHttp`, `Weather`,
-`WeatherCodes`; `SearchKeyCheck`: the Search key's Save & verify);
+`WeatherCodes`, `WebSearch`; `SearchKeyCheck`: the Search key's Save & verify);
 `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `ProvisionedKey` (import-once of the keys `setup.sh` stages), `LocationProvider`,
 `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
