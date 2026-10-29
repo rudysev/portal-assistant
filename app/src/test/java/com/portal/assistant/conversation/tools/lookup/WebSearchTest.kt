@@ -79,6 +79,18 @@ class WebSearchTest {
         )
     }
 
+    @Test fun anAnswerWithNoResultsComesBackWithNoSources() {
+        for (body in listOf(RESPONSE_ANSWER_ONLY, """{"answer":"Pike Place Market opens at 9 a.m."}""")) {
+            http.requests.clear()
+            http.onBody(SEARCH, body)
+
+            assertJson(
+                """{"answer":"Pike Place Market opens at 9 a.m.","sources":[]}""",
+                search("pike place market hours"),
+            )
+        }
+    }
+
     @Test fun aSnippetHasItsMarkdownAndLinksStrippedAndIsTrimmedToAboutThreeHundredChars() {
         http.onBody(SEARCH, RESPONSE_MARKDOWN_AND_LONG)
 
@@ -106,7 +118,7 @@ class WebSearchTest {
     }
 
     @Test fun aMalformedBodyIsAnError() {
-        for (body in listOf("<html>Bad gateway</html>", """{"answer":"x"}""", "")) {
+        for (body in listOf("<html>Bad gateway</html>", """{"answer":null}""", "")) {
             http.requests.clear()
             http.onBody(SEARCH, body)
             assertJson("""{"error":"search unavailable"}""", search("anything"))
@@ -175,6 +187,11 @@ class WebSearchTest {
               {"url":"https://www.pikeplacemarket.org/hours","title":"Pike Place Market hours",
                "content":"Open daily 9 a.m. to 6 p.m.","score":0.88,"raw_content":null,"id":"r1"}],
             "response_time":0.97,"usage":{"credits":1},"request_id":"0b7e2d14-6c3a-4f58-8e9d-1a2b3c4d5e6f"}"""
+
+        // Tavily gave an answer but no results.
+        const val RESPONSE_ANSWER_ONLY = """{"query":"pike place market hours",
+            "answer":"Pike Place Market opens at 9 a.m.","images":[],"results":[],
+            "response_time":0.81,"usage":{"credits":1},"request_id":"2d4f6a8c-1e3b-4d5f-9a7c-6b8e0f2a4c6e"}"""
 
         // topic=finance: a snippet carrying markdown (bold, a link, a heading) and one far over the snippet limit.
         const val RESPONSE_MARKDOWN_AND_LONG = """{"query":"aapl stock","answer":"","images":[],

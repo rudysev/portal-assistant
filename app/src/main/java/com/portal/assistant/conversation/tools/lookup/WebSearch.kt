@@ -14,8 +14,9 @@ import java.util.Locale
  * events), with the user's own Search key. Tavily `POST /search` behind [LookupHttp]: one basic search (1 credit)
  * for [MAX_RESULTS] results with Tavily's short answer, the model's `topic` passed through. The result is
  * `{"answer", "sources":[{"title","snippet"}]}`, sized for a voice model: no URLs, each snippet plain text of at
- * most [SNIPPET_MAX_CHARS]; with no answer, the sources alone. One request bounded by [TIMEOUT_MS]; every failure
- * is the tool's `{"error": …}`, so the model says it can't check. Pure: the Search key is read when the tool runs.
+ * most [SNIPPET_MAX_CHARS]; with no answer, the sources alone; with an answer and no results, no sources. One
+ * request bounded by [TIMEOUT_MS]; every failure is the tool's `{"error": …}`, so the model says it can't check.
+ * Pure: the Search key is read when the tool runs.
  */
 class WebSearch(private val http: LookupHttp, private val searchKey: () -> String?) : Tool {
 
@@ -70,9 +71,19 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
         }
     }
 
-    /** Tavily's answer, when it gave one, and each result's title and plain snippet; never a URL. */
+    /**
+     * Tavily's answer, when it gave one, and each result's title and plain snippet; never a URL. An answer with no
+     * results is still an answer (no sources); with neither, the body isn't one we can read.
+     */
     private fun result(body: JSONObject): JSONObject {
-        val results = body.getJSONArray("results")
+        val answer = body.optString("answer").takeUnless { body.isNull("answer") }?.let(::plain)
+        val results = if (body.isNull("results") &&
+            !answer.isNullOrEmpty()
+        ) {
+            JSONArray()
+        } else {
+            body.getJSONArray("results")
+        }
         val sources = JSONArray()
         for (i in 0 until results.length()) {
             val result = results.getJSONObject(i)
@@ -82,7 +93,6 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
                     .put("snippet", snippet(result.getString("content"))),
             )
         }
-        val answer = body.optString("answer").takeUnless { body.isNull("answer") }?.let(::plain)
         return JSONObject().apply { if (!answer.isNullOrEmpty()) put("answer", answer) }.put("sources", sources)
     }
 
