@@ -37,7 +37,7 @@ class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, pr
                "topic":{"type":"STRING","enum":["general","news","finance"],
                  "description":"news for current events, finance for markets and prices, else general."},
                "time_range":{"type":"STRING","enum":["day","week","month","year","any"],
-                 "description":"How recent the results must be. day: what happened today or last night. week: the latest game or result, the latest on a story. month / year: this month / this year. any: prices and quotes, opening hours, facts, how-tos, older events."}},
+                 "description":"How recent the pages must be, by the kind of answer, not by words like 'now' or 'today'. any: a price or quote, opening hours, a fact, a how-to, an older event (those pages are kept current). day: what happened today or last night. week: the latest game or result, the latest on a story. month / year: this month / this year."}},
              "required":["query","time_range"]}}""",
     )
 

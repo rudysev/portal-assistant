@@ -108,16 +108,16 @@ class BuiltinDeclarationsTest {
         for (text in music.playMusic.declaration.descriptions()) assertFalse(text, text.contains("Spotify Free"))
     }
 
-    @Test fun webSearchRequiresATimeRangeThatPutsAnyOnPricesHoursAndFacts() {
+    @Test fun webSearchRequiresATimeRangeChosenByTheKindOfAnswer() {
         val webSearch = WebSearch(noHttp, { error("not called") }) { error("not called") }.declaration
         val parameters = webSearch.getJSONObject("parameters")
         assertEquals(listOf("query", "time_range"), parameters.getJSONArray("required").strings())
         val ranges = parameters.getJSONObject("properties").getJSONObject("time_range").getJSONArray("enum")
         assertEquals(listOf("day", "week", "month", "year", "any"), ranges.strings())
         val timeRange = webSearch.param("time_range")
+        assertTrue(timeRange.contains("by the kind of answer, not by words like 'now' or 'today'"))
+        assertTrue(timeRange.contains("any: a price or quote, opening hours, a fact, a how-to"))
         assertTrue(timeRange.contains("week: the latest game or result"))
-        assertTrue(timeRange.contains("any: prices and quotes, opening hours, facts, how-tos"))
-        assertFalse(timeRange, timeRange.contains("right now"))
         assertTrue(webSearch.param("query").contains("naming who or what"))
     }
 
