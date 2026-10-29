@@ -172,7 +172,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `portal.media_control`/`set_repeat` (repeat one/all/off on the active session, gated on the app advertising
   `ACTION_SET_REPEAT_MODE`)/`now_playing`, `portal.open_app` (launch an installed app by name — `AppLauncher` +
   pure `AppMatch`; app enumeration shared via `PackageCatalog.launchable`), `portal.end_conversation` (the user asked
-  to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**). **Music**
+  to end: its `ToolOutput` carries a final-turn instruction, making this turn a **final turn**), and the Lookup
+  `portal.get_weather` (**Weather**, below; registered always, declared only when the opening decides on it). **Music**
   (`conversation/tools/music/Music`, built by `ToolRegistry` per conversation) hands the registry its four tools,
   `play_music`, `media_control`, `set_repeat` and `now_playing`, and builds every result itself (session picking
   `MediaSelection`, routing `MediaRouting`, all JSON). It reaches the device only through two ports, each with an
@@ -211,6 +212,26 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   that settles with its own output is marked, so a call cancelled mid-run by a barge-in ends nothing even if its tool
   asked. Built per conversation by `create(context, deliver, hush)`; JVM-tested with a fake tool set and a
   hand-stepped executor (`ToolRunnerTest`).
+- `conversation/tools/lookup/` — **Jarvis's own Lookups** (ADR 0002), each a pure module behind one port,
+  **`LookupHttp`**: run one request (a GET with query, or a POST with a JSON body when `jsonBody` is set, plus
+  headers, bounded by the request's `timeoutMs`) and return `Body` (2xx), `Status(code, body)`, `TimedOut` or
+  `Failure`. The Android adapter `OkHttpLookupHttp` derives its client from `Http.shared` (sharing its pools) and sets
+  each call's OkHttp call timeout to `timeoutMs`; it logs each call's outcome and time to the debug log. Not
+  unit-tested; tests use `FakeLookupHttp` with recorded provider responses. **Weather** (`Weather`,
+  `portal.get_weather(location?, days? 1–7, default 1)`, never a final turn) uses Open-Meteo: geocoding
+  (`geocoding-api.open-meteo.com/v1/search`, `count=1`, the locale's language) for a named place, then the forecast
+  (`api.open-meteo.com/v1/forecast`: `current` temperature/feels-like/WMO code/wind, `daily` high/low/WMO
+  code/precipitation chance, `timezone=auto`, `forecast_days`), in °F + mph for a US-style locale (`Units`), else °C
+  + km/h. WMO codes become words (`WeatherCodes`, unknown → "unknown"). With no place named it's for **here**
+  (`Here`, read when the tool runs): the location override's stored coordinates, else the override text looked up on
+  each call (never written back; not found → an error, never the network's location), else the IP-geo
+  `DeviceLocation`, else `{"error":"location unknown"}`. **One deadline** (`Weather.DEADLINE_MS`, 5 s, provisional)
+  spans the place lookup and the forecast: each request gets what's left, none goes out once it's spent. Every
+  failure (not found, HTTP status, malformed body, timeout, offline) is `{"error": …}`, so the model says it can't
+  check. The bound is the tool's, not the conversation's (the two client timers are unchanged). `findPlace(name)`
+  is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save.
+  Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
+  (`WeatherTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —
@@ -237,7 +258,8 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
 `TimerScheduler` + the observable `TimerStore`, and `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
-and Android adapters; `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
+and Android adapters, and `tools/lookup/` = the `LookupHttp` port + `OkHttpLookupHttp`, `Weather`, `WeatherCodes`;
+`backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
 `system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
 `ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
 `TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
