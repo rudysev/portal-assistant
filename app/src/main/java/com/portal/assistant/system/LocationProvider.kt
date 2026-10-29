@@ -1,10 +1,15 @@
 package com.portal.assistant.system
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.core.content.edit
+import com.portal.assistant.conversation.tools.lookup.Here
+import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
+import com.portal.assistant.conversation.tools.lookup.Weather
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
 import okhttp3.Request
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -28,11 +33,43 @@ object LocationProvider {
         AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_JSON, null)?.let { Geolocation.parse(it) }
 
     /** Explicit user-set location override (free text), or null when only the IP-geo result is available. */
-    fun override(context: Context): String? =
-        AppPrefs.prefs(context).getString(AppPrefs.KEY_LOC_OVERRIDE, null)?.ifBlank { null }
+    fun override(context: Context): String? = storedOverride(context)?.text
 
-    fun setOverride(context: Context, place: String) {
-        AppPrefs.prefs(context).edit { putString(AppPrefs.KEY_LOC_OVERRIDE, place.trim()) }
+    /** The stored override with its coordinates when it was found on save; text-only otherwise (or saved before). */
+    fun storedOverride(context: Context): LocationOverride? {
+        val p = AppPrefs.prefs(context)
+        return LocationOverride.read(
+            p.getString(AppPrefs.KEY_LOC_OVERRIDE, null),
+            p.getString(AppPrefs.KEY_LOC_OVERRIDE_COORDS, null),
+        )
+    }
+
+    /** "Here" for Weather, read when the tool runs: the stored override (with its coordinates) and the IP-geo fix. */
+    fun here(context: Context): Here {
+        val override = storedOverride(context)
+        return Here(override?.text, override?.coordinates, current(context))
+    }
+
+    /**
+     * Save [place] as the override (Settings is its only writer): looks it up once through Weather's place lookup,
+     * then writes the text and its coordinates together, or the text alone (clearing any old coordinates) when it
+     * isn't found or can't be looked up. Blocking (network, up to [Weather.DEADLINE_MS]): call off the main thread.
+     */
+    fun saveOverride(context: Context, place: String): Weather.PlaceSearch {
+        val search = Weather(
+            OkHttpLookupHttp(),
+            here = { here(context) },
+            locale = { Locale.getDefault() },
+            nowMs = { SystemClock.elapsedRealtime() },
+        ).findPlace(place)
+        if (search is Weather.PlaceSearch.Failed) DebugLog.log("location override lookup failed: ${search.reason}")
+        val saved = LocationOverride.saved(place, search)
+        AppPrefs.prefs(context).edit {
+            putString(AppPrefs.KEY_LOC_OVERRIDE, saved.text)
+            saved.storedCoordinates?.let { putString(AppPrefs.KEY_LOC_OVERRIDE_COORDS, it) }
+                ?: remove(AppPrefs.KEY_LOC_OVERRIDE_COORDS)
+        }
+        return search
     }
 
     /** Human label for the Settings pre-fill: "City, Region" from the IP-geo cache, or null. */

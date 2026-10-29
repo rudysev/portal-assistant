@@ -41,7 +41,8 @@
   right after the backend/API-key sections, shown for both backends (the Listening tone switch —
   `AppPrefs.listeningToneEnabled`, default on; switching it on previews the tone via `ListeningTonePlayer`, off
   is silent, and no preview plays while a conversation is live — pure `ListeningTone.previewsOnSwitch`), location
-  override (with the linked "Weather data by Open-Meteo.com" credit beneath it; the link does nothing if no browser
+  override (Save looks the place up once, then says "Found <place>." or "Couldn't find that place — saved as
+  typed." — pure `LocationNotice.afterSave`; with the linked "Weather data by Open-Meteo.com" credit beneath it; the link does nothing if no browser
   can open it), default-music-app picker, external-tool toggles (shared `SettingsSwitchRow`).
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the

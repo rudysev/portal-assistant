@@ -230,7 +230,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   spans the place lookup and the forecast: each request gets what's left, none goes out once it's spent. Every
   failure (not found, HTTP status, malformed body, timeout, offline) is `{"error": …}`, so the model says it can't
   check. The bound is the tool's, not the conversation's (the two client timers are unchanged). `findPlace(name)`
-  is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save.
+  is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save:
+  `LocationProvider.saveOverride` (Settings the only writer) looks the text up once and writes it with its "lat,lon"
+  (`AppPrefs.KEY_LOC_OVERRIDE_COORDS`), or alone, clearing old coordinates, when not found or offline; pure
+  `system/LocationOverride` saves and reads the pair (an override saved before coordinates existed reads text-only).
   Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
   (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance)`, never a
   final turn) uses Tavily `POST api.tavily.com/search` with the Search key (`AppPrefs.searchKey`, read when the tool
