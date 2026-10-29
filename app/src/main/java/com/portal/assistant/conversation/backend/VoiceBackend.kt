@@ -66,6 +66,8 @@ data class BackendConfig(
     val kind: AppPrefs.VoiceBackendKind = AppPrefs.VoiceBackendKind.GEMINI,
     val gemini: GeminiWireOptions = GeminiWireOptions(),
     val local: LocalWireOptions = LocalWireOptions(),
+    /** Ask the model for its own Google Search — set by the opening's Lookups; Local ignores it. */
+    val googleSearch: Boolean = false,
 )
 
 /** Builds a [VoiceBackend] for a session. Swapping the model = swapping the factory in [Backends]. */

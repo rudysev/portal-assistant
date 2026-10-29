@@ -310,10 +310,10 @@ class SpeakerPreviewTest {
         assertFalse(setupOf(null).getJSONObject("generationConfig").has("speechConfig"))
     }
 
-    @Test fun previewSessionDeclaresNoFunctionsAndIntroducesJarvis() {
+    @Test fun previewSessionDeclaresNoToolsAndIntroducesJarvis() {
         val setup = setupOf(charon)
-        val tools = setup.getJSONArray("tools")
-        assertFalse((0 until tools.length()).any { tools.getJSONObject(it).has("functionDeclarations") })
+        // No functions and no Google Search: a preview has no Lookups.
+        assertFalse(setup.has("tools"))
         val instruction = setup.getJSONObject(
             "systemInstruction",
         ).getJSONArray("parts").getJSONObject(0).getString("text")

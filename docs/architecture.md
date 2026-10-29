@@ -64,11 +64,16 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   for a partial one, which starts nothing; `TriggerExtrasTest`). Pure `ConversationOpening.refusalFor(choice)` says
   whether the backend choice refuses, and
   pure `ConversationOpening.open(trigger, OpeningInputs)` says how a conversation it let through opens, as an
-  `Opening`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model, Chosen speaker,
-  Listening tone setting, `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt
-  lines); `Opening` is the transcript seed (fresh / resume with turns shown + replayed, within `RESUME_MAX_CHARS`),
-  the `BackendConfig` with the finished session prompt (assembled here via pure `SessionPrompt`: built-in
-  `SystemPrompt` + enabled external-provider bullets from the same `ExternalToolSpec.parse` pass as the tool
+  `Opening`: `OpeningInputs` is the plain-value snapshot the engine gathers (backend choice, model + whether it
+  offers Google Search (`Backends.offersGoogleSearch`), Search key present, Chosen speaker, Listening tone setting,
+  `now`, location override + IP-geo, on-screen turns, tool declarations + external prompt lines); `Opening` is the
+  transcript seed (fresh / resume with turns shown + replayed, within `RESUME_MAX_CHARS`), the conversation's
+  **Lookups** (`conversation/Lookup.kt`, `Lookup.decide`: a model with Google Search → Google Search only; without
+  → Weather, plus Web search with a Search key; Local → none — less any lookup whose tool isn't registered), the
+  `BackendConfig` (Google Search asked for only when it's a Lookup; lookup tools declared only when decided) with
+  the finished session prompt (assembled here via pure `SessionPrompt`: built-in `SystemPrompt.build(lookups)` —
+  a line per Lookup, then one shared closing rule ("If you can't look it up, say 'I can't check that'"), then the
+  other built-in tools — + enabled external-provider bullets from the same `ExternalToolSpec.parse` pass as the tool
   declarations + `SystemContext` time/location — override > IP-geo > unknown — + `ResumeContext` on a resume),
   voice query (false only for a chip), Listening tone plays (setting on ∧ voice query) and first text.
   `refusalFor(choice)` is the **only** credential rule (blank credential → the backend's "isn't set up yet"
@@ -144,9 +149,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
 - `gemini/GeminiModel.kt` — the Model catalog: id, name, and whether it offers Google Search. Gemini 2.5
   (`gemini-2.5-flash-native-audio-latest`, the default) does; Gemini 3.8 (`gemini-3.8-live`) doesn't.
-  `GeminiBackend.wireFormat` reads it via `GeminiModel.of`.
-- `gemini/GeminiWireFormat.kt` — Gemini Live's frames (the socket is the shared transport's). `googleSearch` on
-  a model that offers it (no empty `tools` array is ever sent), **plus function-calling**: the
+  The opening reads it via `Backends.offersGoogleSearch`; `GeminiBackend.wireFormat` follows
+  `BackendConfig.googleSearch`.
+- `gemini/GeminiWireFormat.kt` — Gemini Live's frames (the socket is the shared transport's). `googleSearch` when
+  the opening's Lookups include Google Search (no empty `tools` array is ever sent), **plus function-calling**: the
   `conversation/tools/` `ToolRegistry`'s `functionDeclarations` are sent in `setup`, and
   `toolCall`/`toolCallCancellation` are decoded and answered (`toolResults`). Built-in tools: `portal.get_time`,
   `portal.set_timer`/`list_timers`/`cancel_timer`, `portal.get_volume`/`set_volume`/`adjust_volume`/`set_mute`,

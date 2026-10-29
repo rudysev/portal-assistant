@@ -83,6 +83,9 @@ interface ConversationSink {
 interface OpeningReads {
     fun modelId(): String
 
+    /** A Search key is set. */
+    fun searchKeyPresent(): Boolean
+
     /** The Chosen speaker, or null for Server default. */
     fun speakerId(): String?
 

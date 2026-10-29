@@ -1,7 +1,9 @@
 package com.portal.assistant.conversation
 
 /**
- * Static system instruction sent to the voice backend at session setup.
+ * The system instruction's built-in part, sent to the voice backend at session setup: the role, then the tool usage
+ * rules — a line per [Lookup] the conversation has (and none for one it doesn't, so Jarvis never names a lookup it
+ * can't make), one shared closing rule for live information, then the other built-in tools.
  *
  * Tool **declarations** come from [com.portal.assistant.conversation.tools.ToolRegistry]. Every
  * declared tool runs on this device unless its description states otherwise — the backend may add
@@ -9,18 +11,35 @@ package com.portal.assistant.conversation
  */
 object SystemPrompt {
 
-    fun build(): String = "$ROLE\n\n$TOOL_USAGE_RULES"
+    fun build(lookups: Set<Lookup>): String {
+        val lookupLines = Lookup.entries.filter { it in lookups }.joinToString("") { lookupLine(it) }
+        return "$ROLE\n\n$TOOL_USAGE_HEADER$lookupLines$LOOKUP_CLOSING_RULE$BUILTIN_TOOL_RULES"
+    }
+
+    private fun lookupLine(lookup: Lookup): String = when (lookup) {
+        Lookup.GOOGLE_SEARCH ->
+            "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
+                "recent events). Base answers on results.\n"
+
+        Lookup.WEATHER ->
+            "- Weather (${lookup.toolName}): Use for weather and forecasts. Omit location for here.\n"
+
+        Lookup.WEB_SEARCH ->
+            "- Web search (${lookup.toolName}): Use for other live info (news, scores, prices, hours, recent " +
+                "events). Set topic news/finance when it fits. Base answers on results.\n"
+    }
 
     private const val ROLE =
         "Role: Warm, friendly display voice assistant. Never ask the user to say a wake word or " +
             "goodbye (walking away also ends the conversation)."
 
-    private const val TOOL_USAGE_RULES =
-        "Tool Usage Rules:\n" +
-            "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, " +
-            "hours, recent events). Base answers on results. If you can't find it, say 'I can't check " +
-            "that' — never guess.\n" +
-            "- Time/Date: Use portal.get_time.\n" +
+    private const val TOOL_USAGE_HEADER = "Tool Usage Rules:\n"
+
+    private const val LOOKUP_CLOSING_RULE =
+        "- Lookups: If you can't look it up, say 'I can't check that' — never guess.\n"
+
+    private const val BUILTIN_TOOL_RULES =
+        "- Time/Date: Use portal.get_time.\n" +
             "- Timers: Use portal.set_timer (convert phrasing to duration_seconds; pass name as label, " +
             "e.g. 'pasta') and portal.cancel_timer (by label). Use portal.list_timers to check remaining " +
             "time (match by label); never guess time left from the set_timer response.\n" +

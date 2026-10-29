@@ -215,7 +215,94 @@ class ConversationOpeningTest {
         assertEquals(AppPrefs.VoiceBackendKind.LOCAL, config.kind)
     }
 
+    // --- Lookups: decided at opening; the declared tools and the prompt lines both follow ---
+
+    @Test fun aModelWithGoogleSearchGetsGoogleSearchOnlyWithOrWithoutASearchKey() {
+        for (searchKey in listOf(true, false)) {
+            val label = "searchKey=$searchKey"
+            val opening = open(Trigger.MicTap, lookupInputs(googleSearch = true, searchKey = searchKey))
+            assertEquals(label, setOf(Lookup.GOOGLE_SEARCH), opening.lookups)
+            assertTrue(label, opening.backendConfig.googleSearch)
+            assertEquals(label, listOf("portal.get_time"), declaredNames(opening))
+            assertTrue(label, opening.sessionPrompt.contains(GOOGLE_SEARCH_LINE))
+            assertFalse(label, opening.sessionPrompt.contains("portal.get_weather"))
+            assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
+            assertTrue(label, opening.sessionPrompt.contains(CLOSING_RULE))
+        }
+    }
+
+    @Test fun aModelWithoutGoogleSearchAndASearchKeyGetsWeatherAndWebSearch() {
+        val opening = open(Trigger.MicTap, lookupInputs(googleSearch = false, searchKey = true))
+        assertEquals(setOf(Lookup.WEATHER, Lookup.WEB_SEARCH), opening.lookups)
+        assertFalse(opening.backendConfig.googleSearch)
+        assertEquals(listOf("portal.get_time", "portal.get_weather", "portal.web_search"), declaredNames(opening))
+        assertFalse(opening.sessionPrompt.contains("Google Search"))
+        assertTrue(opening.sessionPrompt.contains("- Weather (portal.get_weather):"))
+        assertTrue(opening.sessionPrompt.contains("- Web search (portal.web_search):"))
+        assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
+    }
+
+    @Test fun aModelWithoutGoogleSearchAndNoSearchKeyGetsWeatherOnly() {
+        val opening = open(Trigger.MicTap, lookupInputs(googleSearch = false, searchKey = false))
+        assertEquals(setOf(Lookup.WEATHER), opening.lookups)
+        assertFalse(opening.backendConfig.googleSearch)
+        assertEquals(listOf("portal.get_time", "portal.get_weather"), declaredNames(opening))
+        assertFalse(opening.sessionPrompt.contains("Google Search"))
+        assertTrue(opening.sessionPrompt.contains("- Weather (portal.get_weather):"))
+        assertFalse(opening.sessionPrompt.contains("portal.web_search"))
+        assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
+    }
+
+    @Test fun aLookupWhoseToolIsNotRegisteredIsNeitherDeclaredNorNamed() {
+        // Until its tool is registered, a model without Google Search has no lookup: only the closing rule.
+        val opening = open(
+            Trigger.MicTap,
+            lookupInputs(googleSearch = false, searchKey = true).copy(toolDeclarations = listOf(getTime)),
+        )
+        assertEquals(emptySet<Lookup>(), opening.lookups)
+        assertEquals(listOf("portal.get_time"), declaredNames(opening))
+        assertFalse(opening.sessionPrompt.contains("Google Search"))
+        assertFalse(opening.sessionPrompt.contains("portal.get_weather"))
+        assertFalse(opening.sessionPrompt.contains("portal.web_search"))
+        assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
+    }
+
+    @Test fun theLocalBackendGetsNoLookupsWhateverTheModelOrSearchKey() {
+        for (googleSearch in listOf(true, false)) {
+            for (searchKey in listOf(true, false)) {
+                val label = "googleSearch=$googleSearch searchKey=$searchKey"
+                val opening = open(
+                    Trigger.MicTap,
+                    lookupInputs(googleSearch, searchKey).copy(backendChoice = localChoice("wss://192.168.1.5:8080")),
+                )
+                assertEquals(label, emptySet<Lookup>(), opening.lookups)
+                assertFalse(label, opening.backendConfig.googleSearch)
+                assertEquals(label, listOf("portal.get_time"), declaredNames(opening))
+                assertFalse(label, opening.sessionPrompt.contains("Google Search"))
+                assertFalse(label, opening.sessionPrompt.contains("portal.get_weather"))
+                assertFalse(label, opening.sessionPrompt.contains("portal.web_search"))
+                assertTrue(label, opening.sessionPrompt.contains(CLOSING_RULE))
+            }
+        }
+    }
+
     // --- helpers ---
+
+    private val getTime = JSONObject().put("name", "portal.get_time")
+
+    /** Every tool registered, both lookup tools included, so only the opening decides which are declared. */
+    private fun lookupInputs(googleSearch: Boolean, searchKey: Boolean) = inputs().copy(
+        modelGoogleSearch = googleSearch,
+        searchKeyPresent = searchKey,
+        toolDeclarations = listOf(
+            getTime,
+            JSONObject().put("name", "portal.get_weather"),
+            JSONObject().put("name", "portal.web_search"),
+        ),
+    )
+
+    private fun declaredNames(opening: Opening) =
+        opening.backendConfig.functionDeclarations.map { it.getString("name") }
 
     private val seattle = DeviceLocation("Seattle", "Washington", "United States", lat = 47.6062, lon = -122.3321)
 
@@ -242,6 +329,8 @@ class ConversationOpeningTest {
     private fun inputs() = OpeningInputs(
         backendChoice = geminiChoice(apiKey = "user-key"),
         modelId = "gemini-2.5-flash-native-audio-latest",
+        modelGoogleSearch = true,
+        searchKeyPresent = false,
         speakerId = null,
         listeningToneEnabled = true,
         now = ZonedDateTime.of(2026, 10, 21, 9, 30, 0, 0, ZoneId.of("America/Los_Angeles")),
@@ -251,4 +340,11 @@ class ConversationOpeningTest {
         toolDeclarations = emptyList(),
         externalPromptLines = emptyList(),
     )
+
+    private companion object {
+        const val GOOGLE_SEARCH_LINE =
+            "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
+                "recent events). Base answers on results.\n"
+        const val CLOSING_RULE = "If you can't look it up, say 'I can't check that' — never guess."
+    }
 }

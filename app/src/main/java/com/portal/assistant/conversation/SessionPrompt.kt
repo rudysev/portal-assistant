@@ -4,7 +4,7 @@ package com.portal.assistant.conversation
  * Pure assembly of the session system instruction sent to the voice backend at connect time.
  *
  * Layers (in order):
- * 1. [SystemPrompt] — role + built-in tool usage rules
+ * 1. [SystemPrompt] — role + built-in tool usage rules, with the lines of the conversation's Lookups
  * 2. [ExternalToolPrompt] — enabled external-provider guidance (when any)
  * 3. [SystemContext] — device clock/location snapshot
  * 4. [ResumeContext] — prior transcript on a mic-tap resume (when any)
@@ -16,7 +16,7 @@ package com.portal.assistant.conversation
 object SessionPrompt {
 
     fun build(
-        builtinRules: String = SystemPrompt.build(),
+        builtinRules: String,
         externalToolLines: List<String>,
         deviceContextLines: List<String>,
         resumeTurns: List<Turn> = emptyList(),

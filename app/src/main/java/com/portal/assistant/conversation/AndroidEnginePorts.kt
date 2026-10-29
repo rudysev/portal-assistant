@@ -170,6 +170,9 @@ internal class HubSink(
 internal class PrefsOpeningReads(private val appContext: Context) : OpeningReads {
     override fun modelId(): String = AppPrefs.modelId(appContext)
 
+    // No Search key storage yet (the Search key ticket adds it): read as absent until then.
+    override fun searchKeyPresent(): Boolean = false
+
     override fun speakerId(): String? = AppPrefs.speakerId(appContext)
 
     override fun listeningToneEnabled(): Boolean = AppPrefs.listeningToneEnabled(appContext)
