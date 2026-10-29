@@ -290,7 +290,7 @@ class ConversationOpeningTest {
     @Test fun gemini38WithASearchKeyDeclaresWebSearchAndOtherwiseItIsNot() {
         // The real lookup declarations, as the tool registry registers them, against the real Model catalog.
         val weather = Weather(LookupHttp { error("not called") }, { error("not called") }, { Locale.US }, { 0L })
-        val webSearch = WebSearch(LookupHttp { error("not called") }) { error("not called") }
+        val webSearch = WebSearch(LookupHttp { error("not called") }, { error("not called") }) { error("not called") }
         val registered = listOf(getTime, weather.declaration, webSearch.declaration)
         fun openOn(modelId: String, searchKey: Boolean) = open(
             Trigger.MicTap,

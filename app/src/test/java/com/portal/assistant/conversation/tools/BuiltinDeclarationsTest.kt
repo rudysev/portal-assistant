@@ -48,7 +48,7 @@ class BuiltinDeclarationsTest {
         music.setRepeat,
         music.nowPlaying,
         Weather(noHttp, { error("not called") }, { Locale.US }, { 0L }),
-        WebSearch(noHttp) { error("not called") },
+        WebSearch(noHttp, { error("not called") }) { error("not called") },
     ).map { it.declaration } + contextBacked.map { JSONObject(it) }
 
     private fun JSONObject.description() = getString("description")

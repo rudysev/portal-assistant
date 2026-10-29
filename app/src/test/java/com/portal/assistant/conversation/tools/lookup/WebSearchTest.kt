@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.ZoneId
 
 /**
  * Pure JVM tests for **Web search** at the `Tool` seam, behind a fake [LookupHttp] answering with recorded Tavily
@@ -16,17 +17,17 @@ class WebSearchTest {
     private val http = FakeLookupHttp()
     private var searchKey: String? = KEY
 
-    private fun invoke(args: JSONObject): ToolOutput = WebSearch(http.port, searchKey = { searchKey }).invoke(args)
+    private fun invoke(args: JSONObject): ToolOutput =
+        WebSearch(http.port, zone = { ZONE }, searchKey = { searchKey }).invoke(args)
 
     private fun search(query: String, topic: String? = null) =
         invoke(JSONObject().put("query", query).apply { if (topic != null) put("topic", topic) })
 
-    @Test fun theAnswerAndEachSourcesTitleAndSnippetComeBackWithNoUrls() {
+    @Test fun eachSourcesTitleAndSnippetComeBackWithNoUrlsAndNeverTavilysAnswer() {
         http.onBody(SEARCH, RESPONSE_WITH_ANSWER)
 
         assertJson(
-            """{"answer":"The Seattle Mariners beat the Houston Astros 5-3 on October 27, 2026.",
-               "sources":[
+            """{"sources":[
                  {"title":"Mariners top Astros 5-3",
                   "snippet":"Cal Raleigh homered twice as Seattle beat Houston 5-3 on Tuesday night."},
                  {"title":"Astros vs. Mariners box score",
@@ -36,7 +37,7 @@ class WebSearchTest {
         )
     }
 
-    @Test fun oneBasicSearchForThreeResultsWithAnAnswerIsAskedForWithTheSearchKeyAsBearerAuth() {
+    @Test fun oneBasicSearchForFiveResultsWithNoAnswerIsAskedForWithTheSearchKeyAsBearerAuth() {
         http.onBody(SEARCH, RESPONSE_WITH_ANSWER)
 
         search("  mariners score last night ")
@@ -46,8 +47,8 @@ class WebSearchTest {
         val body = JSONObject(checkNotNull(request.jsonBody))
         assertEquals("mariners score last night", body.getString("query"))
         assertEquals("basic", body.getString("search_depth"))
-        assertEquals("basic", body.getString("include_answer"))
-        assertEquals(3, body.getInt("max_results"))
+        assertEquals(false, body.has("include_answer"))
+        assertEquals(5, body.getInt("max_results"))
         assertEquals(WebSearch.TIMEOUT_MS, request.timeoutMs)
     }
 
@@ -70,25 +71,22 @@ class WebSearchTest {
         }
     }
 
-    @Test fun withNoAnswerTheSourcesComeBackAlone() {
-        http.onBody(SEARCH, RESPONSE_WITHOUT_ANSWER)
+    @Test fun aSourcesPublishedDateComesBackInTheDevicesZoneAndIsLeftOutWhenMissingOrUnreadable() {
+        http.onBody(SEARCH, RESPONSE_NEWS)
 
-        assertJson(
-            """{"sources":[{"title":"Pike Place Market hours","snippet":"Open daily 9 a.m. to 6 p.m."}]}""",
-            search("pike place market hours"),
-        )
+        val sources = search("Golden State Warriors game score last night", topic = "news")
+            .response.getJSONArray("sources")
+
+        assertEquals("2026-10-28 20:00", sources.getJSONObject(0).getString("published"))
+        assertEquals("2026-10-28 13:00", sources.getJSONObject(1).getString("published"))
+        assertEquals(false, sources.getJSONObject(2).has("published"))
+        assertEquals(false, sources.getJSONObject(3).has("published"))
     }
 
-    @Test fun anAnswerWithNoResultsComesBackWithNoSources() {
-        for (body in listOf(RESPONSE_ANSWER_ONLY, """{"answer":"Pike Place Market opens at 9 a.m."}""")) {
-            http.requests.clear()
-            http.onBody(SEARCH, body)
+    @Test fun noResultsComeBackAsNoSources() {
+        http.onBody(SEARCH, RESPONSE_NO_RESULTS)
 
-            assertJson(
-                """{"answer":"Pike Place Market opens at 9 a.m.","sources":[]}""",
-                search("pike place market hours"),
-            )
-        }
+        assertJson("""{"sources":[]}""", search("pike place market hours"))
     }
 
     @Test fun aSnippetHasItsMarkdownAndLinksStrippedAndIsTrimmedToAboutThreeHundredChars() {
@@ -118,7 +116,7 @@ class WebSearchTest {
     }
 
     @Test fun aMalformedBodyIsAnError() {
-        for (body in listOf("<html>Bad gateway</html>", """{"answer":null}""", "")) {
+        for (body in listOf("<html>Bad gateway</html>", """{"answer":"An answer, no results."}""", "")) {
             http.requests.clear()
             http.onBody(SEARCH, body)
             assertJson("""{"error":"search unavailable"}""", search("anything"))
@@ -165,8 +163,10 @@ class WebSearchTest {
     private companion object {
         const val SEARCH = "https://api.tavily.com/search"
         const val KEY = "tvly-dev-abc123"
+        val ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
 
-        // Recorded from POST api.tavily.com/search (include_answer=basic, search_depth=basic, max_results=3).
+        // Recorded from POST api.tavily.com/search (include_answer=basic, search_depth=basic, max_results=3):
+        // an answer the tool must not pass on.
         const val RESPONSE_WITH_ANSWER = """{"query":"mariners score last night",
             "answer":"The Seattle Mariners beat the Houston Astros 5-3 on October 27, 2026.",
             "images":[],
@@ -181,16 +181,29 @@ class WebSearchTest {
                "content":"Tuesday's results across the league.","score":0.62,"raw_content":null,"id":"r3"}],
             "response_time":1.42,"usage":{"credits":1},"request_id":"5c1e7f9a-2b4d-4e11-9a0f-3d6b8c2e1f40"}"""
 
-        // The same request where Tavily gave no answer: "answer" is null.
-        const val RESPONSE_WITHOUT_ANSWER = """{"query":"pike place market hours","answer":null,"images":[],
+        // Recorded 2026-10-29 (topic=news, search_depth=basic, max_results=5), contents shortened and cut to four
+        // results; the third's date made unreadable and the fourth's removed.
+        const val RESPONSE_NEWS = """{"query":"Golden State Warriors game score last night","answer":null,"images":[],
             "results":[
-              {"url":"https://www.pikeplacemarket.org/hours","title":"Pike Place Market hours",
-               "content":"Open daily 9 a.m. to 6 p.m.","score":0.88,"raw_content":null,"id":"r1"}],
-            "response_time":0.97,"usage":{"credits":1},"request_id":"0b7e2d14-6c3a-4f58-8e9d-1a2b3c4d5e6f"}"""
+              {"url":"https://www.espn.com/nba/recap?gameId=401909888",
+               "title":"Warriors 119-114 Timberwolves (Oct 28, 2026) Game Recap - ESPN",
+               "content":"Stephen Curry scored a season-high 44 points as the Warriors held on for a 119-114 victory.",
+               "score":0.78,"published_date":"Thu, 29 Oct 2026 03:00:00 GMT","raw_content":null,"id":"f3f3b9-00"},
+              {"url":"https://sports.yahoo.com/articles/watch-warriors-vs-timberwolves-200000473.html",
+               "title":"How to watch Warriors vs. Timberwolves - Yahoo Sports",
+               "content":"The Warriors finally broke into the win column Monday night.",
+               "score":0.68,"published_date":"Wed, 28 Oct 2026 20:00:00 GMT","raw_content":null,"id":"6afe00-01"},
+              {"url":"https://www.goldenstateofmind.com/warriors-scores-results/113009",
+               "title":"Steph Curry's 44 points lead Warriors to second straight win",
+               "content":"The Warriors held on for a 119-114 win.",
+               "score":0.58,"published_date":"last night","raw_content":null,"id":"6810dc-02"},
+              {"url":"https://www.nba.com/game/gsw-vs-min","title":"Warriors vs Timberwolves Oct 28, 2026",
+               "content":"Box score and play-by-play.","score":0.51,"raw_content":null,"id":"9c21aa-03"}],
+            "response_time":0.73,"usage":{"credits":1},"request_id":"7a3c9e1b-4d2f-4b8a-9e6c-0f1d2e3c4b5a"}"""
 
-        // Tavily gave an answer but no results.
-        const val RESPONSE_ANSWER_ONLY = """{"query":"pike place market hours",
-            "answer":"Pike Place Market opens at 9 a.m.","images":[],"results":[],
+        // Nothing found: "results" is empty.
+        const val RESPONSE_NO_RESULTS = """{"query":"pike place market hours","answer":null,"images":[],
+            "results":[],
             "response_time":0.81,"usage":{"credits":1},"request_id":"2d4f6a8c-1e3b-4d5f-9a7c-6b8e0f2a4c6e"}"""
 
         // topic=finance: a snippet carrying markdown (bold, a link, a heading) and one far over the snippet limit.
