@@ -46,7 +46,8 @@ The lookup some models offer natively (Gemini 2.5 today). A model with it gets n
 _Avoid_: Grounding, ground search
 
 **Web search**:
-Jarvis's own lookup for live information, on a model without Google Search. Only with a Search key.
+Jarvis's own lookup for live information, in a conversation without Google Search (Gemini 3.8 or the local
+backend). Only with a Search key.
 _Avoid_: Google Search (that's the model's own)
 
 **Search key**:
@@ -54,7 +55,7 @@ The user's own key for Web search, added in Settings or by `setup.sh`, like the 
 _Avoid_: Tavily key
 
 **Weather**:
-Jarvis's own weather lookup, on a model without Google Search. Needs no key. With no place named, it's for the
+Jarvis's own weather lookup, in a conversation without Google Search. Needs no key. With no place named, it's for the
 location set in Settings, else the one found from the network.
 _Avoid_: Weather glance (that's the deferred idle-screen feature)
 
