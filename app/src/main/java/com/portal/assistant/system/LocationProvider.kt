@@ -1,15 +1,14 @@
 package com.portal.assistant.system
 
 import android.content.Context
-import android.os.SystemClock
 import androidx.core.content.edit
 import com.portal.assistant.conversation.tools.lookup.Here
-import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
+import com.portal.assistant.conversation.tools.lookup.PlaceSearch
 import com.portal.assistant.conversation.tools.lookup.Weather
+import com.portal.assistant.conversation.tools.lookup.onDevice
 import com.portal.assistant.util.Http
 import com.portal.commons.DebugLog
 import okhttp3.Request
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -55,15 +54,10 @@ object LocationProvider {
      * then writes the text and its coordinates together, or the text alone (clearing any old coordinates) when it
      * isn't found or can't be looked up. Blocking (network, up to [Weather.DEADLINE_MS]): call off the main thread.
      */
-    fun saveOverride(context: Context, place: String): Weather.PlaceSearch {
-        val search = Weather(
-            OkHttpLookupHttp(),
-            here = { here(context) },
-            locale = { Locale.getDefault() },
-            nowMs = { SystemClock.elapsedRealtime() },
-        ).findPlace(place)
+    fun saveOverride(context: Context, place: String): PlaceSearch {
+        val search = Weather.onDevice { here(context) }.findPlace(place)
         // Logs why, never the place: it's text the user typed.
-        if (search is Weather.PlaceSearch.Failed) DebugLog.log("location override lookup failed: ${search.reason}")
+        if (search is PlaceSearch.Failed) DebugLog.log("location override lookup failed: ${search.reason}")
         val saved = LocationOverride.saved(place, search)
         AppPrefs.prefs(context).edit {
             putString(AppPrefs.KEY_LOC_OVERRIDE, saved.text)

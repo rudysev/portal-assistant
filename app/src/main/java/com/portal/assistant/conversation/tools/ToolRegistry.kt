@@ -1,11 +1,11 @@
 package com.portal.assistant.conversation.tools
 
 import android.content.Context
-import android.os.SystemClock
 import com.portal.assistant.audio.Hush
 import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
 import com.portal.assistant.conversation.tools.lookup.Weather
 import com.portal.assistant.conversation.tools.lookup.WebSearch
+import com.portal.assistant.conversation.tools.lookup.onDevice
 import com.portal.assistant.conversation.tools.music.AndroidMediaSessions
 import com.portal.assistant.conversation.tools.music.AndroidMusicApps
 import com.portal.assistant.conversation.tools.music.Music
@@ -13,7 +13,6 @@ import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.commons.DebugLog
 import org.json.JSONObject
-import java.util.Locale
 
 /**
  * The production [ToolSet]: routes function calls to registered [Tool]s. The [ToolRunner] holds one
@@ -38,12 +37,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
 
     // Weather reads "here" and the locale when it runs: the override's coordinates found on save, else its text
     // looked up per call, else the IP-geo location.
-    private val weather = Weather(
-        OkHttpLookupHttp(),
-        here = { LocationProvider.here(appContext) },
-        locale = { Locale.getDefault() },
-        nowMs = { SystemClock.elapsedRealtime() },
-    )
+    private val weather = Weather.onDevice { LocationProvider.here(appContext) }
     private val webSearch = WebSearch(OkHttpLookupHttp()) { AppPrefs.searchKey(appContext) }
     private val external = ExternalToolProvider(appContext)
 

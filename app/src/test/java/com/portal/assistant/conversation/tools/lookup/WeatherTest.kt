@@ -269,7 +269,7 @@ class WeatherTest {
         http.onBody(GEOCODING, GEOCODING_PARIS)
 
         assertEquals(
-            Weather.PlaceSearch.Found(Weather.Place("Paris, Île-de-France, France", Coordinates(48.85341, 2.3488))),
+            PlaceSearch.Found(Place("Paris, Île-de-France, France", Coordinates(48.85341, 2.3488))),
             weather().findPlace("  Paris "),
         )
         assertEquals("Paris", http.requestsTo(GEOCODING).single().query["name"])
@@ -277,11 +277,11 @@ class WeatherTest {
 
     @Test fun findPlaceTellsNotFoundFromCouldntLookUp() {
         http.onBody(GEOCODING, GEOCODING_NO_MATCH)
-        assertEquals(Weather.PlaceSearch.NotFound, weather().findPlace("Atlantis"))
+        assertEquals(PlaceSearch.NotFound, weather().findPlace("Atlantis"))
 
         val offline = FakeLookupHttp().apply { on(GEOCODING, LookupResponse.Failure("Unable to resolve host")) }
         assertEquals(
-            Weather.PlaceSearch.Failed("weather unavailable"),
+            PlaceSearch.Failed("weather unavailable"),
             Weather(offline.port, { here }, { locale }, offline.clock).findPlace("Paris"),
         )
     }

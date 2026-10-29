@@ -1,7 +1,7 @@
 package com.portal.assistant.system
 
 import com.portal.assistant.conversation.tools.lookup.Coordinates
-import com.portal.assistant.conversation.tools.lookup.Weather.PlaceSearch
+import com.portal.assistant.conversation.tools.lookup.PlaceSearch
 
 /**
  * The location override as it's stored: the user's [text] and, when Weather's place lookup found it on save, its

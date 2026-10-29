@@ -13,9 +13,6 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** A latitude/longitude pair. */
-data class Coordinates(val lat: Double, val lon: Double)
-
 /**
  * Where "here" is when no place is named, as Settings and the network know it when the tool runs: the location
  * override's stored [overrideCoordinates] (written with its [overrideText] when Settings matched it), else
@@ -222,19 +219,6 @@ class Weather(
             fun of(locale: Locale) = if (locale.country in FAHRENHEIT_COUNTRIES) IMPERIAL else METRIC
         }
     }
-
-    /** What looking a place up by name found. */
-    sealed interface PlaceSearch {
-        data class Found(val place: Place) : PlaceSearch
-
-        data object NotFound : PlaceSearch
-
-        /** The lookup couldn't be made (offline, timed out, a provider error); [reason] is for the log. */
-        data class Failed(val reason: String) : PlaceSearch
-    }
-
-    /** A place the forecast is for: its spoken [name] and where it is. */
-    data class Place(val name: String, val coordinates: Coordinates)
 
     companion object {
         /** One deadline across the place lookup and the forecast. Provisional (mirrors the external tool bound). */
