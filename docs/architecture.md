@@ -248,16 +248,21 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (`"place not found"`): the error can reach `debug.txt`, and an override is text the user typed. A null value in
   Open-Meteo's `current`/`daily` arrays leaves that one field out (of that day) rather than failing the lookup.
   Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
-  (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance)`, never a
-  final turn) uses Tavily `POST api.tavily.com/search` with the Search key (`AppPrefs.searchKey`, read when the tool
-  runs) as bearer auth: `search_depth=basic` (1 credit), `max_results=5`, no `include_answer`, the model's `topic`
-  passed through (anything else → `general`). The result is `{"sources":[{"title","snippet","published"?}]}`: no
-  URLs, never Tavily's answer (measured 2026-10-29: it garbled scores the sources had right), each snippet plain
-  text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to `SNIPPET_MAX_CHARS` (300) with an
-  ellipsis; `published` is Tavily's `published_date` (news only, RFC 1123 GMT) as `yyyy-MM-dd HH:mm`
-  in the device's zone (`ZoneId.systemDefault()`, the zone the prompt's time line states), left out when missing
-  or unreadable; empty `results` → no sources, none at all → an error. One request bounded by `WebSearch.TIMEOUT_MS` (5 s, about twice the
-  slowest measured). No key, an empty query, an HTTP status, a malformed body, a timeout or no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
+  (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance, time_range
+  day/week/month/year/any)`, never a final turn) uses Tavily `POST api.tavily.com/search` with the Search key
+  (`AppPrefs.searchKey`, read when the tool runs) as bearer auth: `search_depth=basic` (1 credit), `max_results=5`, no
+  `include_answer`, the model's `topic` passed through (anything else → `general`), and its **required** `time_range`
+  passed through on every topic (`any`, or anything else, → no range; same credit). The range is required because the
+  model set an optional one on only 21/30 recency questions; its description steers by kind of answer (`day`/`week` for
+  the last game or what happened today, `any` for prices and quotes, hours, facts, how-tos), since a range on a quote or
+  opening-hours search loses the quote or store page (measured 2026-10-29, ticket 10). The result is
+  `{"sources":[{"title","snippet","published"?}]}`: no URLs, never Tavily's answer (measured 2026-10-29: it garbled
+  scores the sources had right), each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut
+  at a word to `SNIPPET_MAX_CHARS` (300) with an ellipsis; `published` is Tavily's `published_date` (news only, RFC 1123
+  GMT) as `yyyy-MM-dd HH:mm` in the device's zone (`ZoneId.systemDefault()`, the zone the prompt's time line states),
+  left out when missing or unreadable; empty `results` → no sources, none at all → an error. One request bounded by
+  `WebSearch.TIMEOUT_MS` (5 s, about twice the slowest measured). No key, an empty query, an HTTP status, a malformed
+  body, a timeout or no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —

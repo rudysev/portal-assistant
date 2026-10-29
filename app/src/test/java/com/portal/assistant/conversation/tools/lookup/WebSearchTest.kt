@@ -20,8 +20,11 @@ class WebSearchTest {
     private fun invoke(args: JSONObject): ToolOutput =
         WebSearch(http.port, zone = { ZONE }, searchKey = { searchKey }).invoke(args)
 
-    private fun search(query: String, topic: String? = null) =
-        invoke(JSONObject().put("query", query).apply { if (topic != null) put("topic", topic) })
+    private fun search(query: String, topic: String? = null, timeRange: String? = null) = invoke(
+        JSONObject().put("query", query)
+            .apply { if (topic != null) put("topic", topic) }
+            .apply { if (timeRange != null) put("time_range", timeRange) },
+    )
 
     @Test fun eachSourcesTitleAndSnippetComeBackWithNoUrlsAndNeverTavilysAnswer() {
         http.onBody(SEARCH, RESPONSE_WITH_ANSWER)
@@ -68,6 +71,31 @@ class WebSearchTest {
             search("anything", topic)
 
             assertEquals("topic=$topic", sent, JSONObject(checkNotNull(http.requests.single().jsonBody))["topic"])
+        }
+    }
+
+    @Test fun theTimeRangeIsPassedThroughOnEveryTopicAndAnyOrAnythingElseSendsNone() {
+        val cases = mapOf(
+            "day" to "day",
+            "week" to "week",
+            "month" to "month",
+            "year" to "year",
+            "WEEK" to "week",
+            "any" to null,
+            "" to null,
+            "fortnight" to null,
+            null to null,
+        )
+        for (topic in listOf("general", "news", "finance")) {
+            for ((range, sent) in cases) {
+                http.requests.clear()
+                http.onBody(SEARCH, RESPONSE_WITH_ANSWER)
+
+                search("anything", topic, range)
+
+                val body = JSONObject(checkNotNull(http.requests.single().jsonBody))
+                assertEquals("topic=$topic time_range=$range", sent, body.optString("time_range").ifEmpty { null })
+            }
         }
     }
 
