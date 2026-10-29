@@ -3,16 +3,18 @@
 # Jarvis (portal-assistant) one-click installer for the Meta Portal (macOS / Linux).
 #
 # Finds (or downloads) Android's adb, waits for a connected Portal, then installs Jarvis,
-# grants its permissions, walks you through adding your free Google Gemini API key, and
-# starts the warm background service. No Android SDK, no build tools, no Node — just this
-# script and a USB-C cable.
+# grants its permissions, walks you through adding your free Google Gemini API key (and an
+# optional free Search key), and starts the warm background service. No Android SDK, no build
+# tools, no Node — just this script and a USB-C cable.
 #
 # Usage:
 #   ./install.sh             install Jarvis on the connected Portal (downloads the latest release)
 #   ./install.sh --local     install a locally built APK (the repo's debug build; pass a path to override)
-#   ./install.sh --key       (re)enter the Gemini API key on an already-installed Jarvis
+#   ./install.sh --key [KEY] (re)enter the Gemini API key on an already-installed Jarvis; with no KEY it
+#                            asks, then offers the optional Search key too
+#   ./install.sh --search-key [KEY]  (re)enter only the optional Search key (Web search)
 #   ./install.sh --uninstall remove Jarvis from the Portal
-#   ./install.sh --status    show whether it's installed and whether a key is set
+#   ./install.sh --status    show whether it's installed and which keys are set
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -213,7 +215,8 @@ do_install() {
   wait_for_device
   install_app
   grant_permissions
-  provision_key 0   # staged BEFORE launch so the first onCreate imports it
+  provision_key 0          # staged BEFORE launch so the first onCreate imports it
+  provision_search_key 0   # likewise (optional; Enter skips)
   launch_app
   start_standby
   printf "\n%s✓ Done. Jarvis is installed and ready.%s\n" "$G$B" "$N"
@@ -224,16 +227,39 @@ do_install() {
   fi
 }
 
-do_key() {
-  printf "%sJarvis — set the Gemini API key%s\n" "$B" "$N"
+# Fresh process so onCreate re-imports whatever was just staged.
+relaunch_app() {
+  a shell "am force-stop $PKG" >/dev/null 2>&1 || true
+  a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1 || true
+}
+
+require_installed() {
   resolve_adb
   wait_for_device
   a shell "pm path $PKG" >/dev/null 2>&1 || die "Jarvis isn't installed yet — run the installer first."
-  provision_key 1   # force: always (re)ask
-  if [ -n "$KEY" ]; then
-    a shell "am force-stop $PKG" >/dev/null 2>&1 || true   # fresh process re-imports the staged key
-    a shell "am start -n $LAUNCH_ACTIVITY" >/dev/null 2>&1 || true
-    printf "\n%s✓ Done. Verify in Jarvis > Settings > API key.%s\n" "$G$B" "$N"
+}
+
+# --key: the Gemini key (force: always (re)ask). Asked interactively, it then offers the Search key too, so the
+# double-click Set-Jarvis-Key covers both; given a KEY, it sets only the Gemini key.
+do_key() {
+  printf "%sJarvis — set the API keys%s\n" "$B" "$N"
+  local asked=0; [ -z "$KEY" ] && asked=1
+  require_installed
+  provision_key 1
+  [ "$asked" = "1" ] && provision_search_key 1
+  if [ -n "$KEY" ] || [ -n "$SEARCH_KEY" ]; then
+    relaunch_app
+    printf "\n%s✓ Done. Verify in Jarvis > Settings.%s\n" "$G$B" "$N"
+  fi
+}
+
+do_search_key() {
+  printf "%sJarvis — set the Search key%s\n" "$B" "$N"
+  require_installed
+  provision_search_key 1
+  if [ -n "$SEARCH_KEY" ]; then
+    relaunch_app
+    printf "\n%s✓ Done. Verify in Jarvis > Settings > Search key.%s\n" "$G$B" "$N"
   fi
 }
 
@@ -252,14 +278,16 @@ do_status() {
   step "Current state"
   printf "  Jarvis: %s\n" "$(a shell pm list packages "$PKG" 2>/dev/null | tr -d '\r' | grep -q . && echo installed || echo 'not installed')"
   printf "  Gemini API key: %s\n" "$(key_present_on_device && echo 'set' || echo 'NOT set — Jarvis cannot answer')"
+  printf "  Search key: %s\n" "$(search_key_present_on_device && echo 'set' || echo 'not set (optional: Web search)')"
 }
 
 case "${1:-}" in
   --uninstall|-u) do_uninstall ;;
   --status|-s)    do_status ;;
   --key|-k)       KEY="${2:-}"; do_key ;;
+  --search-key)   SEARCH_KEY="${2:-}"; do_search_key ;;
   --local|-l)     LOCAL_APK="${2:-$DEFAULT_BUILD_APK}"; do_install ;;
-  --help|-h)      sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  --help|-h)      sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//' ;;
   "")             do_install ;;
-  *)              die "Unknown option: $1 (use --local, --key, --uninstall, --status, or no argument)" ;;
+  *)              die "Unknown option: $1 (use --local, --key, --search-key, --uninstall, --status, or no argument)" ;;
 esac

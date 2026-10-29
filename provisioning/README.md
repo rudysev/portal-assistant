@@ -45,6 +45,10 @@ permissions, saves your key, and starts Jarvis warm in the background.
 - **Add or change it later** anytime: re-run with **`Set-Jarvis-Key`**
   (`.command` on macOS, `.bat` on Windows), or on the Portal in
   **Jarvis → Settings → API key**.
+- **Optional Search key.** After the Gemini key, the installer offers a free Search key
+  (from [tavily.com](https://app.tavily.com), no card). It lets Jarvis look up news,
+  scores, prices and opening hours on Gemini 3.8; weather works without it. Press Enter
+  to skip. `Set-Jarvis-Key` offers it too, or add it in **Jarvis → Settings → Search key**.
 - **Updating Jarvis?** If a key is already on the Portal, the installer **keeps it** and
   won't ask again — your conversations and key survive the update. Use `Set-Jarvis-Key`
   if you actually want to change it.
@@ -67,7 +71,7 @@ Double-click **`Uninstall-Jarvis`** (`.command` on macOS, `.bat` on Windows).
   provided by the separate **portal-wake** app — install that too. Either way you can always open
   Jarvis and tap **Tap to talk**.
 - **Advanced:** the scripts (`install.sh` / `install.ps1`) also accept `--local`
-  (`-Local`) to install a locally built APK, `--key` (`-Key`) to re-enter the API key,
+  (`-Local`) to install a locally built APK, `--key` (`-Key`) to re-enter the API key, `--search-key` (`-SearchKey`) to set only the Search key,
   plus `--uninstall` (`-Uninstall`) and `--status` (`-Status`). `--local` uses the repo's
   debug build (`app/build/.../app-debug.apk`), or pass a path (`--local <apk>` /
   `-Apk <path>`); you can also drop an `.apk` into an `apks/` folder next to the scripts.
