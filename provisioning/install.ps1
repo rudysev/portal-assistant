@@ -1,24 +1,28 @@
 # Jarvis (portal-assistant) one-click installer for the Meta Portal (Windows).
 #
 # Finds (or downloads) Android's adb, waits for a connected Portal, then installs Jarvis,
-# grants its permissions, walks you through adding your free Google Gemini API key, and
-# starts the warm background service. No Android SDK, no build tools, no Node — just this
+# grants its permissions, walks you through adding your free Google Gemini API key (and an
+# optional free Search key), and starts the warm background service. No Android SDK, no build tools, no Node — just this
 # script and a USB-C cable.
 #
 # Usage:
 #   .\install.ps1                  install Jarvis on the connected Portal (downloads the latest release)
 #   .\install.ps1 -Local           install a locally built APK (the repo's debug build; -Apk <path> to override)
-#   .\install.ps1 -Key             (re)enter the Gemini API key on an already-installed Jarvis (interactive)
+#   .\install.ps1 -Key             (re)enter the Gemini API key on an already-installed Jarvis (interactive),
+#                                  then offer the optional Search key too
 #   .\install.ps1 -Key -KeyValue K provide the key non-interactively (mirrors install.sh's `--key <K>`)
+#   .\install.ps1 -SearchKey       (re)enter only the optional Search key (Web search)
+#   .\install.ps1 -SearchKey -SearchKeyValue K  provide it non-interactively (mirrors `--search-key <K>`)
 #   .\install.ps1 -Uninstall       remove Jarvis from the Portal
-#   .\install.ps1 -Status          show whether it's installed and whether a key is set
+#   .\install.ps1 -Status          show whether it's installed and which keys are set
 #
-# NOTE: this is the Windows mirror of install.sh. The API-key logic and the app contract constants
-# (staged file api_key.txt, prefs file assistant.xml, prefs key gemini_api_key, the verify endpoint, the
-# 30+ char format check) are shared by setup.sh and install.sh via keyprov.sh — the canonical source.
+# NOTE: this is the Windows mirror of install.sh. The key logic and the app contract constants
+# (staged files api_key.txt / search_key.txt, prefs file assistant.xml, prefs keys gemini_api_key /
+# search_key, the verify endpoints, the 30+ / 20+ char format checks) are shared by setup.sh and install.sh via keyprov.sh — the canonical source.
 # PowerShell can't source that bash, so the constants/logic below are a hand-kept copy: change keyprov.sh
 # and you must mirror it here.
-param([switch]$Uninstall, [switch]$Status, [switch]$Local, [switch]$Key, [string]$Apk, [string]$KeyValue)
+param([switch]$Uninstall, [switch]$Status, [switch]$Local, [switch]$Key, [string]$Apk, [string]$KeyValue,
+      [switch]$SearchKey, [string]$SearchKeyValue)
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -226,10 +230,25 @@ function Prompt-ForKey {
   }
 }
 
+# Write a key to the app's files dir as $name, for import-once on next launch. Pushed from a host temp file,
+# never inside an adb command string (keeps it out of the process list and the device shell's quoting).
+# Returns $true when staged.
+function Stage-File($k, $name) {
+  $ext = $cfg["EXTDIR"]; $tmp = "$ext/$($cfg["PKG"]).tmp_$name"
+  $host_ = [IO.Path]::GetTempFileName()
+  try {
+    [IO.File]::WriteAllText($host_, $k)   # UTF-8, no BOM, no trailing newline
+    A shell "mkdir -p $ext" | Out-Null
+    A push $host_ $tmp | Out-Null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    A shell "mv $tmp $ext/$name" | Out-Null
+    return ($LASTEXITCODE -eq 0)
+  } finally { Remove-Item -Force $host_ -ErrorAction SilentlyContinue }
+}
+
 function Stage-Key($k) {
-  A shell "mkdir -p $($cfg["EXTDIR"])" | Out-Null
-  A shell "printf '%s' '$k' > $($cfg["EXTDIR"])/$($cfg["PKG"]).tmp_key && mv $($cfg["EXTDIR"])/$($cfg["PKG"]).tmp_key $($cfg["EXTDIR"])/api_key.txt" | Out-Null
-  Ok "Key saved to the Portal ($($k.Length) chars) - Jarvis imports it on launch."
+  if (Stage-File $k "api_key.txt") { Ok "Key saved to the Portal ($($k.Length) chars) - Jarvis imports it on launch." }
+  else { Warn "Couldn't save the key to the Portal - add it in Jarvis > Settings > API key." }
 }
 
 # force=$true always (re)asks even when a key is present; otherwise an existing device key is preserved.
@@ -248,6 +267,73 @@ function Provision-Key([bool]$force) {
     $k = Prompt-ForKey
   }
   if ($k) { Stage-Key $k; return $true }
+  return $false
+}
+
+# ----- Search key (optional) -------------------------------------------------
+# The user's own free Tavily key: Web search on a model without Google Search. Same import-once contract.
+function Search-Key-Present {
+  $staged = "$(A shell "[ -f $($cfg["EXTDIR"])/search_key.txt ] && echo yes")".Trim()
+  if ($staged -eq "yes") { return $true }
+  $prefs = (A shell "run-as $($cfg["PKG"]) cat shared_prefs/assistant.xml 2>/dev/null")
+  return ($prefs -match 'name="search_key"')
+}
+
+function Valid-SearchKeyFormat($k){ return ($k -match '^[A-Za-z0-9._-]{20,}$') }
+
+# Mirrors SearchKeyCheck: the usage endpoint (no search credit spent). Returns 'ok' / 'rejected' / 'unknown'.
+function Verify-SearchKeyLive($k) {
+  try {
+    Invoke-WebRequest -Uri "https://api.tavily.com/usage" -Headers @{ Authorization = "Bearer $k" } -TimeoutSec 15 | Out-Null
+    Write-Host "      [ok] Search key verified" -ForegroundColor Green
+    return "ok"
+  } catch {
+    $code = $null
+    try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+    if ($code -in 401,403) { Write-Host "      [x] The search service rejected this key (HTTP $code)" -ForegroundColor Red; return "rejected" }
+    Write-Host "      [!] Couldn't verify the search key - staging anyway" -ForegroundColor Yellow
+    return "unknown"
+  }
+}
+
+# Optional: instructions + a paste prompt; Enter skips. Returns the key ("" = skipped).
+function Prompt-ForSearchKey {
+  Write-Host ""
+  Write-Host "  Optional: a free Search key lets Jarvis look up news, scores, prices and opening hours"
+  Write-Host "  on a model without Google Search (Gemini 3.8). Without one it can still check the weather."
+  Write-Host ""
+  Write-Host "    1. Open:  https://app.tavily.com  and sign up (free, no card)."
+  Write-Host "    2. Copy the API key shown on the overview page (starts with tvly-)."
+  Write-Host ""
+  Write-Host "  You can add or change it later in Jarvis > Settings > Search key." -ForegroundColor DarkGray
+  while ($true) {
+    $reply = (Read-Host "`n  Paste your Search key and press Enter (or just Enter to skip)").Trim()
+    if (-not $reply) { Ok "Skipped the Search key."; return "" }
+    if (-not (Valid-SearchKeyFormat $reply)) { Write-Host "      That doesn't look like a key (expected 20+ chars, letters/digits). Try again."; continue }
+    if ((Verify-SearchKeyLive $reply) -eq "rejected") { Write-Host "      Let's try again."; continue }
+    return $reply
+  }
+}
+
+# Like Provision-Key: force=$true always asks; otherwise a key already on the device is kept.
+# Returns $true when a key was staged now.
+function Provision-SearchKey([bool]$force) {
+  Step "Search key (optional)"
+  $k = $SearchKeyValue
+  if ($k) {
+    $k = $k.Trim()
+    if (-not (Valid-SearchKeyFormat $k)) { Die "Provided Search key doesn't look valid (expected 20+ chars)." }
+    if ((Verify-SearchKeyLive $k) -eq "rejected") { Die "The search service rejected the key - aborting." }
+  } elseif ((Search-Key-Present) -and (-not $force)) {
+    Ok "A Search key is already set on this Portal - keeping it."
+    return $false
+  } else {
+    $k = Prompt-ForSearchKey
+  }
+  if ($k) {
+    if (Stage-File $k "search_key.txt") { Ok "Search key saved to the Portal ($($k.Length) chars) - Jarvis imports it on launch."; return $true }
+    Warn "Couldn't save the Search key to the Portal - add it in Jarvis > Settings > Search key."
+  }
   return $false
 }
 
@@ -270,6 +356,7 @@ if ($Status) {
   $inst = (A shell pm list packages $cfg["PKG"]) -match "package:"
   Write-Host "  Jarvis: $(if ($inst) {'installed'} else {'not installed'})"
   Write-Host "  Gemini API key: $(if (Key-Present) {'set'} else {'NOT set - Jarvis cannot answer'})"
+  Write-Host "  Search key: $(if (Search-Key-Present) {'set'} else {'not set (optional: Web search)'})"
   exit 0
 }
 
@@ -283,15 +370,37 @@ if ($Uninstall) {
   exit 0
 }
 
-if ($Key) {
-  Write-Host "Jarvis - set the Gemini API key`n"
+function Relaunch-App {
+  A shell am force-stop $cfg["PKG"] | Out-Null   # fresh process re-imports the staged key
+  A shell "am start -n $($cfg["LAUNCH_ACTIVITY"])" | Out-Null
+}
+
+function Require-Installed {
   Wait-Device
   if (-not ((A shell pm path $cfg["PKG"]) -match "package:")) { Die "Jarvis isn't installed yet - run the installer first." }
+}
+
+# -Key: the Gemini key (always (re)ask). Asked interactively, it then offers the Search key too, so the
+# double-click Set-Jarvis-Key covers both; with -KeyValue it sets only the Gemini key.
+if ($Key) {
+  Write-Host "Jarvis - set the API keys`n"
+  Require-Installed
   # Only relaunch (to import) and report success if a key was actually set — skipping leaves Jarvis as-is.
-  if (Provision-Key $true) {
-    A shell am force-stop $cfg["PKG"] | Out-Null   # fresh process re-imports the staged key
-    A shell "am start -n $($cfg["LAUNCH_ACTIVITY"])" | Out-Null
-    Write-Host "`n[ok] Done. Verify in Jarvis > Settings > API key." -ForegroundColor Green
+  $set = Provision-Key $true
+  if (-not $KeyValue) { $set = (Provision-SearchKey $true) -or $set }
+  if ($set) {
+    Relaunch-App
+    Write-Host "`n[ok] Done. Verify in Jarvis > Settings." -ForegroundColor Green
+  }
+  exit 0
+}
+
+if ($SearchKey) {
+  Write-Host "Jarvis - set the Search key`n"
+  Require-Installed
+  if (Provision-SearchKey $true) {
+    Relaunch-App
+    Write-Host "`n[ok] Done. Verify in Jarvis > Settings > Search key." -ForegroundColor Green
   }
   exit 0
 }
@@ -302,6 +411,7 @@ Wait-Device
 Install-App
 Grant-Permissions
 [void](Provision-Key $false)   # discard the bool — the final Key-Present check below drives the message
+[void](Provision-SearchKey $false)
 Launch-App
 Start-Standby
 Write-Host "`n[ok] Done. Jarvis is installed and ready." -ForegroundColor Green

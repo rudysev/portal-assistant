@@ -1,5 +1,5 @@
 #!/bin/bash
-# macOS double-click entry point. Double-click to add or change your Gemini API key.
+# macOS double-click entry point. Double-click to add or change your Gemini API key (and the optional Search key).
 cd "$(dirname "$0")" || exit 1
 chmod +x install.sh 2>/dev/null
 ./install.sh --key

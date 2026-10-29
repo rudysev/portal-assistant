@@ -1,5 +1,5 @@
 @echo off
-REM Windows double-click entry point. Double-click to add or change your Gemini API key.
+REM Windows double-click entry point. Double-click to add or change your Gemini API key (and the optional Search key).
 cd /d "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" -Key
 echo.

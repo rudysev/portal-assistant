@@ -60,103 +60,13 @@ fi
 # ---- helpers -----------------------------------------------------------------
 app_installed() { $ADB shell "pm path $PKG" >/dev/null 2>&1; }
 
-# Gemini API-key provisioning — key_present_on_device, valid_key_format, verify_key_live, prompt_for_key,
-# stage_key, provision_key — plus the app contract constants (api_key.txt / assistant.xml / gemini_api_key
-# / the verify endpoint) live in keyprov.sh, shared with provisioning/install.sh so the key contract has a
-# single source. It calls adb through adb_x() (defined above) and falls back to plain echo output here
-# (this dev tool defines no styled step/ok/warn/die).
+# Key provisioning — provision_key (Gemini API key) and provision_search_key (optional Search key), their
+# prompts, checks and staging — plus the app contract constants live in keyprov.sh, shared with
+# provisioning/install.sh so the key contract has a single source. It calls adb through adb_x() (defined
+# above: hzdb's adb, so this tool needs nothing else) and falls back to plain echo output here (this dev
+# tool defines no styled step/ok/warn/die).
 # shellcheck source=provisioning/keyprov.sh
 . "$SETUP_DIR/provisioning/keyprov.sh"
-
-# ---- Search key (optional) ---------------------------------------------------
-# The user's own Tavily key for Web search on a model without Google Search. Same import-once contract as
-# the Gemini key: staged here, imported into prefs by the app on launch. Change either side, change both.
-SEARCH_PROVISION_FILE="search_key.txt"   # ProvisionedKey.SEARCH_FILE
-SEARCH_PREFS_KEY="search_key"            # AppPrefs.KEY_SEARCH
-SEARCH_VERIFY_URL="https://api.tavily.com/usage"  # same endpoint SearchKeyCheck uses (no credit spent)
-
-search_key_present_on_device() {
-  [ "$(adb_x shell "[ -f $EXTDIR/$SEARCH_PROVISION_FILE ] && echo yes" 2>/dev/null | tr -d '\r')" = "yes" ] && return 0
-  adb_x shell "run-as $PKG cat shared_prefs/$KEY_PREFS_FILE 2>/dev/null" 2>/dev/null | grep -q "name=\"$SEARCH_PREFS_KEY\""
-}
-
-# Cheap sanity check: letters/digits/._- and 20+ chars (Tavily keys look like tvly-...).
-valid_search_key_format() { case "$1" in *[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -ge 20 ]; }
-
-# Live check, mirroring SearchKeyCheck.classify. 0 = verified, 1 = rejected, 2 = couldn't verify. The key goes
-# in a header read from stdin, so it never shows in the process list.
-verify_search_key_live() {
-  command -v curl >/dev/null 2>&1 || { echo "      (curl not found — skipping the online check)"; return 2; }
-  local code
-  code="$(printf 'Authorization: Bearer %s\n' "$1" |
-    curl -s -m 15 -o /dev/null -w '%{http_code}' -H @- "$SEARCH_VERIFY_URL" || echo 000)"
-  case "$code" in
-    2*)      echo "      ✓ Search key verified (HTTP $code)";                          return 0 ;;
-    401|403) echo "      ✗ The search service rejected this key (HTTP $code)";         return 1 ;;
-    *)       echo "      ⚠ Couldn't verify the search key (HTTP $code) — staging anyway"; return 2 ;;
-  esac
-}
-
-# Optional: instructions + a paste prompt; Enter skips. Sets SEARCH_KEY (empty when skipped).
-prompt_for_search_key() {
-  cat <<INSTR
-
-  Optional: a free Search key lets Jarvis look up news, scores, prices and opening hours
-  on a model without Google Search (Gemini 3.8). Without one it can still check the weather.
-
-    1. Open:  https://app.tavily.com  and sign up (free, no card).
-    2. Copy the API key shown on the overview page (starts with tvly-).
-
-  You can add or change it later in Jarvis > Settings > Search key.
-INSTR
-  local reply rc
-  while true; do
-    printf '\n  Paste your Search key and press Enter (or just Enter to skip): '
-    read -r reply || reply=""
-    reply="$(printf '%s' "$reply" | tr -d '[:space:]')"
-    if [ -z "$reply" ]; then SEARCH_KEY=""; ok "Skipped the Search key."; return 0; fi
-    if ! valid_search_key_format "$reply"; then
-      echo "      That doesn't look like a key (expected 20+ chars, letters/digits). Try again."
-      continue
-    fi
-    rc=0; verify_search_key_live "$reply" || rc=$?
-    if [ "$rc" -eq 1 ]; then echo "      Let's try again."; continue; fi
-    SEARCH_KEY="$reply"; return 0
-  done
-}
-
-# The key goes to the device on stdin, never inside the adb command string (so it isn't in the process list or
-# subject to the device shell's quoting).
-stage_search_key() {
-  local tmp="$EXTDIR/$PKG.tmp_search_key"
-  adb_x shell "mkdir -p $EXTDIR" >/dev/null 2>&1 || true
-  if printf '%s' "$1" |
-    adb_x shell "cat > $tmp && mv $tmp $EXTDIR/$SEARCH_PROVISION_FILE" >/dev/null 2>&1; then
-    ok "Search key saved to the Portal (${#1} chars) — Jarvis imports it on launch."
-  else
-    warn "Couldn't save the Search key to the Portal — add it in Jarvis > Settings > Search key."
-  fi
-}
-
-# Orchestrate the Search key step, like provision_key: force=1 always asks; otherwise a key already on the
-# device is kept. Always returns 0 (a skipped key must not fail a `set -e` caller).
-provision_search_key() {
-  local force="${1:-0}"
-  step "Search key (optional)"
-  if [ -n "${SEARCH_KEY:-}" ]; then
-    SEARCH_KEY="$(printf '%s' "$SEARCH_KEY" | tr -d '[:space:]')"
-    valid_search_key_format "$SEARCH_KEY" || die "Provided Search key doesn't look valid (expected 20+ chars)."
-    local rc=0; verify_search_key_live "$SEARCH_KEY" || rc=$?
-    [ "$rc" -eq 1 ] && die "The search service rejected the key — aborting."
-  elif search_key_present_on_device && [ "$force" != "1" ]; then
-    ok "A Search key is already set on this Portal — keeping it."
-    return 0
-  else
-    prompt_for_search_key
-  fi
-  [ -n "${SEARCH_KEY:-}" ] && stage_search_key "$SEARCH_KEY"
-  return 0
-}
 
 # Force a fresh process so onCreate re-runs and imports a staged key right away.
 relaunch_app() {

@@ -66,10 +66,17 @@ supplies **their own** key (BYOD), set two ways:
 The **Search key** (the user's own free Tavily key for Web search on a model without Google Search) is a second,
 **optional** BYOD key, never built in, provisioned the same two ways:
 - **At install** — full `./setup.sh` offers it after the Gemini key (Enter skips; a key already on the device is
-  kept); `./setup.sh --tavily-key-only <KEY>` (re)provisions it non-interactively. Both check it against Tavily's
-  usage endpoint (no credit spent) and stage it as `search_key.txt`, imported once by the same
-  `AppPrefs.importProvisionedKeys` into prefs `search_key`. Only `setup.sh` offers it: the one-click installers
-  (`provisioning/install.sh` / `install.ps1`) still provision only the Gemini key.
+  kept); `./setup.sh --tavily-key-only <KEY>` (re)provisions it non-interactively. The one-click installers offer
+  it the same way: during install, from `--key` / `-Key` when asked interactively (so the double-click
+  `Set-Jarvis-Key` covers both keys), and alone via `install.sh --search-key [KEY]` /
+  `install.ps1 -SearchKey [-SearchKeyValue K]`. All check it against Tavily's usage endpoint (no credit spent)
+  and stage it as `search_key.txt`, imported once by the same `AppPrefs.importProvisionedKeys` into prefs
+  `search_key`. The bash logic lives once in `provisioning/keyprov.sh` (shared by `setup.sh` and `install.sh`;
+  `install.ps1` mirrors it).
+- **Staging** — both keys are `adb push`ed from a private host temp file and moved into place, never put in an
+  adb command string (process list, device-shell quoting) nor sent on stdin (`hzdb adb shell` never closes
+  stdin, so a device-side `cat >` hangs). Each script uses one device tool throughout: `setup.sh` hzdb's adb,
+  the installers plain adb (downloaded if missing).
 - **In the app** — **Settings → Search key**, the same Save & verify form (`SearchKeyCheck`, a pure status →
   `KeyVerdict` mapping shared in shape with `GeminiKeyCheck`), stored via `AppPrefs.setSearchKey`. The opening
   reads `AppPrefs.hasSearchKey` once per conversation, so a new key applies from the next one. On a model without
