@@ -23,10 +23,10 @@ internal class MediaControl(private val sessions: MediaSessions, private val hus
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.media_control",
-           "description":"Control music/media playback on the device: play (resume), pause, skip to next or previous track.",
+           "description":"Control the current music or media playback.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "action":{"type":"STRING","description":"One of: play, pause, next, previous."}},
+               "action":{"type":"STRING","description":"One of: play (resume), pause, next or previous (track)."}},
              "required":["action"]}}""",
     )
 

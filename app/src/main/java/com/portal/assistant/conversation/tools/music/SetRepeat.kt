@@ -16,10 +16,10 @@ internal class SetRepeat(private val sessions: MediaSessions, private val ownPkg
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.set_repeat",
-           "description":"Set repeat on the currently-playing music: 'one' repeats the current song, 'all' repeats the album/playlist/queue, 'off' turns repeat off.",
+           "description":"Set repeat on the music now playing.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "mode":{"type":"STRING","description":"One of: one (repeat this song), all (repeat the album/playlist), off."}},
+               "mode":{"type":"STRING","description":"One of: one (repeat this song), all (repeat the album, playlist or queue) or off."}},
              "required":["mode"]}}""",
     )
 

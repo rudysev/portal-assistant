@@ -38,7 +38,7 @@ class Weather(
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"$name",
-           "description":"Current weather and daily forecast. Omit location for here.",
+           "description":"Current weather and daily forecast.",
            "parameters":{"type":"OBJECT",
              "properties":{
                "location":{"type":"STRING","description":"A place name, e.g. 'Paris' or 'Paris, France'. Omit for here."},
