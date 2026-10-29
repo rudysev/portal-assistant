@@ -135,6 +135,20 @@ class WeatherTest {
         )
     }
 
+    @Test fun aNullValueLeavesOnlyThatFieldOutForThatDay() {
+        http.onBody(FORECAST, FORECAST_WITH_NULLS)
+
+        assertJson(
+            """{"place":"Seattle, Washington, United States",
+               "temperature_unit":"celsius","wind_unit":"km/h",
+               "current":{"temperature":12,"conditions":"partly cloudy","wind":14},
+               "days":[{"date":"2026-10-29","day":"Thursday","high":14,"low":8,"conditions":"light rain",
+                        "precipitation_chance":60},
+                       {"date":"2026-10-30","day":"Friday","high":13,"conditions":"overcast"}]}""",
+            invoke(JSONObject().put("days", 2)),
+        )
+    }
+
     @Test fun anUnknownWeatherCodeIsReportedAsUnknownConditions() {
         http.onBody(FORECAST, FORECAST_IMPERIAL_THREE_DAYS)
 
@@ -316,6 +330,14 @@ class WeatherTest {
             "daily":{"time":["2026-10-29","2026-10-30","2026-10-31"],"weather_code":[45,0,99],
               "temperature_2m_max":[63.4,66.0,54.6],"temperature_2m_min":[50.1,52.3,41.2],
               "precipitation_probability_max":[5,0,90]}}"""
+
+        // Recorded with forecast_days=2 at the edge of the forecast range: Open-Meteo sends null for a value it
+        // doesn't have (day two's low and rain chance, and here the current feels-like).
+        const val FORECAST_WITH_NULLS = """{"latitude":47.6,"longitude":-122.33,"timezone":"America/Los_Angeles",
+            "current":{"time":"2026-10-29T09:30","interval":900,"temperature_2m":12.3,"apparent_temperature":null,
+              "weather_code":2,"wind_speed_10m":14.2},
+            "daily":{"time":["2026-10-29","2026-10-30"],"weather_code":[61,3],"temperature_2m_max":[14.1,12.8],
+              "temperature_2m_min":[7.8,null],"precipitation_probability_max":[60,null]}}"""
 
         // Recorded from geocoding-api.open-meteo.com/v1/search?name=Paris&count=1&language=en&format=json.
         const val GEOCODING_PARIS = """{"results":[{"id":2988507,"name":"Paris","latitude":48.85341,
