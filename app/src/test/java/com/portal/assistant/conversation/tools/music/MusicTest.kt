@@ -206,10 +206,10 @@ class MusicTest {
         assertEquals(
             JSONObject(
                 """{"name":"portal.media_control",
-                   "description":"Control music/media playback on the device: play (resume), pause, skip to next or previous track.",
+                   "description":"Control the current music or media playback.",
                    "parameters":{"type":"OBJECT",
                      "properties":{
-                       "action":{"type":"STRING","description":"One of: play, pause, next, previous."}},
+                       "action":{"type":"STRING","description":"One of: play (resume), pause, next or previous (track)."}},
                      "required":["action"]}}""",
             ).asMap(),
             tool.declaration.asMap(),
@@ -363,10 +363,10 @@ class MusicTest {
         assertEquals(
             JSONObject(
                 """{"name":"portal.set_repeat",
-                   "description":"Set repeat on the currently-playing music: 'one' repeats the current song, 'all' repeats the album/playlist/queue, 'off' turns repeat off.",
+                   "description":"Set repeat on the music now playing.",
                    "parameters":{"type":"OBJECT",
                      "properties":{
-                       "mode":{"type":"STRING","description":"One of: one (repeat this song), all (repeat the album/playlist), off."}},
+                       "mode":{"type":"STRING","description":"One of: one (repeat this song), all (repeat the album, playlist or queue) or off."}},
                      "required":["mode"]}}""",
             ).asMap(),
             tool.declaration.asMap(),

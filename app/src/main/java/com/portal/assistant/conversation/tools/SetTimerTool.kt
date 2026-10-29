@@ -10,10 +10,10 @@ class SetTimerTool(private val scheduler: TimerScheduler) : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.set_timer",
-           "description":"Start a countdown timer that chimes when it elapses. Convert the user's phrasing into duration_seconds.",
+           "description":"Start a countdown timer that chimes when it ends.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "duration_seconds":{"type":"NUMBER","description":"Countdown length in seconds (1 to 86400)."},
+               "duration_seconds":{"type":"NUMBER","description":"Countdown length in seconds, converted from the user's phrasing (1 to 86400)."},
                "label":{"type":"STRING","description":"Optional name, e.g. 'pasta', so it can be listed or cancelled by name."}},
              "required":["duration_seconds"]}}""",
     )

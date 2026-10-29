@@ -10,7 +10,7 @@ class SetBrightnessTool(private val brightness: BrightnessController) : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.set_brightness",
-           "description":"Set the display brightness to an absolute level (0-100). Use 100 for 'max'/'full brightness'. 0 is the minimum visible level, not off (the screen never goes fully dark).",
+           "description":"Set the display brightness to a level. Use 100 for 'max'/'full brightness'; 0 is the dimmest visible level, not off.",
            "parameters":{"type":"OBJECT",
              "properties":{
                "level_percent":{"type":"NUMBER","description":"Target brightness, 0 to 100."}},

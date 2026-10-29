@@ -9,10 +9,10 @@ class CancelTimerTool(private val scheduler: TimerScheduler) : Tool {
 
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.cancel_timer",
-           "description":"Cancel an active timer. Provide id or label (call portal.list_timers first if unsure).",
+           "description":"Cancel an active timer by id or label.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "id":{"type":"NUMBER","description":"The timer id from portal.list_timers."},
+               "id":{"type":"NUMBER","description":"The timer id from portal.list_timers (call it first if unsure)."},
                "label":{"type":"STRING","description":"The timer name, e.g. 'pasta'."}},
              "required":[]}}""",
     )
