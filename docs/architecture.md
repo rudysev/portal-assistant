@@ -250,11 +250,13 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
   (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance)`, never a
   final turn) uses Tavily `POST api.tavily.com/search` with the Search key (`AppPrefs.searchKey`, read when the tool
-  runs) as bearer auth: `search_depth=basic` (1 credit), `include_answer=basic`, `max_results=3`, the model's
-  `topic` passed through (anything else → `general`). The result is `{"answer", "sources":[{"title","snippet"}]}`:
-  no URLs, each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to
-  `SNIPPET_MAX_CHARS` (300) with an ellipsis; no answer (null or empty) → the sources alone; an answer with no
-  `results` → the answer with no sources. One request bounded by `WebSearch.TIMEOUT_MS` (5 s, about twice the
+  runs) as bearer auth: `search_depth=basic` (1 credit), `max_results=5`, no `include_answer`, the model's `topic`
+  passed through (anything else → `general`). The result is `{"sources":[{"title","snippet","published"?}]}`: no
+  URLs, never Tavily's answer (measured 2026-10-29: it garbled scores the sources had right), each snippet plain
+  text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to `SNIPPET_MAX_CHARS` (300) with an
+  ellipsis; `published` is Tavily's `published_date` (news only, RFC 1123 GMT) as `yyyy-MM-dd HH:mm`
+  in the device's zone (`ZoneId.systemDefault()`, the zone the prompt's time line states), left out when missing
+  or unreadable; empty `results` → no sources, none at all → an error. One request bounded by `WebSearch.TIMEOUT_MS` (5 s, about twice the
   slowest measured). No key, an empty query, an HTTP status, a malformed body, a timeout or no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken

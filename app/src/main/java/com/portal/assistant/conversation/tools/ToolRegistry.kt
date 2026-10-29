@@ -13,6 +13,7 @@ import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.LocationProvider
 import com.portal.commons.DebugLog
 import org.json.JSONObject
+import java.time.ZoneId
 
 /**
  * The production [ToolSet]: routes function calls to registered [Tool]s. The [ToolRunner] holds one
@@ -37,7 +38,7 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
     // Weather reads "here" and the locale when it runs: the override's coordinates found on save, else its text
     // looked up per call, else the IP-geo location.
     private val weather = Weather.onDevice { LocationProvider.here(appContext) }
-    private val webSearch = WebSearch(OkHttpLookupHttp()) { AppPrefs.searchKey(appContext) }
+    private val webSearch = WebSearch(OkHttpLookupHttp(), ZoneId::systemDefault) { AppPrefs.searchKey(appContext) }
     private val external = ExternalToolProvider(appContext)
 
     // Music builds the **music commands** play_music, media_control and set_repeat (final when they work; a pause

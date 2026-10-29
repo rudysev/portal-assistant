@@ -7,18 +7,24 @@ import com.portal.assistant.conversation.tools.ToolOutput
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 /**
  * **Web search**, `portal.web_search`: everything live that isn't the weather (news, scores, prices, hours, recent
  * events), with the user's own Search key. Tavily `POST /search` behind [LookupHttp]: one basic search (1 credit)
- * for [MAX_RESULTS] results with Tavily's short answer, the model's `topic` passed through. The result is
- * `{"answer", "sources":[{"title","snippet"}]}`, sized for a voice model: no URLs, each snippet plain text of at
- * most [SNIPPET_MAX_CHARS]; with no answer, the sources alone; with an answer and no results, no sources. One
- * request bounded by [TIMEOUT_MS]; every failure is the tool's `{"error": …}`, so the model says it can't check.
- * Pure: the Search key is read when the tool runs.
+ * for [MAX_RESULTS] results, the model's `topic` passed through. The result is
+ * `{"sources":[{"title","snippet","published"?}]}`, sized for a voice model: no URLs, each snippet plain text of at
+ * most [SNIPPET_MAX_CHARS], `published` in the device's zone when Tavily dated it. Never Tavily's answer: it garbles
+ * facts the sources have right, so the model reads the sources itself. One request bounded by [TIMEOUT_MS]; every
+ * failure is the tool's `{"error": …}`, so the model says it can't check. Pure: the Search key and zone are read
+ * when the tool runs.
  */
-class WebSearch(private val http: LookupHttp, private val searchKey: () -> String?) : Tool {
+class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, private val searchKey: () -> String?) :
+    Tool {
 
     override val name: String = checkNotNull(Lookup.WEB_SEARCH.toolName)
 
@@ -51,7 +57,6 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
                 .put("query", query)
                 .put("topic", topic)
                 .put("search_depth", "basic")
-                .put("include_answer", "basic")
                 .put("max_results", MAX_RESULTS)
                 .toString(),
             timeoutMs = TIMEOUT_MS,
@@ -66,28 +71,23 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
     }
 
     /**
-     * Tavily's answer, when it gave one, and each result's title and plain snippet; never a URL. An answer with no
-     * results is still an answer (no sources); with neither, the body isn't one we can read.
+     * Each result's title, plain snippet and, when Tavily dated it, [published]; never a URL, never Tavily's answer.
+     * No results reads as no sources.
      */
     private fun result(body: JSONObject): JSONObject {
-        val answer = body.optString("answer").takeUnless { body.isNull("answer") }?.let(::plain)
-        val results = if (body.isNull("results") &&
-            !answer.isNullOrEmpty()
-        ) {
-            JSONArray()
-        } else {
-            body.getJSONArray("results")
-        }
+        val results = body.getJSONArray("results")
+        val zone = zone()
         val sources = JSONArray()
         for (i in 0 until results.length()) {
             val result = results.getJSONObject(i)
             sources.put(
                 JSONObject()
                     .put("title", plain(result.getString("title")))
-                    .put("snippet", snippet(result.getString("content"))),
+                    .put("snippet", snippet(result.getString("content")))
+                    .apply { published(result.optString("published_date"), zone)?.let { put("published", it) } },
             )
         }
-        return JSONObject().apply { if (!answer.isNullOrEmpty()) put("answer", answer) }.put("sources", sources)
+        return JSONObject().put("sources", sources)
     }
 
     companion object {
@@ -97,16 +97,17 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
          */
         const val TIMEOUT_MS = 5_000L
 
-        /** A snippet's longest, so three sources stay around 1.5k chars for the model. */
+        /** A snippet's longest, so five sources stay around 2k chars for the model. */
         const val SNIPPET_MAX_CHARS = 300
 
-        private const val MAX_RESULTS = 3
+        private const val MAX_RESULTS = 5
         private const val SEARCH_URL = "https://api.tavily.com/search"
         private const val LOOKUP = "search"
         private const val ELLIPSIS = "…"
         private val TOPICS = setOf("general", "news", "finance")
         private val BARE_URL = Regex("""https?://\S+""")
         private val WHITESPACE = Regex("""\s+""")
+        private val PUBLISHED_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT)
 
         /** The model's topic when Tavily has it, else a general search. */
         private fun topic(asked: String): String =
@@ -115,6 +116,18 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
         /** Spoken-friendly text: markdown and bare URLs removed, whitespace runs folded to one space. */
         private fun plain(text: String): String =
             Markdown.strip(text).replace(BARE_URL, "").replace(WHITESPACE, " ").trim()
+
+        /**
+         * Tavily's `published_date` (RFC 1123, GMT) as `yyyy-MM-dd HH:mm` in [zone], the zone the prompt's time line
+         * states, so "last night" matches; null when missing or unreadable.
+         */
+        private fun published(date: String, zone: ZoneId): String? = try {
+            ZonedDateTime.parse(date, DateTimeFormatter.RFC_1123_DATE_TIME)
+                .withZoneSameInstant(zone)
+                .format(PUBLISHED_FORMAT)
+        } catch (_: DateTimeParseException) {
+            null
+        }
 
         /** [plain] text cut at a word to at most [SNIPPET_MAX_CHARS], marked with an ellipsis when cut. */
         private fun snippet(text: String): String {
