@@ -53,6 +53,10 @@ object AppPrefs {
     // at the injection site; this stores only the user-entered value.
     const val KEY_API = "gemini_api_key"
 
+    // Search key — the user's own key for Web search (Settings → Search key, or staged by setup.sh). BYOD and
+    // never built in: unset means a model without Google Search gets no Web search.
+    const val KEY_SEARCH = "search_key"
+
     // Listening tone — whether a voice conversation's start plays the Listening tone (Settings → Sounds).
     // On by default: an absent key means on.
     const val KEY_LISTENING_TONE = "sounds_listening_tone"
@@ -144,6 +148,18 @@ object AppPrefs {
         prefs(context).edit { remove(KEY_API) }
     }
 
+    /** The user's stored Search key, trimmed, or null if unset/blank. Never built in. */
+    fun searchKey(context: Context): String? = prefs(context).getString(KEY_SEARCH, null)?.trim()?.ifBlank { null }
+
+    /** Whether a Search key is stored — the opening's "Search key present" and the idle home's nudge read this. */
+    fun hasSearchKey(context: Context): Boolean = searchKey(context) != null
+
+    /** Store the user's Search key (applies to the next conversation). A blank value clears it. */
+    fun setSearchKey(context: Context, key: String) {
+        val trimmed = key.trim()
+        prefs(context).edit { if (trimmed.isEmpty()) remove(KEY_SEARCH) else putString(KEY_SEARCH, trimmed) }
+    }
+
     // Voice backend — which model powers a conversation (Settings → Backend). Ships defaulting to GEMINI
     // (the cloud Gemini Live API); LOCAL is an opt-in path for users running their own model on a
     // voice host on the home LAN (Settings → host address).
@@ -194,34 +210,27 @@ object AppPrefs {
         }
     }
 
-    /** Name of the one-shot provisioning file the install script drops in the app's external files dir. */
-    const val PROVISION_FILE = "api_key.txt"
-
     /**
-     * Import a key provisioned at install time and delete the file (import-once). `setup.sh` writes the
-     * user's key to `<externalFilesDir>/api_key.txt` (adb can write there without root); on the next app
-     * start we move it into prefs and remove the file, so the key never lingers in plaintext on disk. The
-     * value is never logged. Called from [AssistantService] and [MainActivity] onCreate (idempotent — a
-     * no-op once the file is gone). An existing user key is not overwritten by an empty provisioning file.
+     * Import the keys `setup.sh` staged at install time — the Gemini API key ([ProvisionedKey.GEMINI_FILE]) and
+     * the Search key ([ProvisionedKey.SEARCH_FILE]) — into prefs, deleting each file once its key is on disk
+     * ([ProvisionedKey.importOnce]). Called from [AssistantService] and [MainActivity] onCreate (idempotent — a
+     * no-op once the files are gone). The values are never logged.
      */
-    // UseKtx: the core-ktx edit {} returns Unit, and this needs commit()'s result to know the key is on disk.
-    @SuppressLint("UseKtx")
-    fun importProvisionedKey(context: Context) {
-        val f = File(context.getExternalFilesDir(null), PROVISION_FILE)
-        // Keep the file if the read fails (transient FS error) so the next launch can retry — don't delete a
-        // key we never imported.
-        val provisioned = (if (f.exists()) runCatching { f.readText().trim() }.getOrNull() else null) ?: return
-        if (provisioned.isEmpty()) {
-            f.delete() // nothing to import — drop the empty file
-            return
+    fun importProvisionedKeys(context: Context) {
+        val dir = context.getExternalFilesDir(null)
+        ProvisionedKey.importOnce(File(dir, ProvisionedKey.GEMINI_FILE)) { key ->
+            commitKey(context, KEY_API, key).also { if (it) DebugLog.log("imported provisioned api key") }
         }
-        // commit() (synchronous, durable) BEFORE deleting the source, so a crash/kill right after can't leave
-        // the key in neither prefs nor file. Delete only once the write is on disk.
-        if (prefs(context).edit().putString(KEY_API, provisioned).commit()) {
-            DebugLog.log("imported provisioned api key")
-            f.delete()
+        ProvisionedKey.importOnce(File(dir, ProvisionedKey.SEARCH_FILE)) { key ->
+            commitKey(context, KEY_SEARCH, key).also { if (it) DebugLog.log("imported provisioned search key") }
         }
     }
+
+    /** Write [value] under [key] synchronously (commit(), durable), returning whether it reached disk. */
+    // UseKtx: the core-ktx edit {} returns Unit, and this needs commit()'s result to know the key is on disk.
+    @SuppressLint("UseKtx")
+    private fun commitKey(context: Context, key: String, value: String): Boolean =
+        prefs(context).edit().putString(key, value).commit()
 
     /** Provider packages the user has enabled to contribute external tools. A defensive copy — the set
      *  SharedPreferences returns must never be mutated. */

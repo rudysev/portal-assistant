@@ -1,5 +1,6 @@
 package com.portal.assistant.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,11 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.tools.lookup.SearchKeyCheck
 import com.portal.assistant.gemini.GeminiKeyCheck
 import com.portal.assistant.local.LocalVoiceHost
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.ui.theme.Accent
 import com.portal.assistant.ui.theme.TextSize
+import com.portal.assistant.util.KeyVerdict
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,7 +112,7 @@ internal fun LocalVoiceHostSection(subtle: Color) {
 
 /**
  * BYOD Gemini key entry. The key is normally provisioned at install time by `setup.sh`
- * ([AppPrefs.importProvisionedKey]); this field lets the user **add or change** it on-device — the only
+ * ([AppPrefs.importProvisionedKeys]); this field lets the user **add or change** it on-device — the only
  * path if they skipped the install step. **Save & verify** confirms the key against the API before storing,
  * so a non-technical user catches a typo or a disabled key immediately. The key is masked everywhere and
  * never logged. Stored via [AppPrefs.setApiKey]; falls back to the baked dev key at the injection site when
@@ -117,16 +120,69 @@ internal fun LocalVoiceHostSection(subtle: Color) {
  */
 @Composable
 internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
+    UserKeySection(GEMINI_KEY, subtle, ioDispatcher)
+}
+
+/**
+ * BYOD Search key entry, the same form as [ApiKeySection]: provisioned by `setup.sh` or added here, verified
+ * against the search service before it's stored ([SearchKeyCheck]), masked, never logged. Stored via
+ * [AppPrefs.setSearchKey]; a model without Google Search gets Web search from the next conversation.
+ */
+@Composable
+internal fun SearchKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
+    UserKeySection(SEARCH_KEY, subtle, ioDispatcher)
+}
+
+/** One of the user's own keys as its Settings section shows it: the [copy] around it, its check, its storage. */
+private class UserKey(
+    val copy: KeyCopy,
+    val check: (String) -> KeyVerdict,
+    val stored: (Context) -> String?,
+    val store: (Context, String) -> Unit,
+)
+
+/** The words around a key's field; [checkedBy] is who the check asks, as "Couldn't reach …" names it. */
+private class KeyCopy(val title: String, val intro: String, val whereToGet: String, val checkedBy: String)
+
+private val GEMINI_KEY = UserKey(
+    copy = KeyCopy(
+        title = "API key",
+        intro = "Your own Gemini key powers Jarvis. It's usually set up when the app is installed — enter it below " +
+            "to add or change it.",
+        whereToGet = "Get a free key at aistudio.google.com/apikey.",
+        checkedBy = "Google",
+    ),
+    check = GeminiKeyCheck::validate,
+    stored = AppPrefs::apiKey,
+    store = AppPrefs::setApiKey,
+)
+
+private val SEARCH_KEY = UserKey(
+    copy = KeyCopy(
+        title = "Search key",
+        intro = "Lets Jarvis look up news, scores, prices and opening hours on a model without Google Search. " +
+            "Optional — without it, Jarvis can still check the weather.",
+        whereToGet = "Get a free key (no card) at app.tavily.com.",
+        checkedBy = "the search service",
+    ),
+    check = SearchKeyCheck::validate,
+    stored = AppPrefs::searchKey,
+    store = AppPrefs::setSearchKey,
+)
+
+/** The shared key form: heading, masked field, **Save & verify**, and **Save anyway** after a network error. */
+@Composable
+private fun UserKeySection(key: UserKey, subtle: Color, ioDispatcher: CoroutineDispatcher) {
     val context = LocalContext.current
     // The Activity's scope, not a composition scope: navigating back (the section leaves composition) mid-
     // verify must NOT cancel the save, or a verified key would silently never persist.
     val scope = LocalLifecycleOwner.current.lifecycleScope
     // Pre-fill with the stored key so it's visible (masked) — confirms the app has it loaded.
-    val form = remember { ApiKeyForm(saved = AppPrefs.apiKey(context).orEmpty()) }
+    val form = remember { KeyForm(saved = key.stored(context).orEmpty(), checkedBy = key.copy.checkedBy) }
 
     Column {
-        ApiKeyHeading(subtle)
-        ApiKeyField(
+        KeyHeading(key.copy, subtle)
+        KeyField(
             draft = form.draft,
             reveal = form.reveal,
             onDraftChange = form::edit,
@@ -140,8 +196,8 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
                     val candidate = form.draft
                     scope.launch {
                         form.startCheck()
-                        val result = withContext(ioDispatcher) { GeminiKeyCheck.validate(candidate) }
-                        form.checked(result, candidate) { AppPrefs.setApiKey(context, candidate) }
+                        val result = withContext(ioDispatcher) { key.check(candidate) }
+                        form.checked(result, candidate) { key.store(context, candidate) }
                     }
                 },
                 enabled = form.draft.isNotBlank() && form.draft != form.saved && !form.checking,
@@ -154,7 +210,7 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
             Spacer(Modifier.size(6.dp))
             TextButton(
                 onClick = {
-                    AppPrefs.setApiKey(context, form.draft)
+                    key.store(context, form.draft)
                     form.savedUnverified()
                 },
             ) { Text("Save anyway", color = Accent) }
@@ -168,10 +224,10 @@ internal fun ApiKeySection(subtle: Color, ioDispatcher: CoroutineDispatcher) {
 }
 
 /**
- * [ApiKeySection]'s form state: the stored and edited key, the check in flight, and the message under it. It
+ * [UserKeySection]'s form state: the stored and edited key, the check in flight, and the message under it. It
  * holds the message's [MessageTone], not a color: the theme maps that when the section draws.
  */
-private class ApiKeyForm(saved: String) {
+private class KeyForm(saved: String, private val checkedBy: String) {
     var saved by mutableStateOf(saved)
         private set
     var draft by mutableStateOf(saved)
@@ -199,20 +255,20 @@ private class ApiKeyForm(saved: String) {
     }
 
     /** The check of [candidate] came back [result]; a valid key is stored through [store]. */
-    fun checked(result: GeminiKeyCheck.Result, candidate: String, store: () -> Unit) {
+    fun checked(result: KeyVerdict, candidate: String, store: () -> Unit) {
         checking = false
-        if (result == GeminiKeyCheck.Result.Valid) {
+        if (result == KeyVerdict.Valid) {
             store()
             saved = candidate // re-disables the button until the next edit
             reveal = false
         }
-        message = keyCheckMessage(result)
+        message = keyCheckMessage(result, checkedBy)
         messageTone = when (result) {
-            GeminiKeyCheck.Result.Valid -> MessageTone.OK
-            GeminiKeyCheck.Result.Invalid -> MessageTone.ERROR
-            GeminiKeyCheck.Result.NetworkError -> MessageTone.NEUTRAL
+            KeyVerdict.Valid -> MessageTone.OK
+            KeyVerdict.Invalid -> MessageTone.ERROR
+            KeyVerdict.NetworkError -> MessageTone.NEUTRAL
         }
-        showSaveAnyway = result == GeminiKeyCheck.Result.NetworkError
+        showSaveAnyway = result == KeyVerdict.NetworkError
     }
 
     /** The draft was stored without a check (after a network error). */
@@ -237,38 +293,33 @@ private fun MessageTone.color(subtle: Color): Color = when (this) {
     MessageTone.NEUTRAL -> subtle
 }
 
-/** What a key check tells the user. */
-private fun keyCheckMessage(result: GeminiKeyCheck.Result): String = when (result) {
-    GeminiKeyCheck.Result.Valid -> "Key saved ✓"
-    GeminiKeyCheck.Result.Invalid -> "That key didn't work — check you copied the whole thing."
-    GeminiKeyCheck.Result.NetworkError -> "Couldn't reach Google to check the key. Are you online?"
+/** What a key check tells the user; [checkedBy] names who the check asked. */
+private fun keyCheckMessage(result: KeyVerdict, checkedBy: String): String = when (result) {
+    KeyVerdict.Valid -> "Key saved ✓"
+    KeyVerdict.Invalid -> "That key didn't work — check you copied the whole thing."
+    KeyVerdict.NetworkError -> "Couldn't reach $checkedBy to check the key. Are you online?"
 }
 
 @Composable
-private fun ApiKeyHeading(subtle: Color) {
+private fun KeyHeading(copy: KeyCopy, subtle: Color) {
     Column {
         Text(
-            "API key",
+            copy.title,
             color = MaterialTheme.colorScheme.onBackground,
             fontSize = TextSize.SectionHeader,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.size(4.dp))
-        Text(
-            "Your own Gemini key powers Jarvis. It's usually set up when the app is installed — enter it below to " +
-                "add or change it.",
-            color = subtle,
-            fontSize = TextSize.Body,
-        )
+        Text(copy.intro, color = subtle, fontSize = TextSize.Body)
         Spacer(Modifier.size(6.dp))
-        Text("Get a free key at aistudio.google.com/apikey.", color = subtle, fontSize = TextSize.Body)
+        Text(copy.whereToGet, color = subtle, fontSize = TextSize.Body)
         Spacer(Modifier.size(14.dp))
     }
 }
 
 /** The masked key field, with a Show/Hide toggle once something is typed. */
 @Composable
-private fun ApiKeyField(draft: String, reveal: Boolean, onDraftChange: (String) -> Unit, onToggleReveal: () -> Unit) {
+private fun KeyField(draft: String, reveal: Boolean, onDraftChange: (String) -> Unit, onToggleReveal: () -> Unit) {
     OutlinedTextField(
         value = draft,
         onValueChange = { if (it.length <= 256) onDraftChange(it) },

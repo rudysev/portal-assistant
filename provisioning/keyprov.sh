@@ -9,7 +9,7 @@
 # app installs and opens, but every conversation fails to connect.
 #
 # Contract with the app (com.portal.assistant):
-#   - the staged file the app imports-once on launch     → KEY_PROVISION_FILE  (AppPrefs.PROVISION_FILE)
+#   - the staged file the app imports-once on launch     → KEY_PROVISION_FILE  (ProvisionedKey.GEMINI_FILE)
 #   - the private prefs file + key the import lands in    → KEY_PREFS_FILE / KEY_PREFS_KEY (AppPrefs)
 # Change either side and you must change the other.
 #
@@ -19,7 +19,7 @@
 # It MAY also define step/ok/warn/die for styled output; plain fallbacks are used otherwise.
 
 # ----- contract constants (mirror these in install.ps1) ----------------------
-KEY_PROVISION_FILE="api_key.txt"        # AppPrefs.PROVISION_FILE — staged in $EXTDIR, imported on launch
+KEY_PROVISION_FILE="api_key.txt"        # ProvisionedKey.GEMINI_FILE — staged in $EXTDIR, imported on launch
 KEY_PREFS_FILE="assistant.xml"          # AppPrefs NAME="assistant" → shared_prefs/assistant.xml
 KEY_PREFS_KEY="gemini_api_key"          # AppPrefs.KEY_API
 KEY_VERIFY_URL="https://generativelanguage.googleapis.com/v1beta/models?key="  # same endpoint the app uses
