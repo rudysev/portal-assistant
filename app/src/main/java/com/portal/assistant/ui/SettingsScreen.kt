@@ -33,7 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.portal.assistant.conversation.backend.Backends
 import com.portal.assistant.conversation.tools.AppEntry
@@ -56,7 +63,7 @@ import kotlinx.coroutines.withContext
  * The app's settings surface: **backend** (Gemini cloud vs a local voice host on the LAN), the **API key**
  * when Gemini is selected (BYOD — paste or type + verify), the **model** picker and the **voice** (Speaker)
  * picker (Gemini only), the **local host address** (Local only), the **location** used for weather / "near me" answers,
- * the default music app,
+ * with the Weather data credit, the default music app,
  * **sounds** (the Listening tone switch), and the **external tools** allowlist. Changes apply to the **next**
  * conversation (device context, model, and tool
  * declarations are fixed at session start).
@@ -247,7 +254,29 @@ private fun LocationSection(subtle: Color) {
             enabled = place.isNotBlank() && place.trim() != savedPlace.trim(),
             colors = settingsButtonColors(),
         ) { Text("Save") }
+
+        Spacer(Modifier.size(18.dp))
+        WeatherCredit(subtle = subtle)
     }
+}
+
+/** The Weather lookup's data credit, linked as its licence (CC BY 4.0) asks. */
+@Composable
+private fun WeatherCredit(subtle: Color) {
+    val uriHandler = LocalUriHandler.current
+    val linkColor = MaterialTheme.colorScheme.primary
+    val credit = remember(linkColor) {
+        buildAnnotatedString {
+            append("Weather data by ")
+            // A Portal may have no browser: a link that can't open does nothing rather than crash.
+            val link = LinkAnnotation.Clickable(
+                tag = "open-meteo",
+                styles = TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+            ) { runCatching { uriHandler.openUri(OPEN_METEO_URL) } }
+            withLink(link) { append("Open-Meteo.com") }
+        }
+    }
+    Text(credit, color = subtle, fontSize = TextSize.Body)
 }
 
 /** The default music app picker, rendering the same effective default that play routing uses. */
@@ -336,3 +365,4 @@ private fun backendLabel(kind: AppPrefs.VoiceBackendKind): String = when (kind) 
 // The location field waits up to GEO_POLLS × GEO_POLL_MS (10 s) for an in-flight geolocation.
 private const val GEO_POLLS = 20
 private const val GEO_POLL_MS = 500L
+private const val OPEN_METEO_URL = "https://open-meteo.com/"

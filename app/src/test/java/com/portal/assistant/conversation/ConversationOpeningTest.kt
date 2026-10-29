@@ -1,6 +1,9 @@
 package com.portal.assistant.conversation
 
 import com.portal.assistant.conversation.backend.Backends
+import com.portal.assistant.conversation.tools.lookup.LookupHttp
+import com.portal.assistant.conversation.tools.lookup.Weather
+import com.portal.assistant.gemini.GeminiModel
 import com.portal.assistant.system.AppPrefs
 import com.portal.assistant.system.DeviceLocation
 import org.json.JSONObject
@@ -11,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.Locale
 
 /**
  * What [ConversationOpening] decides: whether a backend choice refuses ([ConversationOpening.refusalFor]), and from
@@ -267,6 +271,28 @@ class ConversationOpeningTest {
         assertTrue(opening.sessionPrompt.contains(CLOSING_RULE))
     }
 
+    @Test fun gemini38DeclaresTheWeatherToolWithItsPromptLineAndGemini25DoesNot() {
+        // The real Weather declaration, as the tool registry registers it, against the real Model catalog.
+        val weather = Weather(LookupHttp { error("not called") }, { error("not called") }, { Locale.US }, { 0L })
+        val registered = listOf(getTime, weather.declaration)
+        fun openOn(modelId: String) = open(
+            Trigger.MicTap,
+            inputs().copy(
+                modelId = modelId,
+                modelGoogleSearch = Backends.offersGoogleSearch(modelId),
+                toolDeclarations = registered,
+            ),
+        )
+
+        val on38 = openOn("gemini-3.8-live")
+        assertEquals(listOf("portal.get_time", "portal.get_weather"), declaredNames(on38))
+        assertTrue(on38.sessionPrompt.contains(WEATHER_LINE))
+
+        val on25 = openOn(GeminiModel.DEFAULT.id)
+        assertEquals(listOf("portal.get_time"), declaredNames(on25))
+        assertFalse(on25.sessionPrompt.contains("portal.get_weather"))
+    }
+
     @Test fun theLocalBackendGetsNoLookupsWhateverTheModelOrSearchKey() {
         for (googleSearch in listOf(true, false)) {
             for (searchKey in listOf(true, false)) {
@@ -345,6 +371,8 @@ class ConversationOpeningTest {
         const val GOOGLE_SEARCH_LINE =
             "- Google Search: Use for real-time/current info (weather, news, stocks, sports, prices, hours, " +
                 "recent events). Base answers on results.\n"
+        const val WEATHER_LINE =
+            "- Weather (portal.get_weather): Use for weather and forecasts. Omit location for here.\n"
         const val CLOSING_RULE = "If you can't look it up, say 'I can't check that' — never guess."
     }
 }

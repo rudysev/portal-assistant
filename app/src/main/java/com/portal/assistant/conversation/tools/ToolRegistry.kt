@@ -1,12 +1,18 @@
 package com.portal.assistant.conversation.tools
 
 import android.content.Context
+import android.os.SystemClock
 import com.portal.assistant.audio.Hush
+import com.portal.assistant.conversation.tools.lookup.Here
+import com.portal.assistant.conversation.tools.lookup.OkHttpLookupHttp
+import com.portal.assistant.conversation.tools.lookup.Weather
 import com.portal.assistant.conversation.tools.music.AndroidMediaSessions
 import com.portal.assistant.conversation.tools.music.AndroidMusicApps
 import com.portal.assistant.conversation.tools.music.Music
+import com.portal.assistant.system.LocationProvider
 import com.portal.commons.DebugLog
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * The production [ToolSet]: routes function calls to registered [Tool]s. The [ToolRunner] holds one
@@ -28,6 +34,21 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
     private val music =
         Music(AndroidMediaSessions(appContext), AndroidMusicApps(appContext), hush, appContext.packageName)
     private val appLauncher = AppLauncher(appContext)
+
+    // Weather reads "here" and the locale when it runs. The override's stored coordinates arrive with the override
+    // geocoding on save; until then it's the override text, looked up per call, else the IP-geo location.
+    private val weather = Weather(
+        OkHttpLookupHttp(),
+        here = {
+            Here(
+                overrideText = LocationProvider.override(appContext),
+                overrideCoordinates = null,
+                device = LocationProvider.current(appContext),
+            )
+        },
+        locale = { Locale.getDefault() },
+        nowMs = { SystemClock.elapsedRealtime() },
+    )
     private val external = ExternalToolProvider(appContext)
 
     // Music builds the **music commands** play_music, media_control and set_repeat (final when they work; a pause
@@ -52,6 +73,8 @@ class ToolRegistry(context: Context, afterSpeech: AfterSpeech, hush: Hush) : Too
         music.playMusic,
         OpenAppTool(appLauncher),
         EndConversationTool,
+        // A Lookup: declared only when the opening decides on it (a model without Google Search).
+        weather,
     )
 
     private val builtinNames: Set<String> = tools.mapTo(HashSet()) { it.name }
