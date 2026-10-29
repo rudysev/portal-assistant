@@ -35,10 +35,28 @@ that one name everywhere it's shown. Read when a
 conversation opens, so a change applies to the next one. Only exists for the Gemini voice backend.
 _Avoid_: Backend (that's Gemini vs local), engine, version
 
+**Lookup**:
+Jarvis fetching live information (weather, news, scores, prices, opening hours) while it answers: Google Search,
+Web search or Weather. A conversation only has the lookups decided when it opens. When Jarvis can't look something
+up, it says "I can't check that" rather than guessing.
+_Avoid_: Grounding, ground search
+
 **Google Search**:
-Jarvis looking things up on the web (weather, news, scores) while it answers. Only some models offer it. When Jarvis
-can't look something up, it says "I can't check that" rather than guessing.
-_Avoid_: Grounding, ground search, web search
+The lookup some models offer natively (Gemini 2.5 today). A model with it gets no other lookup.
+_Avoid_: Grounding, ground search
+
+**Web search**:
+Jarvis's own lookup for live information, on a model without Google Search. Only with a Search key.
+_Avoid_: Google Search (that's the model's own)
+
+**Search key**:
+The user's own key for Web search, added in Settings or by `setup.sh`, like the Gemini API key.
+_Avoid_: Tavily key
+
+**Weather**:
+Jarvis's own weather lookup, on a model without Google Search. Needs no key. With no place named, it's for the
+location set in Settings, else the one found from the network.
+_Avoid_: Weather glance (that's the deferred idle-screen feature)
 
 ### Conversation
 
