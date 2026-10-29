@@ -253,9 +253,10 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   (`AppPrefs.searchKey`, read when the tool runs) as bearer auth: `search_depth=basic` (1 credit), `max_results=5`, no
   `include_answer`, the model's `topic` passed through (anything else → `general`), and its **required** `time_range`
   passed through on every topic (`any`, or anything else, → no range; same credit). The range is required because the
-  model set an optional one on only 21/30 recency questions; its description steers by kind of answer (`day`/`week` for
-  the last game or what happened today, `any` for prices and quotes, hours, facts, how-tos), since a range on a quote or
-  opening-hours search loses the quote or store page (measured 2026-10-29, ticket 10). The result is
+  model set an optional one on only 21/30 recency questions; its description says to choose by the kind of answer, not
+  by words like 'now' or 'today' (`any` for a price or quote, hours, a fact, a how-to; `day`/`week` for what happened
+  today or the last game; on prices it took `any` 23/35 vs 7/35 for a list without that rule), since a range on a quote
+  or opening-hours search loses the quote or store page (measured 2026-10-29, ticket 10). The result is
   `{"sources":[{"title","snippet","published"?}]}`: no URLs, never Tavily's answer (measured 2026-10-29: it garbled
   scores the sources had right), each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut
   at a word to `SNIPPET_MAX_CHARS` (300) with an ellipsis; `published` is Tavily's `published_date` (news only, RFC 1123
