@@ -31,8 +31,8 @@ object ResumeContext {
     }
 
     /**
-     * Append the prior conversation [turns] to [systemPrompt] as a `# Conversation So Far` section (always
-     * the prompt's last) holding a labelled transcript, so the resumed session continues with context.
+     * Append the prior conversation [turns] to [systemPrompt] as a `# Conversation So Far` section
+     * holding a labelled transcript, so the resumed session continues with context.
      * Returns [systemPrompt] unchanged when there is nothing to replay.
      * [Role.USER] → `"User"`, [Role.MODEL] → `"Assistant"`.
      */

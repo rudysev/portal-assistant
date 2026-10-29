@@ -109,4 +109,14 @@ class ExternalToolSpecTest {
         assertEquals(1, r1.declarations.size)
         assertEquals(listOf("- AAA. Tools: shared.tool."), r1.promptLines)
     }
+
+    @Test fun promptLinesAreOrderedByPackageName() {
+        val kasa = provider("com.portal.kasa", decl("com.portal.kasa.set_plug"), summary = "Plugs.")
+        val calendar = provider("com.portal.calendar", decl("com.portal.calendar.add_event"), summary = "Calendar.")
+        val r = ExternalToolSpec.parse(listOf(kasa, calendar), enabledPkgs = setOf(kasa.pkg, calendar.pkg))
+        assertEquals(
+            listOf("- Calendar. Tools: com.portal.calendar.add_event.", "- Plugs. Tools: com.portal.kasa.set_plug."),
+            r.promptLines,
+        )
+    }
 }
