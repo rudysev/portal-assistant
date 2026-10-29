@@ -108,6 +108,7 @@ internal fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit
         AppPrefs.VoiceBackendKind.LOCAL -> "Add your local server address to get started"
         AppPrefs.VoiceBackendKind.GEMINI -> "Add your Gemini API key to get started"
     }
+    val searchKeyNudge = showsSearchKeyNudge(context, backendChoice.kind)
     BoxWithConstraints(modifier = modifier) {
         // Orientation is the real signal (width vs height), with WIDE_HOME_MIN only as a "wide enough" floor —
         // an absolute width threshold can't tell landscape from portrait here (both clear 720 dp at 160 dpi).
@@ -127,7 +128,9 @@ internal fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit
                         .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)),
                 )
                 Spacer(Modifier.size(40.dp))
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { AskPanel(onSuggestion) }
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    AskPanel(onSuggestion, searchKeyNudge, onOpenSettings)
+                }
             }
         } else {
             // Portrait / narrow: one clock-first center column — the clock leads, the ask band sits beneath.
@@ -153,7 +156,7 @@ internal fun IdleHome(onSuggestion: (String) -> Unit, onOpenSettings: () -> Unit
                         }, contentDescription = "Open Settings")
                     }
                 } else {
-                    AskPanel(onSuggestion)
+                    AskPanel(onSuggestion, searchKeyNudge, onOpenSettings)
                 }
             }
         }
@@ -176,13 +179,34 @@ private fun GreetingHeader() {
 }
 
 /** Greeting + the suggestion chips, center-aligned — shared by the stacked and two-pane homes. The "Try
- *  asking" caption was dropped to keep the idle home calm: the chips already read as prompts. */
+ *  asking" caption was dropped to keep the idle home calm: the chips already read as prompts. With
+ *  [searchKeyNudge] ([showsSearchKeyNudge]), a quiet "Add a search key" line beneath opens Settings. */
 @Composable
-private fun AskPanel(onSuggestion: (String) -> Unit) {
+private fun AskPanel(onSuggestion: (String) -> Unit, searchKeyNudge: Boolean, onOpenSettings: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         GreetingHeader()
         SuggestionChips(onSuggestion)
+        if (searchKeyNudge) SearchKeyNudgeLine(onOpenSettings)
         WakeSetupIndicator()
+    }
+}
+
+/** A gentle, tappable hint (not a chip — it isn't a prompt) that opens Settings to add a Search key. */
+@Composable
+private fun SearchKeyNudgeLine(onOpenSettings: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.size(16.dp))
+        Text(
+            text = "$SEARCH_KEY_NUDGE for news, scores and more",
+            color = Accent.copy(alpha = SECONDARY_ALPHA),
+            fontSize = TextSize.Body,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radii.Pill))
+                .clickable(onClick = onOpenSettings)
+                .semantics { contentDescription = "Open Settings to add a search key" }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
     }
 }
 

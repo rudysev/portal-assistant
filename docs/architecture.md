@@ -257,10 +257,12 @@ classes + DNS + the tool-provider snapshot) · `conversation/` (`ConversationSta
 `ConversationOpening` (the pure opening decision); `ConversationHub` =
 session bridge publishing `ConversationSession` + `audioLevel` + `notice`; `Transcript` + `Markdown`,
 `ResumeContext`, `RevealProgress`; `tools/` incl. the `ToolRunner` + `ToolSet`/`ToolRegistry` + `AfterSpeech` + `DeferredToggle`,
-`TimerScheduler` + the observable `TimerStore`, and `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
-and Android adapters, and `tools/lookup/` = the `LookupHttp` port + `OkHttpLookupHttp`, `Weather`, `WeatherCodes`;
+`TimerScheduler` + the observable `TimerStore`, `tools/music/` = `Music` + its `MediaSessions`/`MusicApps` ports
+and Android adapters, and `tools/lookup/` = the Lookups (the `LookupHttp` port + `OkHttpLookupHttp`, `Weather`,
+`WeatherCodes`; `SearchKeyCheck`: the Search key's Save & verify);
 `backend/` = the `VoiceBackend` seam + the shared `WebSocketVoiceBackend` transport, `WireFormat`, `BackendEvent`, `ToolCallWire`, `Backends`) · `gemini/` (`GeminiBackend`, `GeminiWireFormat`, `GeminiKeyCheck`, model + Speaker catalogs, Speaker preview) · `local/` (`LocalBackend`, `LocalWireFormat`, `LocalToolMapping`, `LocalVoiceHost`) · `audio/` (`PcmPlayer`, `SpeechAudio`, `Hush`, `AudioFocusHush`, `PcmGain`, `PrebuiltTrack`) ·
-`system/` (`AppPrefs`, `LocationProvider`, `NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
+`system/` (`AppPrefs`, `ProvisionedKey` (import-once of the keys `setup.sh` stages), `LocationProvider`,
+`NetworkStatus`) · `ui/` — `ConversationScreen` (+ `ConversationStatus`/
 `ListeningOrb`/`NoticeBanner`; `IdleHome.kt` has the idle home, `AmbientGlow`, clock and suggestion chips,
 `TranscriptView.kt` the transcript, `TimerCards.kt` and `ConversationControls.kt` the rest), `SettingsScreen` (its
 sections, with `SpeakerSettings.kt`, `ConnectionSettings.kt` and the shared `SettingsComponents.kt`),
