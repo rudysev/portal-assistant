@@ -42,7 +42,9 @@
   `AppPrefs.listeningToneEnabled`, default on; switching it on previews the tone via `ListeningTonePlayer`, off
   is silent, and no preview plays while a conversation is live — pure `ListeningTone.previewsOnSwitch`), location
   override (Save looks the place up once, then says "Found <place>." or "Couldn't find that place — saved as
-  typed." — pure `LocationNotice.afterSave`; with the linked "Weather data by Open-Meteo.com" credit beneath it; the link does nothing if no browser
+  typed." — pure `LocationNotice.afterSave`; on reopen a matched override shows "Found <place>." again
+  (`LocationNotice.stored`); Clear, shown while an override is stored, removes it with its match, refills the
+  detected label and says weather uses the network's location; with the linked "Weather data by Open-Meteo.com" credit beneath it; the link does nothing if no browser
   can open it), default-music-app picker, external-tool toggles (shared `SettingsSwitchRow`).
 
   The Activity binds to the live conversation via the process-singleton `conversation/ConversationHub`: the

@@ -28,9 +28,11 @@ object AppPrefs {
     const val KEY_LOC_JSON = "loc_json" // raw IP-geo API response body
     const val KEY_LOC_OVERRIDE = "loc_override" // explicit user-set location (free text); never auto-written
 
-    // The override's "lat,lon" when Weather's place lookup found it on save; written and cleared with the override
-    // text. Absent (not found, offline, or saved before it existed) → Weather looks the text up on each call.
+    // The override's match when Weather's place lookup found it on save: its "lat,lon" and resolved place name
+    // (shown in Settings). Written and cleared with the override text (LocationOverride.Stored). Absent (not found,
+    // offline, or saved before they existed) → Weather looks the text up on each call.
     const val KEY_LOC_OVERRIDE_COORDS = "loc_override_coords"
+    const val KEY_LOC_OVERRIDE_PLACE = "loc_override_place"
 
     // Timers — managed by TimerScheduler
     const val KEY_TIMERS = "timers_json" // JSON array of active TimerEntry

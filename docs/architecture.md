@@ -231,16 +231,27 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   failure (not found, HTTP status, malformed body, timeout, offline) is `{"error": …}`, so the model says it can't
   check. The bound is the tool's, not the conversation's (the two client timers are unchanged). `findPlace(name)`
   is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save:
-  `LocationProvider.saveOverride` (Settings the only writer) looks the text up once and writes it with its "lat,lon"
-  (`AppPrefs.KEY_LOC_OVERRIDE_COORDS`), or alone, clearing old coordinates, when not found or offline; pure
-  `system/LocationOverride` saves and reads the pair (an override saved before coordinates existed reads text-only).
+  `LocationProvider.saveOverride` (Settings the only writer) looks the text up once and writes it with its match,
+  "lat,lon" and resolved place name (`AppPrefs.KEY_LOC_OVERRIDE_COORDS`, `KEY_LOC_OVERRIDE_PLACE`), or alone,
+  clearing any old match, when not found or offline; `LocationProvider.clearOverride` removes text and match
+  together, so Weather goes back to IP-geo. Pure `system/LocationOverride` saves, reads and clears the three as one
+  `Stored` (`CLEARED` stores nothing; coordinates without a name, or saved before either existed, read text-only).
+  Weather reads the override (and IP-geo) **when it runs**, not at opening. That is the "a tool reads its own
+  setting when it runs" half of the Settings rule in `CLAUDE.md`, not a breach of "opening settings are read once":
+  the location read once at opening is the prompt's (`SystemContext`, text for the model); Weather needs the stored
+  match's coordinates, which the opening doesn't carry, and stays a self-contained tool like Web search reading its
+  key. So an override saved or cleared mid-conversation applies to the next weather call, while the prompt keeps its
+  opening snapshot. A named place that can't be found errors without its name
+  (`"place not found"`): the error can reach `debug.txt`, and an override is text the user typed. A null value in
+  Open-Meteo's `current`/`daily` arrays leaves that one field out (of that day) rather than failing the lookup.
   Settings credits "Weather data by Open-Meteo.com" (linked) under Location. JVM-tested at the `Tool` seam
   (`WeatherTest`). **Web search** (`WebSearch`, `portal.web_search(query, topic? general/news/finance)`, never a
   final turn) uses Tavily `POST api.tavily.com/search` with the Search key (`AppPrefs.searchKey`, read when the tool
   runs) as bearer auth: `search_depth=basic` (1 credit), `include_answer=basic`, `max_results=3`, the model's
   `topic` passed through (anything else → `general`). The result is `{"answer", "sources":[{"title","snippet"}]}`:
   no URLs, each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to
-  `SNIPPET_MAX_CHARS` (300) with an ellipsis; no answer (null or empty) → the sources alone. One request bounded by
+  `SNIPPET_MAX_CHARS` (300) with an ellipsis; no answer (null or empty) → the sources alone; an answer with no
+  `results` → the answer with no sources. One request bounded by
   `WebSearch.TIMEOUT_MS` (5 s, provisional). No key, an empty query, an HTTP status, a malformed body, a timeout or
   no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
