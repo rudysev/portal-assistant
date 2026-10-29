@@ -230,8 +230,9 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   + km/h. WMO codes become words (`WeatherCodes`, unknown → "unknown"). With no place named it's for **here**
   (`Here`, read when the tool runs): the location override's stored coordinates, else the override text looked up on
   each call (never written back; not found → an error, never the network's location), else the IP-geo
-  `DeviceLocation`, else `{"error":"location unknown"}`. **One deadline** (`Weather.DEADLINE_MS`, 5 s, provisional)
-  spans the place lookup and the forecast: each request gets what's left, none goes out once it's spent. Every
+  `DeviceLocation`, else `{"error":"location unknown"}`. **One deadline** (`Weather.DEADLINE_MS`, 5 s, about twice
+  the slowest measured) spans the place lookup and the forecast: each request gets what's left, none goes out once
+  it's spent. Every
   failure (not found, HTTP status, malformed body, timeout, offline) is `{"error": …}`, so the model says it can't
   check. The bound is the tool's, not the conversation's (the two client timers are unchanged). `findPlace(name)`
   is the same place lookup alone (`Found`/`NotFound`/`Failed`), for Settings matching an override on save:
@@ -255,9 +256,8 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
   `topic` passed through (anything else → `general`). The result is `{"answer", "sources":[{"title","snippet"}]}`:
   no URLs, each snippet plain text (`Markdown.strip`, bare URLs and whitespace runs removed) cut at a word to
   `SNIPPET_MAX_CHARS` (300) with an ellipsis; no answer (null or empty) → the sources alone; an answer with no
-  `results` → the answer with no sources. One request bounded by
-  `WebSearch.TIMEOUT_MS` (5 s, provisional). No key, an empty query, an HTTP status, a malformed body, a timeout or
-  no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
+  `results` → the answer with no sources. One request bounded by `WebSearch.TIMEOUT_MS` (5 s, about twice the
+  slowest measured). No key, an empty query, an HTTP status, a malformed body, a timeout or no connection → `{"error": …}`. JVM-tested at the `Tool` seam (`WebSearchTest`).
 - `conversation/tools/AfterSpeech.kt` — a tiny queue for side effects that must wait until the assistant stops
   talking (muting the media stream, enabling DND — both silence playback, so they'd eat their own spoken
   confirmation). Both controllers queue it through one shared `DeferredToggle` (report the intended state now —
