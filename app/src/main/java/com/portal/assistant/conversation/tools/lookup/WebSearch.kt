@@ -16,7 +16,7 @@ import java.util.Locale
 /**
  * **Web search**, `portal.web_search`: everything live that isn't the weather (news, scores, prices, hours, recent
  * events), with the user's own Search key. Tavily `POST /search` behind [LookupHttp]: one basic search (1 credit)
- * for [MAX_RESULTS] results, the model's `topic` passed through. The result is
+ * for [MAX_RESULTS] results, the model's `topic` and `time_range` passed through (`any`: no range). The result is
  * `{"sources":[{"title","snippet","published"?}]}`, sized for a voice model: no URLs, each snippet plain text of at
  * most [SNIPPET_MAX_CHARS], `published` in the device's zone when Tavily dated it. Never Tavily's answer: it garbles
  * facts the sources have right, so the model reads the sources itself. One request bounded by [TIMEOUT_MS]; every
@@ -33,10 +33,12 @@ class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, pr
            "description":"Search the web for live info: news, scores, prices, opening hours, recent events.",
            "parameters":{"type":"OBJECT",
              "properties":{
-               "query":{"type":"STRING","description":"What to search for, as a short search query."},
+               "query":{"type":"STRING","description":"What to search for, as a short, specific search query naming who or what (e.g. 'Golden State Warriors last game final score')."},
                "topic":{"type":"STRING","enum":["general","news","finance"],
-                 "description":"news for current events, finance for markets and prices, else general."}},
-             "required":["query"]}}""",
+                 "description":"news for current events, finance for markets and prices, else general."},
+               "time_range":{"type":"STRING","enum":["day","week","month","year","any"],
+                 "description":"How recent the results must be. day: what happened today or last night. week: the latest game or result, the latest on a story. month / year: this month / this year. any: prices and quotes, opening hours, facts, how-tos, older events."}},
+             "required":["query","time_range"]}}""",
     )
 
     override fun invoke(args: JSONObject): ToolOutput {
@@ -45,17 +47,18 @@ class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, pr
         return when {
             key == null -> ToolOutput.error("no search key")
             query.isEmpty() -> ToolOutput.error("no query")
-            else -> search(query, topic(args.optString("topic")), key)
+            else -> search(query, topic(args.optString("topic")), timeRange(args.optString("time_range")), key)
         }
     }
 
-    private fun search(query: String, topic: String, key: String): ToolOutput {
+    private fun search(query: String, topic: String, timeRange: String?, key: String): ToolOutput {
         val request = LookupRequest(
             url = SEARCH_URL,
             headers = mapOf("Authorization" to "Bearer $key"),
             jsonBody = JSONObject()
                 .put("query", query)
                 .put("topic", topic)
+                .apply { if (timeRange != null) put("time_range", timeRange) }
                 .put("search_depth", "basic")
                 .put("max_results", MAX_RESULTS)
                 .toString(),
@@ -105,6 +108,7 @@ class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, pr
         private const val LOOKUP = "search"
         private const val ELLIPSIS = "…"
         private val TOPICS = setOf("general", "news", "finance")
+        private val TIME_RANGES = setOf("day", "week", "month", "year")
         private val BARE_URL = Regex("""https?://\S+""")
         private val WHITESPACE = Regex("""\s+""")
         private val PUBLISHED_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT)
@@ -112,6 +116,9 @@ class WebSearch(private val http: LookupHttp, private val zone: () -> ZoneId, pr
         /** The model's topic when Tavily has it, else a general search. */
         private fun topic(asked: String): String =
             asked.trim().lowercase(Locale.ROOT).takeIf { it in TOPICS } ?: "general"
+
+        /** The model's range when Tavily has it; `any`, or anything else, is no range. */
+        private fun timeRange(asked: String): String? = asked.trim().lowercase(Locale.ROOT).takeIf { it in TIME_RANGES }
 
         /** Spoken-friendly text: markdown and bare URLs removed, whitespace runs folded to one space. */
         private fun plain(text: String): String =

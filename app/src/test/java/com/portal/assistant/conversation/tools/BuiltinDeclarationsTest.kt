@@ -7,6 +7,7 @@ import com.portal.assistant.conversation.tools.lookup.WebSearch
 import com.portal.assistant.conversation.tools.music.FakeMediaSessions
 import com.portal.assistant.conversation.tools.music.FakeMusicApps
 import com.portal.assistant.conversation.tools.music.Music
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,6 +57,8 @@ class BuiltinDeclarationsTest {
     private fun JSONObject.param(name: String) =
         getJSONObject("parameters").getJSONObject("properties").getJSONObject(name).getString("description")
 
+    private fun JSONArray.strings() = (0 until length()).map { getString(it) }
+
     /** Every description in this declaration: the tool's own, then each parameter's. */
     private fun JSONObject.descriptions(): List<String> {
         val properties = getJSONObject("parameters").optJSONObject("properties") ?: JSONObject()
@@ -103,6 +106,19 @@ class BuiltinDeclarationsTest {
             ),
         )
         for (text in music.playMusic.declaration.descriptions()) assertFalse(text, text.contains("Spotify Free"))
+    }
+
+    @Test fun webSearchRequiresATimeRangeThatPutsAnyOnPricesHoursAndFacts() {
+        val webSearch = WebSearch(noHttp, { error("not called") }) { error("not called") }.declaration
+        val parameters = webSearch.getJSONObject("parameters")
+        assertEquals(listOf("query", "time_range"), parameters.getJSONArray("required").strings())
+        val ranges = parameters.getJSONObject("properties").getJSONObject("time_range").getJSONArray("enum")
+        assertEquals(listOf("day", "week", "month", "year", "any"), ranges.strings())
+        val timeRange = webSearch.param("time_range")
+        assertTrue(timeRange.contains("week: the latest game or result"))
+        assertTrue(timeRange.contains("any: prices and quotes, opening hours, facts, how-tos"))
+        assertFalse(timeRange, timeRange.contains("right now"))
+        assertTrue(webSearch.param("query").contains("naming who or what"))
     }
 
     @Test fun eachPlayMusicRuleIsStatedOnce() {
