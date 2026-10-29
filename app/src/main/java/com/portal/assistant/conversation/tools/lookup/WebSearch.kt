@@ -56,18 +56,12 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
                 .toString(),
             timeoutMs = TIMEOUT_MS,
         )
-        return when (val response = http.execute(request)) {
-            is LookupResponse.Body -> try {
-                ToolOutput(result(JSONObject(response.text)))
-            } catch (_: JSONException) {
-                ToolOutput.error(UNAVAILABLE)
-            }
-
-            is LookupResponse.Status -> ToolOutput.error("$UNAVAILABLE (HTTP ${response.code})")
-
-            LookupResponse.TimedOut -> ToolOutput.error(TIMED_OUT)
-
-            is LookupResponse.Failure -> ToolOutput.error(UNAVAILABLE)
+        val response = http.execute(request)
+        if (response !is LookupResponse.Body) return ToolOutput.error(checkNotNull(response.lookupError(LOOKUP)))
+        return try {
+            ToolOutput(result(JSONObject(response.text)))
+        } catch (_: JSONException) {
+            ToolOutput.error(unavailable(LOOKUP))
         }
     }
 
@@ -105,8 +99,7 @@ class WebSearch(private val http: LookupHttp, private val searchKey: () -> Strin
 
         private const val MAX_RESULTS = 3
         private const val SEARCH_URL = "https://api.tavily.com/search"
-        private const val UNAVAILABLE = "search unavailable"
-        private const val TIMED_OUT = "search timed out"
+        private const val LOOKUP = "search"
         private const val ELLIPSIS = "…"
         private val TOPICS = setOf("general", "news", "finance")
         private val BARE_URL = Regex("""https?://\S+""")

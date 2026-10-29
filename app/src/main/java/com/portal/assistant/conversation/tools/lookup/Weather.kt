@@ -141,13 +141,8 @@ class Weather(
         } else {
             LookupResponse.TimedOut
         }
-        val failure = when (response) {
-            is LookupResponse.Body -> return response.text
-            is LookupResponse.Status -> "$UNAVAILABLE (HTTP ${response.code})"
-            LookupResponse.TimedOut -> TIMED_OUT
-            is LookupResponse.Failure -> UNAVAILABLE
-        }
-        throw LookupFailed(failure)
+        if (response is LookupResponse.Body) return response.text
+        throw LookupFailed(checkNotNull(response.lookupError(LOOKUP)))
     }
 
     /** A provider body that isn't the JSON we expect is [UNAVAILABLE]. */
@@ -250,8 +245,8 @@ class Weather(
 
         // Without the place's name: the error can reach debug.txt, and the override is text the user typed.
         private const val PLACE_NOT_FOUND = "place not found"
-        private const val UNAVAILABLE = "weather unavailable"
-        private const val TIMED_OUT = "weather timed out"
+        private const val LOOKUP = "weather"
+        private val UNAVAILABLE = unavailable(LOOKUP)
         private const val FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
         private const val GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
