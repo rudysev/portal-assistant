@@ -17,8 +17,11 @@ object EndConversationTool : Tool {
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 
+    // Conditional: Gemini 2.5 often says goodbye in the turn that makes this call, and an unconditional "reply with
+    // a sign-off" got it a second one ("Goodbye! Goodbye.").
     override fun invoke(args: JSONObject): ToolOutput = ToolOutput(
         JSONObject().put("ok", true),
-        finalTurnInstruction = "Reply with one brief sign-off and no question; the conversation then ends.",
+        finalTurnInstruction = "If you already said goodbye, say nothing more. Otherwise reply with one brief " +
+            "sign-off and no question. The conversation then ends.",
     )
 }
