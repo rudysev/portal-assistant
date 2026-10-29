@@ -6,20 +6,19 @@ import org.junit.Test
 /** Pure JVM tests for session system-prompt assembly. */
 class SessionPromptTest {
 
-    private val builtin = SystemPrompt.build(emptySet())
     private val kasa = "- Kasa. Tools: com.portal.kasa.set_plug."
     private val time = "Time at conversation start: now (Z)."
 
     private fun headings(prompt: String) = prompt.lines().filter { it.startsWith("#") }
 
-    @Test fun externalLinesSitUnderToolsThenDeviceContextFollows() {
+    @Test fun theBuiltinSectionsThenDeviceContext() {
         val out = SessionPrompt.build(
-            builtinRules = builtin,
+            lookups = setOf(Lookup.GOOGLE_SEARCH),
             externalToolLines = listOf(kasa),
             deviceContextLines = listOf(time),
         )
         assertEquals(
-            "$builtin\n$kasa\n\n# Device Context\n- $time",
+            SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH), listOf(kasa)) + "\n\n# Device Context\n- $time",
             out,
         )
         assertEquals(
@@ -28,18 +27,9 @@ class SessionPromptTest {
         )
     }
 
-    @Test fun withoutProvidersToolsIsJustTheBuiltinRules() {
-        val out = SessionPrompt.build(
-            builtinRules = builtin,
-            externalToolLines = emptyList(),
-            deviceContextLines = listOf(time),
-        )
-        assertEquals("$builtin\n\n# Device Context\n- $time", out)
-    }
-
     @Test fun resumeHistoryIsTheLastSection() {
         val out = SessionPrompt.build(
-            builtinRules = builtin,
+            lookups = emptySet(),
             externalToolLines = listOf(kasa),
             deviceContextLines = listOf(time),
             resumeTurns = listOf(Turn(Role.USER, "Hi"), Turn(Role.MODEL, "Hello")),

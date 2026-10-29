@@ -100,7 +100,7 @@ object ConversationOpening {
         val declaredNames = declarations.map { it.optString("name") }.toSet()
         val lookups = decided.filterTo(LinkedHashSet()) { it.toolName == null || it.toolName in declaredNames }
         val sessionPrompt = SessionPrompt.build(
-            builtinRules = SystemPrompt.build(lookups),
+            lookups = lookups,
             externalToolLines = inputs.externalPromptLines,
             deviceContextLines = deviceContextLines(inputs),
             resumeTurns = resumeTurns,

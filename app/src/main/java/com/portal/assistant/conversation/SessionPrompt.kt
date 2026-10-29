@@ -1,13 +1,9 @@
 package com.portal.assistant.conversation
 
 /**
- * Pure assembly of the session system instruction sent to the voice backend at connect time.
- *
- * Layers (in order, Markdown `#` sections):
- * 1. [SystemPrompt] — Role and Objective, Personality and Tone, Speaking, Tools (Google Search line when a Lookup)
- * 2. [ExternalToolPrompt] — enabled external-provider bullets, under `# Tools` (when any)
- * 3. [SystemContext] — `# Device Context`: time at conversation start and location
- * 4. [ResumeContext] — `# Conversation So Far`: prior transcript on a mic-tap resume (when any), always last
+ * Pure assembly of the session system instruction sent to the voice backend at connect time: the built-in sections
+ * ([SystemPrompt], with the external providers' lines), then [SystemContext]'s device snapshot, then on a mic-tap
+ * resume [ResumeContext]'s prior transcript.
  *
  * Android-free so the layering is unit-tested; [ConversationOpening] calls it with [externalToolLines] from
  * [com.portal.assistant.conversation.tools.ToolRegistry.externalPromptLines] (same session parse as tool
@@ -16,13 +12,13 @@ package com.portal.assistant.conversation
 object SessionPrompt {
 
     fun build(
-        builtinRules: String,
+        lookups: Set<Lookup>,
         externalToolLines: List<String>,
         deviceContextLines: List<String>,
         resumeTurns: List<Turn> = emptyList(),
     ): String {
-        val withExternalTools = ExternalToolPrompt.enrich(builtinRules, externalToolLines)
-        val withDeviceContext = SystemContext.enrich(withExternalTools, deviceContextLines)
+        val builtin = SystemPrompt.build(lookups, externalToolLines)
+        val withDeviceContext = SystemContext.enrich(builtin, deviceContextLines)
         return ResumeContext.withHistory(withDeviceContext, resumeTurns)
     }
 }

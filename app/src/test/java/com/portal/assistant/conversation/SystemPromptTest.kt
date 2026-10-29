@@ -8,16 +8,18 @@ import org.junit.Test
 /** Pure JVM tests for the system prompt's built-in sections: the same skeleton whatever the Lookups. */
 class SystemPromptTest {
 
-    private val everyLookupSet = listOf(
+    private val decidableLookupSets = listOf(
         emptySet(),
         setOf(Lookup.GOOGLE_SEARCH),
         setOf(Lookup.WEATHER),
         setOf(Lookup.WEATHER, Lookup.WEB_SEARCH),
     )
 
+    private val kasa = "- Control your smart plugs by voice. Tools: com.portal.kasa.set_plug."
+
     @Test fun theSectionsAreMarkdownHeadingsInAFixedOrder() {
-        for (lookups in everyLookupSet) {
-            val headings = SystemPrompt.build(lookups).lines().filter { it.startsWith("#") }
+        for (lookups in decidableLookupSets) {
+            val headings = SystemPrompt.build(lookups, listOf(kasa)).lines().filter { it.startsWith("#") }
             assertEquals(
                 lookups.toString(),
                 listOf("# Role and Objective", "# Personality and Tone", "# Speaking", "# Tools"),
@@ -28,7 +30,7 @@ class SystemPromptTest {
 
     @Test fun theSharedLookupRuleIsAlwaysUnderTools() {
         val rule = "if you can't, say \"I can't check that\" instead of guessing."
-        for (lookups in everyLookupSet) {
+        for (lookups in decidableLookupSets) {
             val prompt = SystemPrompt.build(lookups)
             assertTrue(lookups.toString(), prompt.indexOf(rule) > prompt.indexOf("# Tools"))
         }
@@ -37,13 +39,20 @@ class SystemPromptTest {
     @Test fun theGoogleSearchLineAppearsOnlyWithGoogleSearch() {
         val line = "- Google Search: use it for live information."
         assertTrue(SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH)).endsWith("\n$line"))
-        for (lookups in everyLookupSet - setOf(setOf(Lookup.GOOGLE_SEARCH))) {
+        for (lookups in decidableLookupSets - setOf(setOf(Lookup.GOOGLE_SEARCH))) {
             assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("Google Search"))
         }
     }
 
-    @Test fun noToolIsNamedSoEachRuleLivesOnlyInItsDeclaration() {
-        for (lookups in everyLookupSet) {
+    @Test fun externalProviderLinesAreTheLastToolsBullets() {
+        val calendar = "- Manage your calendar by voice. Tools: com.portal.calendar.add_event."
+        val prompt = SystemPrompt.build(setOf(Lookup.GOOGLE_SEARCH), listOf(calendar, kasa))
+        assertTrue(prompt.endsWith("\n- Google Search: use it for live information.\n$calendar\n$kasa"))
+        assertEquals(SystemPrompt.build(emptySet()), SystemPrompt.build(emptySet(), emptyList()))
+    }
+
+    @Test fun noBuiltinToolIsNamedSoEachRuleLivesOnlyInItsDeclaration() {
+        for (lookups in decidableLookupSets) {
             assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("portal."))
         }
     }
@@ -58,7 +67,7 @@ class SystemPromptTest {
     }
 
     @Test fun thePromptIsModelNeutral() {
-        for (lookups in everyLookupSet) {
+        for (lookups in decidableLookupSets) {
             assertFalse(lookups.toString(), SystemPrompt.build(lookups).contains("Gemini"))
         }
     }
@@ -70,10 +79,8 @@ class SystemPromptTest {
     }
 
     @Test fun noCapitalisedEmphasis() {
-        val shouting = Regex("""\b[A-Z]{3,}\b""")
-        for (lookups in everyLookupSet) {
-            val shouted = shouting.findAll(SystemPrompt.build(lookups)).map { it.value }.toList()
-            assertEquals(lookups.toString(), emptyList<String>(), shouted)
+        for (lookups in decidableLookupSets) {
+            assertEquals(lookups.toString(), emptyList<String>(), shoutedWords(SystemPrompt.build(lookups)))
         }
     }
 }
