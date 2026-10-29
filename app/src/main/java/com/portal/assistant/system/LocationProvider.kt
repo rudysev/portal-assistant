@@ -62,6 +62,7 @@ object LocationProvider {
             locale = { Locale.getDefault() },
             nowMs = { SystemClock.elapsedRealtime() },
         ).findPlace(place)
+        // Logs why, never the place: it's text the user typed.
         if (search is Weather.PlaceSearch.Failed) DebugLog.log("location override lookup failed: ${search.reason}")
         val saved = LocationOverride.saved(place, search)
         AppPrefs.prefs(context).edit {

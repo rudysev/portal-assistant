@@ -86,14 +86,14 @@ class WeatherTest {
     @Test fun aNamedPlaceThatCantBeFoundIsAnErrorAndNoForecastIsAskedFor() {
         http.onBody(GEOCODING, GEOCODING_NO_MATCH)
 
-        assertJson("""{"error":"place not found: Atlantis"}""", invoke(JSONObject().put("location", "Atlantis")))
+        assertJson("""{"error":"place not found"}""", invoke(JSONObject().put("location", "Atlantis")))
         assertEquals(emptyList<LookupRequest>(), http.requestsTo(FORECAST))
     }
 
     @Test fun anEmptyResultsListIsAlsoNotFound() {
         http.onBody(GEOCODING, """{"results":[],"generationtime_ms":0.4}""")
 
-        assertJson("""{"error":"place not found: Atlantis"}""", invoke(JSONObject().put("location", "Atlantis")))
+        assertJson("""{"error":"place not found"}""", invoke(JSONObject().put("location", "Atlantis")))
     }
 
     @Test fun daysAskForThatManyDaysOfForecastWithinOneToSeven() {
@@ -187,7 +187,7 @@ class WeatherTest {
         here = Here(overrideText = "Atlantis", overrideCoordinates = null, device = SEATTLE)
         http.onBody(GEOCODING, GEOCODING_NO_MATCH)
 
-        assertJson("""{"error":"place not found: Atlantis"}""", invoke())
+        assertJson("""{"error":"place not found"}""", invoke())
         assertEquals(emptyList<LookupRequest>(), http.requestsTo(FORECAST))
     }
 

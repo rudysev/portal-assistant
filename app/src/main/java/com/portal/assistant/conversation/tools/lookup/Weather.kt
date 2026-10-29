@@ -56,7 +56,7 @@ class Weather(
             val place = when (val where = named?.let { Where.Named(it) } ?: where(here())) {
                 null -> throw LookupFailed("location unknown")
                 is Where.Known -> where.place
-                is Where.Named -> search(where.name, deadline) ?: throw LookupFailed("place not found: ${where.name}")
+                is Where.Named -> search(where.name, deadline) ?: throw LookupFailed(PLACE_NOT_FOUND)
             }
             ToolOutput(forecast(place, args.optInt("days", 1).coerceIn(1, MAX_DAYS), deadline))
         } catch (e: LookupFailed) {
@@ -248,6 +248,8 @@ class Weather(
         /** The forecast goes at most a week ahead. */
         const val MAX_DAYS = 7
 
+        // Without the place's name: the error can reach debug.txt, and the override is text the user typed.
+        private const val PLACE_NOT_FOUND = "place not found"
         private const val UNAVAILABLE = "weather unavailable"
         private const val TIMED_OUT = "weather timed out"
         private const val FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
