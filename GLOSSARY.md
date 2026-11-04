@@ -46,8 +46,8 @@ The lookup some models offer natively (Gemini 2.5 today). A model with it gets n
 _Avoid_: Grounding, ground search
 
 **Web search**:
-Jarvis's own lookup for live information, in a conversation without Google Search (Gemini 3.8 or the local
-backend). Only with a Search key.
+Jarvis's own lookup for live information, in a conversation without Google Search (Gemini 3.8; the local
+backend gets no lookups). Only with a Search key.
 _Avoid_: Google Search (that's the model's own)
 
 **Search key**:

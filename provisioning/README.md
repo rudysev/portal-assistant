@@ -46,9 +46,9 @@ permissions, saves your key, and starts Jarvis warm in the background.
   (`.command` on macOS, `.bat` on Windows), or on the Portal in
   **Jarvis → Settings → API key**.
 - **Optional Search key.** After the Gemini key, the installer offers a free Search key
-  (from [tavily.com](https://app.tavily.com), no card). It lets Jarvis look up news,
-  scores, prices and opening hours on Gemini 3.8; weather works without it. Press Enter
-  to skip. `Set-Jarvis-Key` offers it too, or add it in **Jarvis → Settings → Search key**.
+  (from [tavily.com](https://app.tavily.com), no card). You can skip it by pressing Enter:
+  it's only used on Gemini 3.8, where it lets Jarvis look up news, scores, prices and
+  opening hours (weather works without it). `Set-Jarvis-Key` offers it too, or add it in **Jarvis → Settings → Search key**.
 - **Updating Jarvis?** If a key is already on the Portal, the installer **keeps it** and
   won't ask again — your conversations and key survive the update. Use `Set-Jarvis-Key`
   if you actually want to change it.

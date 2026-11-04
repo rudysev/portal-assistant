@@ -35,7 +35,7 @@ computer with USB‑C, and double‑click one installer:
 - **Windows:** `Install-Jarvis.bat`
 
 It downloads `adb` if needed, installs Jarvis, grants its permissions, **prompts you to paste your free
-Google Gemini API key** (create one at <https://aistudio.google.com/apikey>), and starts it. Full
+Google Gemini API key** (create one at <https://aistudio.google.com/apikey>), and starts it. It also offers an optional Search key, only used on Gemini 3.8: press Enter to skip it. Full
 step‑by‑step instructions — including how the API key works and how to change it later — are in
 [`provisioning/README.md`](provisioning/README.md).
 
@@ -90,7 +90,8 @@ key hide; the host owns the model.
 | **Open apps** | "Open Spotify", "Open the calendar", "Open the camera" |
 
 Answers that need current information (weather, news, scores, prices, hours) are web-grounded (Google
-Search on Gemini; whatever the host provides on Local). Device actions run on-device via function-calling.
+Search on Gemini 2.5; on Gemini 3.8, weather plus Web search with the optional Search key; whatever the host
+provides on Local). Device actions run on-device via function-calling.
 
 **Music plays on your app of choice.** Jarvis discovers the music apps installed on your Portal (Spotify,
 TIDAL, Apple Music…) — pick your favorite as the default in **Settings → Default music app**, and just say

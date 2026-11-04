@@ -160,8 +160,8 @@ private val GEMINI_KEY = UserKey(
 private val SEARCH_KEY = UserKey(
     copy = KeyCopy(
         title = "Search key",
-        intro = "Lets Jarvis look up news, scores, prices and opening hours on a model without Google Search. " +
-            "Optional — without it, Jarvis can still check the weather.",
+        intro = "Optional, and only used on Gemini 3.8, where it lets Jarvis look up news, scores, prices and " +
+            "opening hours. Without it, Jarvis can still check the weather.",
         whereToGet = "Get a free key (no card) at app.tavily.com.",
         checkedBy = "the search service",
     ),

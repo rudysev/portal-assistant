@@ -8,7 +8,7 @@
 #
 # Bring-your-own-key. Full setup checks whether a key is already on the device — if not, it walks you
 # through creating one at Google AI Studio and prompts you to paste it. It then offers an optional Search
-# key (a free Tavily key: Web search on a model without Google Search). (Pass a key non-interactively only
+# key (a free Tavily key, only used on Gemini 3.8; Enter skips it). (Pass a key non-interactively only
 # with --key-only / --tavily-key-only.) Each key is written to the app's files dir; the app imports it on
 # launch and deletes the file (no typing on the Portal). Change them later in Settings -> API key / Search key.
 #
@@ -123,7 +123,7 @@ $ADB shell "cmd notification allow_dnd $PKG" || true
 echo "3e/5  Provisioning the Gemini API key..."
 provision_key 0   # written BEFORE launch so MainActivity picks it up immediately
 
-echo "3f/5  Provisioning the Search key (optional)..."
+echo "3f/5  Provisioning the Search key (optional, only used on Gemini 3.8)..."
 provision_search_key 0   # likewise before launch
 
 echo "4/5  Launching once (clears the 'stopped' state so BOOT_COMPLETED is delivered after reboot)..."

@@ -8,7 +8,7 @@
 #
 # Jarvis is "bring your own key": each user supplies their own free Google Gemini key. Without one the
 # app installs and opens, but every conversation fails to connect. The Search key (a free Tavily key) is
-# optional: it gives Web search on a model without Google Search.
+# optional and only used on Gemini 3.8: it gives Web search on a model without Google Search.
 #
 # Contract with the app (com.portal.assistant):
 #   - the staged file the app imports-once on launch     → KEY_PROVISION_FILE  (ProvisionedKey.GEMINI_FILE)
@@ -174,8 +174,8 @@ verify_search_key_live() {
 prompt_for_search_key() {
   cat <<INSTR
 
-  Optional: a free Search key lets Jarvis look up news, scores, prices and opening hours
-  on a model without Google Search (Gemini 3.8). Without one it can still check the weather.
+  Optional, so you can skip it: a free Search key is only used on Gemini 3.8, where it lets
+  Jarvis look up news, scores, prices and opening hours. Without one it can still check the weather.
 
     1. Open:  https://app.tavily.com  and sign up (free, no card).
     2. Copy the API key shown on the overview page (starts with tvly-).
@@ -210,7 +210,7 @@ stage_search_key() {
 # device is kept. Always returns 0 (a skipped key must not fail a `set -e` caller).
 provision_search_key() {
   local force="${1:-0}"
-  step "Search key (optional)"
+  step "Search key (optional, only used on Gemini 3.8)"
   if [ -n "${SEARCH_KEY:-}" ]; then
     SEARCH_KEY="$(printf '%s' "$SEARCH_KEY" | tr -d '[:space:]')"
     valid_search_key_format "$SEARCH_KEY" || die "Provided Search key doesn't look valid (expected 20+ chars)."
