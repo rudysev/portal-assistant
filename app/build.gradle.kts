@@ -16,8 +16,8 @@ android {
     // Sideloaded onto Portal (no Play Store), so Play's target-API floor doesn't apply; 29 is deliberate.
     //noinspection ExpiredTargetSdkVersion
     targetSdk = 29 // Android 10 — Portal-era behavior
-    versionCode = 5
-    versionName = "2.3"
+    versionCode = 6
+    versionName = "2.4"
 
     // The Gemini API key is provided at runtime (setup.sh → api_key.txt → prefs, or Settings → API key),
     // not baked in. This blank fallback keeps BuildConfig.GEMINI_API_KEY available as a dev seam.
