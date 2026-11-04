@@ -22,7 +22,7 @@ class GeminiModelTest {
     }
 
     @Test fun settingsMarksOnlyGemini38AsAlpha() {
-        assertEquals(listOf("Gemini 2.5", "Gemini 3.8 (ALPHA)"), GeminiModel.AVAILABLE.map { it.settingsLabel })
+        assertEquals(listOf("Gemini 2.5", "Gemini 3.8 (Alpha)"), GeminiModel.AVAILABLE.map { it.settingsLabel })
     }
 
     @Test fun onlyGemini25OffersGoogleSearch() {
