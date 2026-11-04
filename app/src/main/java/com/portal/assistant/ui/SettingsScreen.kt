@@ -194,9 +194,9 @@ private fun BackendSections(subtle: Color, ioDispatcher: CoroutineDispatcher) {
             var model by remember { mutableStateOf(AppPrefs.modelId(context)) }
             SettingsDropdown(
                 label = "Model",
-                value = GeminiModel.of(model).name,
+                value = GeminiModel.of(model).settingsLabel,
                 options = GeminiModel.AVAILABLE,
-                optionLabel = { it.name },
+                optionLabel = { it.settingsLabel },
                 onSelect = { picked ->
                     model = picked.id
                     AppPrefs.setModelId(context, picked.id)

@@ -145,7 +145,7 @@ A **pure reducer + thin I/O shell** (the same pure-logic pattern as portal-wake'
 - `conversation/Markdown.kt` — pure, unit-tested markdown stripper (bold/italic, headings, bullet/numbered
   list markers, inline code, links), applied by `Transcript` to Jarvis's text (raw kept internally, full
   accumulation re-stripped each delta) so the spoken-answer transcript reads as plain prose, not raw markup.
-- `gemini/GeminiModel.kt` — the Model catalog: id, name, and whether it offers Google Search. Gemini 2.5
+- `gemini/GeminiModel.kt` — the Model catalog: id, name, whether it offers Google Search, and whether Settings marks it "(ALPHA)". Gemini 2.5
   (`gemini-2.5-flash-native-audio-latest`, the default) does; Gemini 3.8 (`gemini-3.8-live`) doesn't.
   The opening reads it via `Backends.offersGoogleSearch`; `GeminiBackend.wireFormat` follows
   `BackendConfig.googleSearch`.

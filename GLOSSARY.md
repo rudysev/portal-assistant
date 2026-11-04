@@ -30,8 +30,8 @@ No Speaker chosen — Gemini picks its own voice. Every install starts here, and
 _Avoid_: Default speaker, Puck (not known to be Gemini's default), none
 
 **Model**:
-The Gemini model a conversation runs on, chosen in Settings (Gemini 2.5 or Gemini 3.8), and called by
-that one name everywhere it's shown. Read when a
+The Gemini model a conversation runs on, chosen in Settings (Gemini 2.5, the default, or Gemini 3.8), and called by
+that name everywhere it's shown; Settings also marks Gemini 3.8 "(ALPHA)". Read when a
 conversation opens, so a change applies to the next one. Only exists for the Gemini voice backend.
 _Avoid_: Backend (that's Gemini vs local), engine, version
 
