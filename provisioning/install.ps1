@@ -11,7 +11,7 @@
 #   .\install.ps1 -Key             (re)enter the Gemini API key on an already-installed Jarvis (interactive),
 #                                  then offer the optional Search key too
 #   .\install.ps1 -Key -KeyValue K provide the key non-interactively (mirrors install.sh's `--key <K>`)
-#   .\install.ps1 -SearchKey       (re)enter only the optional Search key (Web search)
+#   .\install.ps1 -SearchKey       (re)enter only the optional Search key (Web search on Gemini 3.8)
 #   .\install.ps1 -SearchKey -SearchKeyValue K  provide it non-interactively (mirrors `--search-key <K>`)
 #   .\install.ps1 -Uninstall       remove Jarvis from the Portal
 #   .\install.ps1 -Status          show whether it's installed and which keys are set
@@ -271,7 +271,7 @@ function Provision-Key([bool]$force) {
 }
 
 # ----- Search key (optional) -------------------------------------------------
-# The user's own free Tavily key: Web search on a model without Google Search. Same import-once contract.
+# The user's own free Tavily key, only used on Gemini 3.8 (Web search). Same import-once contract.
 function Search-Key-Present {
   $staged = "$(A shell "[ -f $($cfg["EXTDIR"])/search_key.txt ] && echo yes")".Trim()
   if ($staged -eq "yes") { return $true }
@@ -299,8 +299,8 @@ function Verify-SearchKeyLive($k) {
 # Optional: instructions + a paste prompt; Enter skips. Returns the key ("" = skipped).
 function Prompt-ForSearchKey {
   Write-Host ""
-  Write-Host "  Optional: a free Search key lets Jarvis look up news, scores, prices and opening hours"
-  Write-Host "  on a model without Google Search (Gemini 3.8). Without one it can still check the weather."
+  Write-Host "  Optional, so you can skip it: a free Search key is only used on Gemini 3.8, where it lets"
+  Write-Host "  Jarvis look up news, scores, prices and opening hours. Without one it can still check the weather."
   Write-Host ""
   Write-Host "    1. Open:  https://app.tavily.com  and sign up (free, no card)."
   Write-Host "    2. Copy the API key shown on the overview page (starts with tvly-)."
@@ -318,7 +318,7 @@ function Prompt-ForSearchKey {
 # Like Provision-Key: force=$true always asks; otherwise a key already on the device is kept.
 # Returns $true when a key was staged now.
 function Provision-SearchKey([bool]$force) {
-  Step "Search key (optional)"
+  Step "Search key (optional, only used on Gemini 3.8)"
   $k = $SearchKeyValue
   if ($k) {
     $k = $k.Trim()
@@ -356,7 +356,7 @@ if ($Status) {
   $inst = (A shell pm list packages $cfg["PKG"]) -match "package:"
   Write-Host "  Jarvis: $(if ($inst) {'installed'} else {'not installed'})"
   Write-Host "  Gemini API key: $(if (Key-Present) {'set'} else {'NOT set - Jarvis cannot answer'})"
-  Write-Host "  Search key: $(if (Search-Key-Present) {'set'} else {'not set (optional: Web search)'})"
+  Write-Host "  Search key: $(if (Search-Key-Present) {'set'} else {'not set (optional: Web search on Gemini 3.8)'})"
   exit 0
 }
 

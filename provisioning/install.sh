@@ -12,7 +12,7 @@
 #   ./install.sh --local     install a locally built APK (the repo's debug build; pass a path to override)
 #   ./install.sh --key [KEY] (re)enter the Gemini API key on an already-installed Jarvis; with no KEY it
 #                            asks, then offers the optional Search key too
-#   ./install.sh --search-key [KEY]  (re)enter only the optional Search key (Web search)
+#   ./install.sh --search-key [KEY]  (re)enter only the optional Search key (Web search on Gemini 3.8)
 #   ./install.sh --uninstall remove Jarvis from the Portal
 #   ./install.sh --status    show whether it's installed and which keys are set
 
@@ -278,7 +278,7 @@ do_status() {
   step "Current state"
   printf "  Jarvis: %s\n" "$(a shell pm list packages "$PKG" 2>/dev/null | tr -d '\r' | grep -q . && echo installed || echo 'not installed')"
   printf "  Gemini API key: %s\n" "$(key_present_on_device && echo 'set' || echo 'NOT set — Jarvis cannot answer')"
-  printf "  Search key: %s\n" "$(search_key_present_on_device && echo 'set' || echo 'not set (optional: Web search)')"
+  printf "  Search key: %s\n" "$(search_key_present_on_device && echo 'set' || echo 'not set (optional: Web search on Gemini 3.8)')"
 }
 
 case "${1:-}" in
