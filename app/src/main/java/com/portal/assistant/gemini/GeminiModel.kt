@@ -13,7 +13,7 @@ object GeminiModel {
      */
     data class Model(val id: String, val name: String, val googleSearch: Boolean, val alpha: Boolean = false) {
         /** How Settings → Model lists it: its [name], marked when [alpha]. */
-        val settingsLabel: String get() = if (alpha) "$name (ALPHA)" else name
+        val settingsLabel: String get() = if (alpha) "$name (Alpha)" else name
     }
 
     /** The Model every install starts on, and the fallback for a saved id no longer offered. */
