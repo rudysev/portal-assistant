@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pins the Model catalog: what Settings offers, each Model's name, and which ones offer Google Search. */
+/** Pins the Model catalog: what Settings offers and its labels, each Model's name, and which offer Google Search. */
 class GeminiModelTest {
 
     @Test fun catalogOffersGemini25AsTheDefaultAndGemini38() {
@@ -19,6 +19,10 @@ class GeminiModelTest {
 
     @Test fun eachModelIsShownByItsName() {
         assertEquals(listOf("Gemini 2.5", "Gemini 3.8"), GeminiModel.AVAILABLE.map { it.name })
+    }
+
+    @Test fun settingsMarksOnlyGemini38AsAlpha() {
+        assertEquals(listOf("Gemini 2.5", "Gemini 3.8 (ALPHA)"), GeminiModel.AVAILABLE.map { it.settingsLabel })
     }
 
     @Test fun onlyGemini25OffersGoogleSearch() {

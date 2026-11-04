@@ -29,7 +29,7 @@
   process-wide `conversation/tools/TimerStore`; ✕ to cancel). **Failures** (offline / couldn't-connect /
   connection-lost / missing key / mic-permission denied) surface as a dismissible `NoticeBanner` via
   `ConversationHub.notice` (+ `system/NetworkStatus` to tell "offline" from a service error). **Settings**
-  (`ui/SettingsScreen`): model picker (the `gemini/GeminiModel` catalog, listed by name), voice picker (Gemini
+  (`ui/SettingsScreen`): model picker (the `gemini/GeminiModel` catalog, listed by `settingsLabel`: the name, marked "(ALPHA)" for a Model not yet mature), voice picker (Gemini
   only — the Chosen speaker from the `gemini/GeminiSpeaker` catalog, or Server default; `AppPrefs.speakerId` → `BackendConfig.speaker` →
   `GeminiWireFormat.setup`'s `speechConfig`, omitted for Server default; tapping a dialog row also **previews**
   it — `gemini/SpeakerPreview` (pure, unit-tested reducer + the preview's session config, built by `GeminiBackend.Factory` like a conversation's) driven by the thin
