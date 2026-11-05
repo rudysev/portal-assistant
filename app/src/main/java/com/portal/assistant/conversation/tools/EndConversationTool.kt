@@ -11,9 +11,11 @@ object EndConversationTool : Tool {
 
     override val name = "portal.end_conversation"
 
+    // No sign-off in the description: told to "then give one brief sign-off", Gemini 2.5 often just said goodbye and
+    // never called this, so the conversation didn't end. Only the result below asks for one.
     override val declaration: JSONObject = JSONObject(
         """{"name":"portal.end_conversation",
-           "description":"End the conversation. Call it only when the user clearly asks to end or dismiss it ('goodbye', 'bye', 'that's all', 'we're done', 'stop listening', 'never mind'), then give one brief sign-off; never for thanks or acknowledgements alone ('thanks', 'ok', 'perfect').",
+           "description":"End the conversation. Call it only when the user clearly asks to end or dismiss it ('goodbye', 'bye', 'that's all', 'we're done', 'stop listening', 'never mind'); never for thanks or acknowledgements alone ('thanks', 'ok', 'perfect').",
            "parameters":{"type":"OBJECT","properties":{},"required":[]}}""",
     )
 

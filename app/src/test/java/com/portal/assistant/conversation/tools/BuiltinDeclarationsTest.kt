@@ -77,8 +77,10 @@ class BuiltinDeclarationsTest {
         }
     }
 
-    @Test fun endConversationAsksForOneBriefSignOff() {
-        assertTrue(EndConversationTool.declaration.description().contains("then give one brief sign-off"))
+    @Test fun endConversationLeavesTheSignOffToItsResult() {
+        assertFalse(EndConversationTool.declaration.description().contains("sign-off"))
+        val instruction = EndConversationTool.invoke(JSONObject()).finalTurnInstruction.orEmpty()
+        assertTrue(instruction.contains("sign-off"))
     }
 
     @Test fun getTimeIsTheTimeNowAndDeviceContextsIsFromTheStart() {
